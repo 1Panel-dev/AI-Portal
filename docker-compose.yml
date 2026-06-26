@@ -47,8 +47,8 @@ services:
       DB_USER: ${DB_USER:-root}
       DB_PASSWORD: ${DB_PASSWORD:-Password123@aiportal}
 
-      # ===== 默认管理员（默认密码 admin123） =====
-      INIT_ADMIN_PASSWORD: ${INIT_ADMIN_PASSWORD:-admin123}
+      # ===== 默认管理员（默认密码 admintest） =====
+      INIT_ADMIN_PASSWORD: ${INIT_ADMIN_PASSWORD:-admintest}
 
       # ===== 可选：1Panel 网关 =====
       PANEL_BASE_URL: ${PANEL_BASE_URL:-}
