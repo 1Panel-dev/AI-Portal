@@ -7,7 +7,7 @@
 #   在 .env 中配置 DB_HOST、DB_PASSWORD 等覆盖默认值
 #
 # 停止: docker-compose down
-# 清空数据: rm -rf data/pg_data
+# 清空数据: rm -rf data/postgresql
 
 services:
   db:
@@ -21,7 +21,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ./data/pg_data:/var/lib/postgresql/data
+      - ./data/postgresql:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-root} -d ${DB_NAME:-ai_portal}"]
       interval: 5s
@@ -62,13 +62,10 @@ services:
       # ===== 存储后端（默认本地存储） =====
       STORAGE_TYPE: ${STORAGE_TYPE:-local}
     volumes:
-      - skills_uploads:/app/data/uploads
+      - ./data/skills_uploads:/app/data/uploads
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1)).on('error', () => process.exit(1))"]
       interval: 30s
       timeout: 5s
       start_period: 30s
       retries: 3
-
-volumes:
-  skills_uploads:
