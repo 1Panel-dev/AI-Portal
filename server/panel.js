@@ -44,11 +44,24 @@ async function findPanelUser(username) {
   }
 
   const items = getPanelItems(response.data);
-  const found = items.find(item => String(item.name || '').toLowerCase() === username) || null;
-  if (!found && items.length > 0) {
-    console.log(`[findPanelUser] 搜索到 ${items.length} 个用户,但 name 不匹配 "${username}"。返回条目:`, items.map(i => ({ id: i.id, name: i.name })));
+  // 1Panel users/search 的 info 参数是模糊搜索，可能返回多个
+  // 优先精确匹配 name，再按 id 降序取最新创建的
+  const lower = username.toLowerCase();
+  const exact = items.filter(item => String(item.name || '').toLowerCase() === lower);
+  if (exact.length > 0) {
+    // 取 id 最大的（最新创建）
+    return exact.sort((a, b) => (b.id || 0) - (a.id || 0))[0];
   }
-  return found;
+  // 精确匹配失败时，尝试按 displayName 或 username 匹配
+  const fuzzy = items.find(item =>
+    String(item.name || '').toLowerCase() === lower ||
+    String(item.displayName || '').toLowerCase() === lower ||
+    String(item.username || '').toLowerCase() === lower
+  );
+  if (!fuzzy && items.length > 0) {
+    console.log(`[findPanelUser] 搜索到 ${items.length} 个用户,但均不匹配 "${username}"。样本:`, items.slice(0, 3).map(i => ({ id: i.id, name: i.name, displayName: i.displayName, username: i.username })));
+  }
+  return fuzzy || null;
 }
 
 async function getPanelUserRoleId() {
