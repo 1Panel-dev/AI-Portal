@@ -28,7 +28,7 @@ services:
       retries: 10
 
   app:
-    image: swr.cn-north-4.myhuaweicloud.com/maxkb/ai-portal:${IMAGE_TAG:-latest-amd64}
+    image: swr.cn-north-4.myhuaweicloud.com/maxkb/ai-portal:latest-amd64
     container_name: ai-portal-app
     restart: unless-stopped
     ports:
