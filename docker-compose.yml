@@ -11,7 +11,7 @@
 
 services:
   db:
-    image: swr.cn-north-4.myhuaweicloud.com/maxkb/postgres:16-alpine
+    image: swr.cn-north-4.myhuaweicloud.com/maxkb/postgres:17-alpine
     container_name: ai-portal-db
     restart: unless-stopped
     environment:
