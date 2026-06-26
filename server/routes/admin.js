@@ -1170,37 +1170,56 @@ router.post('/api/admin/portal-users/sync', verifyAdmin, async (req, res) => {
 
     const panelUsers = getPanelItems(response.data);
 
-    // 2. 查询本地已有用户名
+    // 2. 查询所有本地用户（含没有 panel_user_id 的 OAuth 用户）
     const localUsers = await global.pool.query(
-      'SELECT username, panel_user_id FROM portal_users WHERE panel_user_id IS NOT NULL'
+      'SELECT id, username, panel_user_id FROM portal_users'
     );
-    const localUsernames = new Set(localUsers.rows.map(r => r.username.toLowerCase()));
-    const localPanelIds = new Set(localUsers.rows.map(r => r.panel_user_id));
+    const localByUsername = new Map();
+    const localPanelIds = new Set();
+    for (const row of localUsers.rows) {
+      localByUsername.set(row.username.toLowerCase(), row);
+      if (row.panel_user_id) localPanelIds.add(row.panel_user_id);
+    }
 
-    // 3. 过滤出本地不存在的
-    const newUsers = panelUsers.filter(u => {
-      const name = String(u.name || '').toLowerCase();
-      return !localUsernames.has(name) && !localPanelIds.has(u.id);
-    });
-
-    const DEFAULT_PWD = process.env.SYNC_USER_DEFAULT_PASSWORD || '';
-    const passwordHash = await bcrypt.hash(DEFAULT_PWD, 12);
+    // 3. 遍历 1Panel 用户，补全或新增
     let synced = 0;
+    let bound = 0;
 
-    for (const user of newUsers) {
-      try {
-        await global.pool.query(`
-          INSERT INTO portal_users (panel_user_id, username, name, password_hash, role, status, created_at)
-          VALUES ($1, $2, $3, $4, 'user', 'active', CURRENT_TIMESTAMP)
-          ON CONFLICT (username) DO NOTHING
-        `, [user.id, String(user.name || '').toLowerCase(), user.name, passwordHash]);
-        synced++;
-      } catch (e) {
-        console.error(`同步用户 ${user.name} 失败:`, e.message);
+    for (const pu of panelUsers) {
+      const nameLower = String(pu.name || '').toLowerCase();
+      const local = localByUsername.get(nameLower);
+
+      if (local) {
+        // 本地已有同名用户但缺少 panel_user_id → 补全绑定
+        if (!local.panel_user_id && pu.id) {
+          await global.pool.query(
+            'UPDATE portal_users SET panel_user_id = $1 WHERE id = $2',
+            [pu.id, local.id]
+          );
+          localByUsername.set(nameLower, { ...local, panel_user_id: pu.id });
+          bound++;
+        }
+        continue;
+      }
+
+      // 确实是新用户 → 插入
+      if (!localPanelIds.has(pu.id)) {
+        const DEFAULT_PWD = process.env.SYNC_USER_DEFAULT_PASSWORD || '';
+        const passwordHash = await bcrypt.hash(DEFAULT_PWD, 12);
+        try {
+          await global.pool.query(`
+            INSERT INTO portal_users (panel_user_id, username, name, password_hash, role, status, created_at)
+            VALUES ($1, $2, $3, $4, 'user', 'active', CURRENT_TIMESTAMP)
+            ON CONFLICT (username) DO NOTHING
+          `, [pu.id, nameLower, pu.name, passwordHash]);
+          synced++;
+        } catch (e) {
+          console.error(`同步用户 ${pu.name} 失败:`, e.message);
+        }
       }
     }
 
-    res.json({ success: true, synced, total: newUsers.length, message: `同步完成，新增 ${synced} 个用户` });
+    res.json({ success: true, synced, bound, message: `同步完成，新增 ${synced} 个，补全绑定 ${bound} 个` });
   } catch (err) {
     console.error('同步用户失败:', err);
     res.status(500).json({ error: '同步用户失败: ' + err.message });
