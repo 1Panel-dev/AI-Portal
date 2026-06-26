@@ -379,11 +379,15 @@ router.post('/api/auth/oauth/bind/skip', express.json(), async (req, res) => {
         sessionTimeout = panelUser.sessionTimeout || 86400;
       } else {
         try {
-          await createPanelUser({ username, password: randomPassword, name: displayName });
-          const created = await findPanelUser(username);
-          if (created) {
-            panelUserId = created.id;
-            sessionTimeout = created.sessionTimeout || 86400;
+          const result = await createPanelUser({ username, password: randomPassword, name: displayName });
+          // createPanelUser 可能返回 data:null，此时翻全页 search 兜底
+          panelUserId = result.id || null;
+          if (!panelUserId) {
+            const created = await findPanelUser(username);
+            if (created) panelUserId = created.id;
+          }
+          if (panelUserId) {
+            sessionTimeout = 86400;
           }
         } catch (e) {
           console.error('[oauth/bind/skip] 1Panel 创建用户失败,仍创建本地:', e.message);
