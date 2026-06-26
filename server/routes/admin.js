@@ -897,7 +897,7 @@ router.post('/api/admin/panel-config/test', verifyAdmin, async (req, res) => {
     // 用 panel.post 但临时覆盖 baseUrl/apiKey
     const response = await panel.post(
       '/api/v2/core/enterprise/ai-proxy/backends/search',
-      { info: '' },
+      { page: 1, pageSize: 10, info: '' },
       { baseUrl, apiKey: realKey, timeout: timeout || 10000 }
     );
     if (response.status >= 200 && response.status < 300) {

@@ -92,23 +92,37 @@ async function createPanelUser({ username, password, name }) {
 }
 
 async function syncModelsFromPanel() {
-  const response = await panel.post('/api/v2/core/enterprise/ai-proxy/backends/search', { info: '' });
-  if (response.status < 200 || response.status >= 300) {
-    throw new Error(`1Panel 模型同步失败: HTTP ${response.status}`);
-  }
+  const PAGE_SIZE = 100;
+  const allBackends = [];
 
-  // 关键：1Panel 习惯返回 HTTP 200 + body.code 表示业务状态
-  // 1Panel 不同版本/路由的"成功"码不统一,实测过的有 0 / 200,失败码常见 401/403/500
-  // 因此采用「黑名单」语义:HTTP 已成功,只要 body.code 不是 HTTP 错误码段(>=400) 就视为业务成功
-  if (response.data && typeof response.data === 'object') {
-    const code = Number(response.data.code);
-    const msg = response.data.message || response.data.msg;
-    if (Number.isFinite(code) && code >= 400) {
-      throw new Error(`1Panel 业务错误 code=${code}: ${msg || '(无 message)'}`);
+  // 1Panel 新版要求 page/pageSize 必填，翻全量
+  let page = 1;
+  while (true) {
+    const response = await panel.post('/api/v2/core/enterprise/ai-proxy/backends/search', {
+      page, pageSize: PAGE_SIZE, info: '',
+    });
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`1Panel 模型同步失败: HTTP ${response.status}`);
     }
+
+    // 关键：1Panel 习惯返回 HTTP 200 + body.code 表示业务状态
+    // 1Panel 不同版本/路由的"成功"码不统一,实测过的有 0 / 200,失败码常见 401/403/500
+    // 因此采用「黑名单」语义:HTTP 已成功,只要 body.code 不是 HTTP 错误码段(>=400) 就视为业务成功
+    if (response.data && typeof response.data === 'object') {
+      const code = Number(response.data.code);
+      const msg = response.data.message || response.data.msg;
+      if (Number.isFinite(code) && code >= 400) {
+        throw new Error(`1Panel 业务错误 code=${code}: ${msg || '(无 message)'}`);
+      }
+    }
+
+    const items = getPanelItems(response.data);
+    allBackends.push(...items);
+    if (items.length < PAGE_SIZE) break;
+    page++;
   }
 
-  const backends = getPanelItems(response.data);
+  const backends = allBackends;
 
   // 空响应 ≠ 真的没有 backends:再加一道防线,避免「鉴权通过但临时返回空」也触发软删
   // 仅当确实拿到 backends(>0) 时才执行 UPSERT + 软删;否则直接返回 0 不动 DB
