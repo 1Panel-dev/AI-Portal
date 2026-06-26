@@ -147,3 +147,6 @@ vite.config.ts.timestamp-*
 .superpowers/
 docs/superpowers/
 .omc/
+
+# CLI tool (built separately)
+cli/

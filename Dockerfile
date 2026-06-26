@@ -33,7 +33,6 @@ RUN apk add --no-cache tini
 
 COPY --from=backend-deps /app/node_modules ./node_modules
 COPY server/ ./
-COPY cli/ ./cli/
 COPY --from=frontend-builder /app/portal/dist ./dist
 
 RUN mkdir -p /app/data/uploads/skills /app/data/uploads/branding
