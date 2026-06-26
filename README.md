@@ -74,7 +74,7 @@ AI-Portal/
 | 服务 | 账号 | 默认密码 | 配置方式 |
 |------|------|---------|---------|
 | 管理后台 | admin | `admintest` | 编辑 `.env` 中 `INIT_ADMIN_PASSWORD` |
-| PostgreSQL | root | `Password123@aiportal` | 编辑 `.env` 中 `DB_PASSWORD` |
+| PostgreSQL | aiportal | `Password123@aiportal` | 编辑 `.env` 中 `DB_PASSWORD` |
 | JWT 签名 | - | `change-me-in-production` | 编辑 `.env` 中 `JWT_SECRET` |
 
 ## License
