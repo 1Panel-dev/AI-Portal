@@ -37,8 +37,8 @@ services:
       db:
         condition: service_healthy
     environment:
-      # ===== 安全 =====
-      JWT_SECRET: ${JWT_SECRET:?请在 .env 配置 JWT_SECRET（建议 32 位以上随机字符串）}
+      # ===== 安全（建议修改默认值） =====
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
 
       # ===== 数据库（默认连内置 PostgreSQL） =====
       DB_HOST: ${DB_HOST:-db}
