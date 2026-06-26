@@ -435,6 +435,17 @@ router.post('/api/keys', verifyUser, async (req, res) => {
         const panelUser = await findPanelUser(req.portalUser.username);
         if (panelUser) {
           panelUserId = panelUser.id;
+        } else {
+          // 1Panel 也不存在，尝试创建
+          const created = await createPanelUser({
+            username: req.portalUser.username,
+            password: crypto.randomBytes(16).toString('base64').slice(0, 32),
+            name: req.portalUser.name || req.portalUser.username,
+          });
+          const found = await findPanelUser(req.portalUser.username);
+          if (found) panelUserId = found.id;
+        }
+        if (panelUserId) {
           await global.pool.query(
             'UPDATE portal_users SET panel_user_id = $1 WHERE id = $2',
             [panelUserId, req.portalUser.id]
