@@ -14,15 +14,15 @@ services:
     container_name: ai-portal-db
     restart: unless-stopped
     environment:
+      POSTGRES_USER: ${DB_USER:-root}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-Password123@aiportal}
       POSTGRES_DB: ${DB_NAME:-ai_portal}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-ai_portal}
     ports:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-ai_portal}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-root} -d ${DB_NAME:-ai_portal}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -44,8 +44,8 @@ services:
       DB_HOST: ${DB_HOST:-db}
       DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${DB_NAME:-ai_portal}
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-ai_portal}
+      DB_USER: ${DB_USER:-root}
+      DB_PASSWORD: ${DB_PASSWORD:-Password123@aiportal}
 
       # ===== 默认管理员 =====
       INIT_ADMIN_PASSWORD: ${INIT_ADMIN_PASSWORD:-}
