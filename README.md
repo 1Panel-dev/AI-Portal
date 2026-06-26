@@ -1,46 +1,23 @@
 # AI-Portal
 
-面向 1Panel 生态的 AI 门户与技能市场平台，提供模型广场、API Key 管理、用户中心、Skill 市场和技能提交审核能力。
-
-## 当前能力
-
-- **模型广场**：默认首页，展示 1Panel AI 网关模型、供应商分组、Base URL 和调用示例。
-- **用户体系**：支持普通用户登录、注册、个人中心，并可同步 1Panel 企业版用户。
-- **API Key 管理**：用户可查看、复制、重置自己的 API Key（前端 → `/api/keys` 接口）；本地缺失时自动从远端补齐。
-- **Skill 市场**：浏览、搜索、分类筛选 Skill 和 Skill Package。
-- **技能提交**：登录用户可提交技能包，系统记录提交人，管理员审核后上线。
-- **我的技能**：用户可在个人中心查看自己提交的技能。
-- **管理后台**：支持提交审核、技能管理、用户管理、系统配置、OAuth 配置。
-- **OAuth 登录**：支持企业微信等第三方登录（可插拔适配器架构）。
-- **远端集成**：用户/模型/技能与 1Panel 企业版 AI 网关双向同步。
-- **CLI 安装**：配套 `f2chub` / `f2c` 命令用于安装 Skill。
-
-## 技术栈
-
-- 前端：Vue 3 + Vite + Tailwind CSS
-- 路由：Vue Router 4
-- 后端：Express + PostgreSQL
-- 认证：JWT + bcrypt
-- 存储：本地磁盘 / 腾讯云 COS（可热切换）
-- 部署：Docker 多阶段构建 / Docker Compose
+面向 1Panel 生态的 AI 门户与技能市场平台。
 
 ## 快速开始
 
-### 环境要求
+### Docker
 
-- Node.js 18+
-- PostgreSQL 16+
-- Docker 24+ 和 Docker Compose（生产或容器化部署）
+```bash
+git clone https://github.com/1Panel-dev/AI-Portal.git
+cp .env.example .env
+# 编辑 .env，配置数据库、JWT 密钥等
+docker-compose up -d
+```
+
+访问 `http://localhost:18090`
 
 ### 本地开发
 
 ```bash
-git clone https://github.com/1Panel-dev/AI-Portal.git
-cd AI-Portal
-
-cp .env.example .env
-# 编辑 .env，配置数据库、JWT_SECRET、INIT_ADMIN_PASSWORD、1Panel 远端接口等变量
-
 cd portal && npm install && cd ..
 cd server && npm install && cd ..
 
@@ -51,179 +28,42 @@ cd server && npm run dev
 cd portal && npm run dev
 ```
 
-访问地址：`http://localhost:5173`
+前端 `http://localhost:5173`，后端 `http://localhost:3002`，管理后台 `http://localhost:5173/admin`
 
-后端默认端口：`http://localhost:3002`
+> 后端首次启动会自动创建数据库并执行所有迁移。
 
-管理员后台：`http://localhost:5173/admin`
+## 功能
 
-### Docker 部署
-
-```bash
-cp .env.example .env
-# 编辑 .env 配置
-docker-compose up -d
-```
-
-默认访问：`http://localhost:18090`
-
-## 常用命令
-
-```bash
-cd portal
-npm run dev          # 启动前端开发服务器
-npm run build        # 构建前端生产产物
-
-cd ../server
-npm run dev          # 启动后端开发服务
-npm start            # 启动后端服务
-```
-
-后端启动时会自动执行 `server/migrations` 下未运行过的 SQL 迁移。
+- **模型广场** — 展示 1Panel AI 网关模型，按供应商分组，一键复制模型名
+- **API Key 管理** — 申请、查看、重置、删除，与 1Panel 网关实时同步
+- **技能市场** — 浏览、搜索、安装 AI 技能（Skill），配套 CLI 工具 `f2chub`
+- **技能提交** — 用户上传技能包，管理员审核上线
+- **管理后台** — 审核技能、管理用户、配置 OAuth 和 1Panel 网关
+- **OAuth 登录** — 支持企业微信等第三方登录（可插拔适配器）
+- **远端同步** — 模型列表和技能从 1Panel 定时同步
 
 ## 项目结构
 
-```text
+```
 AI-Portal/
-├── portal/                        # 前端 (Vue 3 + Vite)
-│   ├── src/
-│   │   ├── components/            # 通用 Vue 组件
-│   │   ├── composables/           # 前端状态与数据加载
-│   │   ├── views/                 # 页面视图（18 个页面）
-│   │   ├── data/                  # 静态数据（分类映射等）
-│   │   ├── lib/                   # 前端工具函数
-│   │   ├── docs/                  # 帮助文档（Markdown）
-│   │   ├── main.js                # 路由与入口
-│   │   └── style.css              # 全局样式
-│   ├── index.html
-│   └── vite.config.js
-├── server/                        # 后端 API (Express, CommonJS)
-│   ├── index.js                   # 服务启动入口
-│   ├── app.js                     # Express 应用与中间件
-│   ├── auth.js                    # JWT、认证中间件、限流
-│   ├── db.js                      # 数据库连接与迁移初始化
-│   ├── panel.js                   # 1Panel 远端接口高层封装
-│   ├── routes/                    # 后端路由模块
-│   │   ├── admin.js               # 管理后台 API
-│   │   ├── marketplace.js         # Skill 市场 API
-│   │   ├── portal.js              # 用户、模型、API Key API
-│   │   └── oauth.js               # 第三方登录回调
-│   ├── oauth/                     # OAuth 适配器（企业微信等）
-│   ├── migrations/                # 数据库迁移 SQL（19 个）
-│   └── lib/                       # 后端基础库
-│       ├── 1panel-api.js          # 1Panel HTTP 客户端
-│       ├── storage.js             # 文件存储抽象（local / COS）
-│       ├── migrator.js            # SQL 迁移执行器
-│       ├── modelSync.js           # 模型同步调度器
-│       ├── skillsSync.js          # 技能同步调度器
-│       ├── downloadCounter.js     # 下载量缓冲计数器
-│       └── state-store.js         # OAuth state 存储
-├── cli/                           # Skill 安装 CLI（f2chub / f2c）
-├── skills/                        # 单个 Skill 示例与资源
-├── skills-packages/               # Skill Package 示例与资源
-├── docs/                          # 项目文档（含 1Panel 踩坑记录）
-├── Dockerfile                     # 前后端一体镜像构建
-├── docker-compose.yml             # Docker 编排
-├── .env.example                   # 环境变量示例
-├── LICENSE                        # GPLv3
-└── README.md
+├── portal/      前端 (Vue 3 + Vite)
+├── server/      后端 (Express + PostgreSQL, CommonJS)
+├── cli/         f2chub 安装工具
+├── docs/        踩坑文档
+├── Dockerfile
+└── docker-compose.yml
 ```
 
-## 路由
+## 配置
 
-| 路径 | 说明 |
-|------|------|
-| `/` | 模型广场首页 |
-| `/models` | 重定向到 `/` |
-| `/skills` | Skill 市场 |
-| `/skill/:slug` | Skill 详情 |
-| `/submit` | 提交技能，需普通用户登录 |
-| `/my-skills` | 我的技能，需普通用户登录 |
-| `/profile` | 个人中心 / API Key / 身份绑定，需普通用户登录 |
-| `/docs` | 帮助文档 |
-| `/login` | 普通用户登录 |
-| `/register` | 普通用户注册 |
-| `/oauth/complete` | OAuth 登录成功回调 |
-| `/oauth/error` | OAuth 登录失败回调 |
-| `/oauth/bind` | OAuth 首次绑定/创建账号 |
-| `/admin/login` | 管理员登录 |
-| `/admin` | 审核管理，需管理员登录 |
-| `/admin/skills` | 技能管理，需管理员登录 |
-| `/admin/users` | 用户管理，需管理员登录 |
-| `/admin/config` | 系统配置，需管理员登录 |
-| `/admin/oauth` | 三方登录配置，需管理员登录 |
-
-## 主要 API
-
-| 端点 | 方法 | 说明 |
-|------|------|------|
-| `/api/health` | GET | 健康检查 |
-| `/api/auth/register` | POST | 普通用户注册 |
-| `/api/auth/login` | POST | 普通用户/管理员登录（按 role 区分 token） |
-| `/api/auth/me` | GET | 当前登录用户信息（需登录） |
-| `/api/auth/password` | PUT | 修改当前用户密码（需登录） |
-| `/api/auth/password/set` | POST | 首次设置密码（OAuth 自动建账号后使用） |
-| `/api/auth/identities` | GET/DELETE | 已绑定的三方身份列表/解绑 |
-| `/api/auth/oauth/providers` | GET | 已启用的 OAuth 提供商列表 |
-| `/api/auth/oauth/:provider/url` | GET | 获取 OAuth 授权链接 |
-| `/api/auth/oauth/:provider/callback` | GET | OAuth 回调入口 |
-| `/api/auth/oauth/complete` | POST | ticket 换 token |
-| `/api/auth/oauth/bind/login` | POST | 绑定到已有账号 |
-| `/api/auth/oauth/bind/skip` | POST | 自动创建新账号 |
-| `/api/models` | GET | 模型列表（含 1Panel 网关同步的模型） |
-| `/api/models/sync` | POST | 立即同步 1Panel 模型（管理员） |
-| `/api/models/example` | GET | 模型调用示例配置 |
-| `/api/keys` | GET / POST | 当前用户 API Key 查询 / 申请 |
-| `/api/keys/:id` | GET | 揭示完整 Key（reveal-first） |
-| `/api/keys/reset` | POST | 重置当前用户 API Key |
-| `/api/site/branding` | GET | 站点品牌（站点名/logo/favicon） |
-| `/api/site/announcement` | GET | 公告横幅 + 首次访问弹窗 |
-| `/api/skills` | GET | 技能列表（分页/搜索/分类/来源过滤） |
-| `/api/skills/:slug` | GET | 技能详情 |
-| `/api/skills/:slug/manifest` | GET | 技能 manifest（CLI 用） |
-| `/api/skills/:slug/download` | GET | 下载技能包 |
-| `/api/skills/:slug/versions` | GET | 技能版本历史 |
-| `/api/skills/upload` | POST | 提交技能包（需普通用户登录） |
-| `/api/my/skills` | GET | 当前用户提交的技能 |
-| `/api/stats` | GET | 全局统计（技能数/下载量/开发者数） |
-| `/api/categories` | GET | 分类列表 |
-
-> 完整路由清单见 `server/routes/{portal,marketplace,admin,oauth}.js`。1Panel 业务码（HTTP 200 + body.code≥400）的处理约定见 `docs/1panel-api-gotchas.md`。
-
-## 安全配置
-
-### 必需环境变量
+参考 `.env.example`，核心变量：
 
 | 变量 | 说明 |
 |------|------|
-| `JWT_SECRET` | JWT 签名密钥，未配置服务无法启动 |
-| `INIT_ADMIN_PASSWORD` | 管理员初始密码（留空则不自动建管理员；部署后必须立即登录改密） |
-| `DB_PASSWORD` | 数据库密码 |
-
-### 可选环境变量
-
-| 变量 | 说明 |
-|------|------|
-| `DB_HOST` / `DB_PORT` / `DB_NAME` | 数据库连接（默认 `localhost:5432/ai_portal`） |
-| `PANEL_BASE_URL` / `PANEL_API_KEY` / `PANEL_API_TIMEOUT` | 1Panel 网关配置；DB 中 `system_config.panel_*` 覆盖此处 |
-| `BASE_PATH` | 反向代理前缀（如 `/portal/`），改后必须重启容器 |
-| `SYNC_USER_DEFAULT_PASSWORD` | 从 1Panel 同步用户时的默认密码兜底 |
-
-## 反向代理（BASE_PATH）
-
-容器固定在 18090 端口对外暴露，但很多场景需要把它挂到 nginx 的子路径下：
-
-```nginx
-location /portal/ {
-    proxy_pass http://127.0.0.1:18090/;
-    proxy_set_header Host              $host;
-    proxy_set_header X-Real-IP         $remote_addr;
-    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-}
-```
-
-同时在 `.env` 里设置 `BASE_PATH=/portal/`，改完必须重启容器才生效。
+| `JWT_SECRET` | 必填，JWT 签名密钥 |
+| `DB_*` | PostgreSQL 连接信息 |
+| `INIT_ADMIN_PASSWORD` | 首次启动创建 admin 账号 |
+| `PANEL_*` | 1Panel 网关配置（也可在管理后台配置） |
 
 ## License
 
