@@ -3,8 +3,8 @@ const { Pool } = require('pg');
 const DB_HOST = process.env.DB_HOST || 'localhost';
 const DB_PORT = process.env.DB_PORT || 5432;
 const DB_NAME = process.env.DB_NAME || 'ai_portal';
-const DB_USER = process.env.DB_USER || 'postgres';
-const DB_PASSWORD = process.env.DB_PASSWORD || '';
+const DB_USER = process.env.DB_USER || 'root';
+const DB_PASSWORD = process.env.DB_PASSWORD || 'Password123@aiportal';
 // 数据库 SSL 已弃用：连接需要 TLS 时请在 PG/网关侧处理（如使用 pgbouncer / 1Panel 内网）
 const DB_SSL = false;
 
