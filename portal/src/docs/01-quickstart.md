@@ -1,0 +1,28 @@
+---
+id: quickstart
+label: 快速开始
+order: 1
+description: AI-Portal 是一个 AI 门户与技能市场，帮你发现 AI 模型、获取 API Key、浏览和分享 AI 技能。
+---
+
+# 快速开始
+
+## 1. 注册账号
+
+点击右上角「登录」→「注册账号」，填写用户名和密码即可完成注册。
+
+![登录/注册入口在导航栏右上角](/docs/img/quickstart-register-entry.png)
+
+## 2. 申请 API Key
+
+登录后进入「个人中心」→「API Key 管理」创建 Key，用于调用 AI 模型。
+
+![用户下拉菜单中的「个人中心」与「API Key 管理」入口](/docs/img/quickstart-user-menu.png)
+
+## 3. 调用模型
+
+在「模型广场」复制模型名称和 Base URL，配合 API Key 即可调用。
+
+## 4. 探索 Skill 市场
+
+浏览社区贡献的 AI 技能，也可以提交自己的技能分享给其他人。

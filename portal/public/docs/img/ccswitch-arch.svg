@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 520" width="680" height="520">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5"
+      markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke"
+        stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- 左侧：客户端工具层 -->
+  <rect x="40" y="40" width="140" height="28" rx="6" fill="#E6F1FB" stroke="#185FA5" stroke-width="1"/>
+  <text x="110" y="58" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold" fill="#1a1a1a">客户端工具层</text>
+
+  <!-- Claude Code 节点 -->
+  <rect x="50" y="90" width="120" height="56" rx="8" fill="#E6F1FB" stroke="#378ADD" stroke-width="1"/>
+  <text x="110" y="115" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold" fill="#1a1a1a">Claude Code</text>
+  <text x="110" y="135" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#555">POST /v1/messages</text>
+
+  <!-- Codex CLI 节点 -->
+  <rect x="50" y="170" width="120" height="56" rx="8" fill="#E6F1FB" stroke="#378ADD" stroke-width="1"/>
+  <text x="110" y="195" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold" fill="#1a1a1a">Codex CLI</text>
+  <text x="110" y="215" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#555">OpenAI Responses</text>
+
+  <!-- Gemini CLI 节点 -->
+  <rect x="50" y="250" width="120" height="56" rx="8" fill="#E6F1FB" stroke="#378ADD" stroke-width="1"/>
+  <text x="110" y="275" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold" fill="#1a1a1a">Gemini CLI</text>
+  <text x="110" y="295" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#555">Gemini Protocol</text>
+
+  <!-- 中间：CC Switch 核心 -->
+  <rect x="240" y="60" width="200" height="280" rx="16" fill="#f8f8f8" stroke="#999" stroke-width="1"/>
+  <text x="340" y="85" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="bold" fill="#1a1a1a">CC Switch</text>
+  <text x="340" y="103" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#555">127.0.0.1:15721</text>
+
+  <!-- 本地路由 -->
+  <rect x="258" y="118" width="164" height="44" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="1"/>
+  <text x="340" y="134" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1a1a1a">本地路由引擎</text>
+  <text x="340" y="152" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#555">协议转换 · 热切换</text>
+
+  <!-- 故障转移 -->
+  <rect x="258" y="178" width="164" height="44" rx="8" fill="#EAF3DE" stroke="#3B6D11" stroke-width="1"/>
+  <text x="340" y="194" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1a1a1a">故障转移熔断器</text>
+  <text x="340" y="212" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#555">健康检测 · 自动切换</text>
+
+  <!-- 用量统计 -->
+  <rect x="258" y="238" width="164" height="44" rx="8" fill="#FAEEDA" stroke="#BA7517" stroke-width="1"/>
+  <text x="340" y="254" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1a1a1a">用量统计看板</text>
+  <text x="340" y="272" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#555">Token · 费用 · 缓存</text>
+
+  <!-- MCP/Skills -->
+  <rect x="258" y="298" width="164" height="32" rx="8" fill="#FAECE7" stroke="#993C1D" stroke-width="1"/>
+  <text x="340" y="318" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1a1a1a">MCP · Skills · Prompts</text>
+
+  <!-- 右侧：API Provider 层 -->
+  <rect x="490" y="40" width="150" height="28" rx="6" fill="#E1F5EE" stroke="#0F6E56" stroke-width="1"/>
+  <text x="565" y="58" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold" fill="#1a1a1a">API 供应商层</text>
+
+  <!-- Anthropic 官方 -->
+  <rect x="500" y="90" width="130" height="44" rx="8" fill="#E1F5EE" stroke="#1D9E75" stroke-width="1"/>
+  <text x="565" y="108" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1a1a1a">Anthropic 官方</text>
+  <text x="565" y="126" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#555">api.anthropic.com</text>
+
+  <!-- 第三方中转 -->
+  <rect x="500" y="154" width="130" height="44" rx="8" fill="#E1F5EE" stroke="#1D9E75" stroke-width="1"/>
+  <text x="565" y="172" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1a1a1a">第三方中转站</text>
+  <text x="565" y="190" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#555">ofox · OpenRouter</text>
+
+  <!-- 国产模型 -->
+  <rect x="500" y="218" width="130" height="44" rx="8" fill="#E1F5EE" stroke="#1D9E75" stroke-width="1"/>
+  <text x="565" y="236" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1a1a1a">国产大模型</text>
+  <text x="565" y="254" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#555">DeepSeek · Kimi · Qwen</text>
+
+  <!-- OpenAI -->
+  <rect x="500" y="282" width="130" height="44" rx="8" fill="#E1F5EE" stroke="#1D9E75" stroke-width="1"/>
+  <text x="565" y="300" text-anchor="middle" font-family="sans-serif" font-size="12" font-weight="bold" fill="#1a1a1a">OpenAI</text>
+  <text x="565" y="318" text-anchor="middle" font-family="sans-serif" font-size="11" fill="#555">api.openai.com</text>
+
+  <!-- 客户端 → CC Switch 箭头（虚线） -->
+  <polyline points="170,118 240,160" fill="none" stroke="#378ADD" stroke-width="1.5" marker-end="url(#arrow)" stroke-dasharray="5,3"/>
+  <polyline points="170,198 240,188" fill="none" stroke="#378ADD" stroke-width="1.5" marker-end="url(#arrow)" stroke-dasharray="5,3"/>
+  <polyline points="170,278 240,220" fill="none" stroke="#378ADD" stroke-width="1.5" marker-end="url(#arrow)" stroke-dasharray="5,3"/>
+
+  <!-- CC Switch → 供应商箭头 -->
+  <polyline points="440,155 500,112" fill="none" stroke="#0F6E56" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <polyline points="440,185 500,176" fill="none" stroke="#0F6E56" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <polyline points="440,215 500,240" fill="none" stroke="#0F6E56" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <polyline points="440,240 500,304" fill="none" stroke="#0F6E56" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- 底部说明 -->
+  <line x1="40" y1="400" x2="640" y2="400" stroke="#ccc" stroke-width="1"/>
+  <text x="40" y="425" font-family="sans-serif" font-size="11" fill="#666">虚线箭头：Anthropic / OpenAI 协议请求（发往本地代理端口 127.0.0.1:15721）</text>
+  <text x="40" y="448" font-family="sans-serif" font-size="11" fill="#666">实线箭头：CC Switch 根据路由规则协议转换后，转发至对应供应商</text>
+  <text x="40" y="471" font-family="sans-serif" font-size="11" fill="#666">数据链路：客户端 → 本地路由 → 协议转换 → 供应商 API → 响应逆向转换 → 客户端</text>
+</svg>

@@ -1,0 +1,64 @@
+# 依赖
+node_modules
+**/node_modules
+.pnp
+.pnp.js
+
+# 构建产物
+dist
+dist-ssr
+*.local
+
+# 日志
+*.log
+*.err
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# 环境变量（生产通过 docker-compose env 注入，绝不进镜像）
+.env
+.env.local
+.env.*.local
+
+# 编辑器 / 系统
+.vscode
+.idea
+.DS_Store
+*.suo
+*.swp
+*.bak
+*.tmp
+
+# Git / CI / 文档
+.git
+.gitignore
+.gitattributes
+.github
+*.md
+LICENSE
+
+# 工具缓存 / agent 元数据
+.cache
+.temp
+.eslintcache
+.omc
+.claude
+.superpowers
+__pycache__
+
+# 运行时数据 / 上传（通过 docker volume 挂载）
+data
+postgres_data
+
+# 与镜像无关的本地资源
+docs
+fithub-cli
+skills
+skills-packages
+update.sh
+dev-server.*
+
+# Docker 自身
+docker-compose*.yml
+Dockerfile*

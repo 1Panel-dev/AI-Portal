@@ -1,0 +1,28 @@
+platforms:
+  openclaw:
+    probe:
+      mac: ~/.openclaw
+      windows: ~/.openclaw
+    install_to:
+      mac: ~/.openclaw/skills
+      windows: ~/.openclaw/skills
+    workspace_install_to: ./skills
+    priority: 1
+
+  workbuddy:
+    probe:
+      mac: ~/.workbuddy
+      windows: ~/.workbuddy
+    install_to:
+      mac: ~/.workbuddy/skills
+      windows: ~/.workbuddy/skills
+    workspace_install_to: ./skills
+    priority: 2
+
+  universal:
+    probe: null
+    install_to:
+      mac: ~/.f2chub/skills
+      windows: ~/.f2chub/skills
+    workspace_install_to: ./skills
+    priority: 99

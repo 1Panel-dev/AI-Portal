@@ -1,0 +1,8 @@
+# 自动处理换行符
+* text=auto eol=lf
+
+# Shell 脚本保持 LF
+*.sh text eol=lf
+
+# Windows 批处理文件保持 CRLF
+*.bat text eol=crlf
