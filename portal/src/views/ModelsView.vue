@@ -9,10 +9,10 @@
         探索可调用的 AI 模型
       </h1>
       <p class="text-[18px] text-text-secondary font-normal mb-8 leading-relaxed">一键复制调用入口，快速接入企业 AI 能力</p>
-      <router-link to="/register"
+      <router-link :to="ctaLink"
         class="inline-flex items-center gap-2 px-5 py-2.5 bg-text text-white text-[14px] font-medium rounded-xl hover:opacity-85 transition-all no-underline shadow-[0_4px_12px_rgba(0,0,0,0.15)] mb-6">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
-        申请 API Key 快速体验
+        {{ oauthEnabled ? '登录后申请 API Key' : '申请 API Key 快速体验' }}
       </router-link>
       <div class="max-w-[480px] mx-auto mt-6 relative">
         <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-tertiary" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -184,6 +184,8 @@ const currentProvider = ref('all')
 const copiedModelId = ref(null)
 const copiedTarget = ref(null)
 const loading = ref(true)
+const oauthEnabled = ref(false)
+const ctaLink = computed(() => oauthEnabled.value ? '/login' : '/register')
 
 const totalModels = computed(() => groups.value.reduce((s, g) => s + g.models.length, 0))
 
@@ -275,8 +277,19 @@ const copyCurlExample = async () => {
   copiedTarget.value = 'curl'; setTimeout(() => { copiedTarget.value = null }, 2000)
 }
 
+async function checkOAuth() {
+  try {
+    const res = await fetch(`${API_BASE}/auth/oauth/providers`)
+    if (res.ok) {
+      const data = await res.json()
+      oauthEnabled.value = (data.providers || []).length > 0
+    }
+  } catch { /* 忽略 */ }
+}
+
 onMounted(() => {
   fetchModels()
   fetchExampleConfig()
+  checkOAuth()
 })
 </script>
