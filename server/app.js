@@ -19,7 +19,7 @@ const PORT = process.env.PORT || 3002;
 const SERVE_STATIC = process.env.SERVE_STATIC === 'true';
 const STATIC_PATH = process.env.STATIC_PATH || path.join(__dirname, '../dist');
 // nginx 反向代理前缀,默认 /(无前缀)
-// 例:nginx 配 location /portal/ { proxy_pass http://127.0.0.1:18090/; } 时,设 BASE_PATH=/portal/
+// 例:nginx 配 location /portal/ { proxy_pass http://127.0.0.1:3000/; } 时,设 BASE_PATH=/portal/
 // 必须以 / 开头并以 / 结尾(浏览器 <base href> 规范要求)
 let BASE_PATH = process.env.BASE_PATH || '/';
 if (!BASE_PATH.startsWith('/')) BASE_PATH = '/' + BASE_PATH;

@@ -13,7 +13,7 @@ cp .env.example .env
 docker-compose up -d
 ```
 
-访问 `http://localhost:18090`
+访问 `http://localhost:3000`
 
 内置 PostgreSQL 持久化在 `pg_data` 卷中。生产环境建议使用外部数据库，在 `.env` 中配置 `DB_HOST` 等覆盖默认值。
 

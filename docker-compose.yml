@@ -32,7 +32,7 @@ services:
     container_name: ai-portal-app
     restart: unless-stopped
     ports:
-      - "18090:3000"
+      - "3000:3000"
     depends_on:
       db:
         condition: service_healthy

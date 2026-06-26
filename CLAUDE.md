@@ -6,7 +6,7 @@
 
 **AI-Portal** — 面向 1Panel 生态的 AI 门户与技能市场。Vue 3 + Vite 前端，Express + PostgreSQL 后端，Docker 多阶段一体镜像，对接 **1Panel 企业版 AI 网关**（用户/模型/API Key/Skills Hub 同步）。
 
-仓库根：`D:\claude-code\AI-Portal`（生产部署在 `swr.cn-north-4.myhuaweicloud.com/maxkb/ai-portal:latest-arm64`，对外端口 18090→3000）。
+仓库根：`D:\claude-code\AI-Portal`（生产部署在 `swr.cn-north-4.myhuaweicloud.com/maxkb/ai-portal:latest-arm64`，对外端口 3000）。
 
 ## 目录边界（绝对不要画错）
 
