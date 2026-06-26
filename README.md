@@ -9,7 +9,7 @@
 ```bash
 git clone https://github.com/1Panel-dev/AI-Portal.git
 cp .env.example .env
-# 默认配置即可启动，生产环境建议修改 JWT_SECRET
+# 默认配置即可启动，生产环境务必修改默认密码（见下方说明）
 docker-compose up -d
 ```
 
@@ -66,6 +66,16 @@ AI-Portal/
 | `DB_*` | PostgreSQL 连接信息 |
 | `INIT_ADMIN_PASSWORD` | 首次启动创建 admin 账号 |
 | `PANEL_*` | 1Panel 网关配置（也可在管理后台配置） |
+
+## 默认密码
+
+首次启动以下服务使用默认密码，**生产部署前务必修改**：
+
+| 服务 | 账号 | 默认密码 | 配置方式 |
+|------|------|---------|---------|
+| 管理后台 | admin | `admintest` | 编辑 `.env` 中 `INIT_ADMIN_PASSWORD` |
+| PostgreSQL | root | `Password123@aiportal` | 编辑 `.env` 中 `DB_PASSWORD` |
+| JWT 签名 | - | `change-me-in-production` | 编辑 `.env` 中 `JWT_SECRET` |
 
 ## License
 
