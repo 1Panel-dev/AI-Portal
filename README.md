@@ -4,16 +4,18 @@
 
 ## 快速开始
 
-### Docker
+### Docker（推荐）
 
 ```bash
 git clone https://github.com/1Panel-dev/AI-Portal.git
 cp .env.example .env
-# 编辑 .env，配置数据库、JWT 密钥等
+# 编辑 .env，只改 JWT_SECRET 即可使用内置 PostgreSQL
 docker-compose up -d
 ```
 
 访问 `http://localhost:18090`
+
+内置 PostgreSQL 持久化在 `pg_data` 卷中。生产环境建议使用外部数据库，在 `.env` 中配置 `DB_HOST` 等覆盖默认值。
 
 ### 本地开发
 

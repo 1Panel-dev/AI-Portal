@@ -1,71 +1,78 @@
-# AI-Portal Docker Compose - 生产部署配置
+# AI-Portal Docker Compose
 #
-# 仅启动 app 容器，数据库需自备外部 PostgreSQL（生产建议使用 1Panel 托管或独立 PG 实例）
+# 一键启动（内置 PostgreSQL）:
+#   docker-compose up -d
 #
-# 使用方式:
-#   1) 在 .env 中配置 JWT_SECRET、DB_HOST、DB_PASSWORD 等
-#   2) docker-compose up -d
+# 只用外部数据库（生产）:
+#   在 .env 中配置 DB_HOST、DB_PASSWORD 等覆盖默认值
 #
-# 其他常用命令:
-#   docker-compose logs -f app    # 查看日志
-#   docker-compose down           # 停止
-#   docker-compose pull           # 拉取最新镜像
-#
-# 镜像构建（CI 或本地手动）:
-#   docker buildx build --platform linux/arm64 --push \
-#     -t swr.cn-north-4.myhuaweicloud.com/maxkb/ai-portal:latest-arm64 .
-#   # 如需 amd64 版本:
-#   # docker buildx build --platform linux/amd64 --push \
-#   #   -t swr.cn-north-4.myhuaweicloud.com/maxkb/ai-portal:latest-amd64 .
+# 停止: docker-compose down -v 会删除所有数据卷
 
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: ai-portal-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-ai_portal}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ai_portal}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-ai_portal}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   app:
     image: swr.cn-north-4.myhuaweicloud.com/maxkb/ai-portal:${IMAGE_TAG:-latest-arm64}
     container_name: ai-portal-app
     restart: unless-stopped
     ports:
       - "18090:3000"
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
-      # ===== 必填：安全 =====
+      # ===== 安全 =====
       JWT_SECRET: ${JWT_SECRET:?请在 .env 配置 JWT_SECRET（建议 32 位以上随机字符串）}
 
-      # ===== 必填：外部数据库 =====
-      DB_HOST: ${DB_HOST:?请在 .env 配置 DB_HOST（外部 PostgreSQL 地址）}
+      # ===== 数据库（默认连内置 PostgreSQL） =====
+      DB_HOST: ${DB_HOST:-db}
       DB_PORT: ${DB_PORT:-5432}
       DB_NAME: ${DB_NAME:-ai_portal}
       DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:?请在 .env 配置 DB_PASSWORD}
+      DB_PASSWORD: ${DB_PASSWORD:-ai_portal}
 
-      # ===== 可选：默认管理员 =====
-      # 默认 admin/admin123，⚠️ 部署后请立即登录管理后台改密
-      # 如需禁用自动创建：在 .env 中设 INIT_ADMIN_PASSWORD= (留空)
+      # ===== 默认管理员 =====
       INIT_ADMIN_PASSWORD: ${INIT_ADMIN_PASSWORD:-}
 
-      # ===== 可选：1Panel 网关（也可登录管理后台再配，DB 配置覆盖此处） =====
+      # ===== 可选：1Panel 网关 =====
       PANEL_BASE_URL: ${PANEL_BASE_URL:-}
       PANEL_API_KEY: ${PANEL_API_KEY:-}
       PANEL_API_TIMEOUT: ${PANEL_API_TIMEOUT:-10000}
 
-      # ===== 可选：反向代理前缀 =====
-      # nginx 用 location /portal/ { proxy_pass http://127.0.0.1:18090/; } 时,设 BASE_PATH=/portal/
-      # 默认 / 表示无前缀。修改后重启容器生效
+      # ===== 反向代理前缀 =====
       BASE_PATH: ${BASE_PATH:-/}
 
-      # ===== 可选：存储后端（默认 local，已通过 volume 持久化） =====
+      # ===== 存储后端 =====
       STORAGE_TYPE: ${STORAGE_TYPE:-local}
       COS_SECRET_ID: ${COS_SECRET_ID:-}
       COS_SECRET_KEY: ${COS_SECRET_KEY:-}
       COS_BUCKET: ${COS_BUCKET:-}
       COS_REGION: ${COS_REGION:-}
     volumes:
-      # 用户上传的技能 zip 持久化（local 存储模式必需，否则重启丢数据）
       - skills_uploads:/app/data/uploads
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1)).on('error', () => process.exit(1))"]
       interval: 30s
       timeout: 5s
-      start_period: 30s                  # 留给数据库迁移
+      start_period: 30s
       retries: 3
 
 volumes:
+  pg_data:
   skills_uploads:
