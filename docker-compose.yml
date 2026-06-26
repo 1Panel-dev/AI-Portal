@@ -28,7 +28,7 @@ services:
       retries: 10
 
   app:
-    image: swr.cn-north-4.myhuaweicloud.com/maxkb/ai-portal:${IMAGE_TAG:-latest-arm64}
+    image: swr.cn-north-4.myhuaweicloud.com/maxkb/ai-portal:${IMAGE_TAG:-latest-amd64}
     container_name: ai-portal-app
     restart: unless-stopped
     ports:
@@ -58,12 +58,8 @@ services:
       # ===== 反向代理前缀 =====
       BASE_PATH: ${BASE_PATH:-/}
 
-      # ===== 存储后端 =====
+      # ===== 存储后端（默认本地存储） =====
       STORAGE_TYPE: ${STORAGE_TYPE:-local}
-      COS_SECRET_ID: ${COS_SECRET_ID:-}
-      COS_SECRET_KEY: ${COS_SECRET_KEY:-}
-      COS_BUCKET: ${COS_BUCKET:-}
-      COS_REGION: ${COS_REGION:-}
     volumes:
       - skills_uploads:/app/data/uploads
     healthcheck:
