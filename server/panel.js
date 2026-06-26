@@ -43,7 +43,12 @@ async function findPanelUser(username) {
     throw new Error(`1Panel 用户查询失败: ${response.status}`);
   }
 
-  return getPanelItems(response.data).find(item => String(item.name || '').toLowerCase() === username) || null;
+  const items = getPanelItems(response.data);
+  const found = items.find(item => String(item.name || '').toLowerCase() === username) || null;
+  if (!found && items.length > 0) {
+    console.log(`[findPanelUser] 搜索到 ${items.length} 个用户,但 name 不匹配 "${username}"。返回条目:`, items.map(i => ({ id: i.id, name: i.name })));
+  }
+  return found;
 }
 
 async function getPanelUserRoleId() {
