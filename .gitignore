@@ -150,3 +150,6 @@ docs/superpowers/
 
 # CLI tool (built separately)
 cli/
+
+# Runtime data
+data/

@@ -6,7 +6,8 @@
 # 只用外部数据库（生产）:
 #   在 .env 中配置 DB_HOST、DB_PASSWORD 等覆盖默认值
 #
-# 停止: docker-compose down -v 会删除所有数据卷
+# 停止: docker-compose down
+# 清空数据: rm -rf data/pg_data
 
 services:
   db:
@@ -20,7 +21,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      - ./data/pg_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-root} -d ${DB_NAME:-ai_portal}"]
       interval: 5s
@@ -70,5 +71,4 @@ services:
       retries: 3
 
 volumes:
-  pg_data:
   skills_uploads:
