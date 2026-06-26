@@ -88,12 +88,12 @@
                   </div>
                   <div v-else class="text-xs text-text-tertiary mt-1">未绑定</div>
                 </div>
-                <button v-if="findBoundIdentity(p.provider) && !autoCreatedFrom"
+                <button v-if="findBoundIdentity(p.provider) && (hasPassword || !autoCreatedFrom)"
                   @click="unbindProvider(p.provider)"
                   class="shrink-0 px-3 py-1.5 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">
                   解绑
                 </button>
-                <button v-else
+                <button v-else-if="!findBoundIdentity(p.provider)"
                   @click="startBindProvider(p.provider)"
                   class="shrink-0 px-3 py-1.5 text-xs bg-text text-white rounded-lg hover:bg-accent-hover transition-colors">
                   绑定

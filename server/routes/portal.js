@@ -427,7 +427,25 @@ function generateApiKey() {
 
 router.post('/api/keys', verifyUser, async (req, res) => {
   try {
-    if (!req.portalUser.panel_user_id) {
+    let panelUserId = req.portalUser.panel_user_id;
+
+    // OAuth 自动创建的用户可能因网络原因未同步到 1Panel，这里再试一次
+    if (!panelUserId) {
+      try {
+        const panelUser = await findPanelUser(req.portalUser.username);
+        if (panelUser) {
+          panelUserId = panelUser.id;
+          await global.pool.query(
+            'UPDATE portal_users SET panel_user_id = $1 WHERE id = $2',
+            [panelUserId, req.portalUser.id]
+          );
+        }
+      } catch (e) {
+        console.error('[create-key] OAuth 用户同步 1Panel 重试失败:', e.message);
+      }
+    }
+
+    if (!panelUserId) {
       return res.status(400).json({ error: '需要先关联 1Panel 用户' });
     }
 
@@ -445,7 +463,7 @@ router.post('/api/keys', verifyUser, async (req, res) => {
     let response;
     try {
       response = await panel.post('/api/v2/core/enterprise/ai-proxy/api-keys/create', {
-        userId: req.portalUser.panel_user_id,
+        userId: panelUserId,
         groupId: 1,
         apiKey: apiKey,
         apiKeyMask: maskApiKey(apiKey),
@@ -487,7 +505,7 @@ router.post('/api/keys', verifyUser, async (req, res) => {
     // 1Panel create 可能返回 data:null，需要再翻全页 search 拿 panel_key_id
     if (!panelKeyId) {
       try {
-        const userKeys = await listPanelKeysOfUser(req.portalUser.panel_user_id);
+        const userKeys = await listPanelKeysOfUser(panelUserId);
         // 一人一 key:此时该用户名下应当只有刚创建的这一个
         if (userKeys.length === 1) {
           panelKeyId = userKeys[0].id;
@@ -516,7 +534,7 @@ router.post('/api/keys', verifyUser, async (req, res) => {
     `, [
       req.portalUser.id,
       panelKeyId,
-      req.portalUser.panel_user_id,
+      panelUserId,
       keyMask,
       fullKey,
       1,
