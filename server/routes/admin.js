@@ -742,7 +742,20 @@ router.get('/api/admin/panel-config', verifyAdmin, async (req, res) => {
         ORDER BY created_at DESC
         LIMIT 10
       `),
-      getPanelRoles(),
+      // 优先实时查询 1Panel，失败时从本地缓存读取
+      (async () => {
+        try {
+          return await getPanelRoles();
+        } catch {
+          const cached = await global.pool.query(
+            "SELECT value FROM system_config WHERE key = 'panel_roles_cache'"
+          );
+          if (cached.rowCount > 0) {
+            try { return JSON.parse(cached.rows[0].value); } catch { return []; }
+          }
+          return [];
+        }
+      })(),
     ]);
 
     const map = {};
@@ -914,10 +927,24 @@ router.post('/api/admin/panel-config/test', verifyAdmin, async (req, res) => {
 // 立即同步(手动触发,不等定时器)
 router.post('/api/admin/panel-config/sync-now', verifyAdmin, async (req, res) => {
   try {
-    // 并发跑两个同步,失败不互相影响
-    const [modelsResult, skillsResult] = await Promise.allSettled([
+    // 并发跑模型 + 技能 + 角色同步,失败不互相影响
+    const [modelsResult, skillsResult, rolesResult] = await Promise.allSettled([
       syncModelsFromPanel(),
       syncSkillsFromPanel(),
+      // 同步角色列表并缓存到本地（方便管理后台加载最新数据）
+      (async () => {
+        const roles = await getPanelRoles();
+        const cacheKey = 'panel_roles_cache';
+        if (roles.length > 0) {
+          await global.pool.query(`
+            INSERT INTO system_config (key, value, updated_at)
+            VALUES ($1, $2, CURRENT_TIMESTAMP)
+            ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = CURRENT_TIMESTAMP
+          `, [cacheKey, JSON.stringify(roles)]);
+          return { ok: true, count: roles.length };
+        }
+        return { ok: false, error: '角色列表为空' };
+      })(),
     ]);
 
     res.json({
@@ -928,6 +955,9 @@ router.post('/api/admin/panel-config/sync-now', verifyAdmin, async (req, res) =>
       skills: skillsResult.status === 'fulfilled'
         ? { ...skillsResult.value, ok: true }
         : { ok: false, error: skillsResult.reason?.message },
+      roles: rolesResult.status === 'fulfilled'
+        ? rolesResult.value
+        : { ok: false, error: rolesResult.reason?.message },
     });
   } catch (err) {
     console.error('Error sync-now:', err);
