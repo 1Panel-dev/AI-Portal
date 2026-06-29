@@ -84,6 +84,7 @@ AI-Portal/
 | `PANEL_SKILL_DISABLE_FAILED` | 管理员下架时 1Panel status disable 失败,本地不改 is_active |
 | `PANEL_SKILL_DELETE_FAILED` | 管理员删除技能时 1Panel delete 失败,本地不删除 |
 | `PANSL_SYNC_UNVERIFIED` | create 既没返回 id 也没在 search 里找到(罕见;字符串带 typo,与历史告警保持兼容,**不要修正**) |
+| `SKILL_SUBMIT_DISABLED` | 用户提交技能时 `portal_skill_submit_enabled=false`;`/api/skills/upload` 入口 fail-closed 返回 403,不调 1Panel,不写 `skill_submissions` |
 
 ## 修改要点（写代码前对照一遍）
 
