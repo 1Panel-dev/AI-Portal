@@ -777,6 +777,8 @@ router.get('/api/admin/panel-config', verifyAdmin, async (req, res) => {
       syncIntervalMinutes: parseInt(map.panel_sync_interval_minutes || '10', 10),
       skillUploadEnabled: map.panel_skill_upload_enabled === 'true',
       panelUserRoleId: parseInt(map.panel_user_role_id || '4', 10),
+      skillSubmitEnabled: map.panel_skill_submit_enabled === 'true',
+      skillctlDocUrl: map.site_skillctl_doc_url || '',
       panelRoles,
       lastSync,
     });
@@ -844,6 +846,7 @@ router.post('/api/admin/panel-config', verifyAdmin, async (req, res) => {
     const {
       baseUrl, apiKey, timeout,
       syncEnabled, syncIntervalMinutes, skillUploadEnabled, panelUserRoleId,
+      skillSubmitEnabled, skillctlDocUrl,
     } = req.body;
 
     const configs = [['panel_base_url', baseUrl || '']];
@@ -869,6 +872,12 @@ router.post('/api/admin/panel-config', verifyAdmin, async (req, res) => {
     if (panelUserRoleId !== undefined && panelUserRoleId !== null) {
       const r = parseInt(panelUserRoleId, 10);
       if (!Number.isNaN(r) && r > 0) configs.push(['panel_user_role_id', String(r)]);
+    }
+    if (typeof skillSubmitEnabled === 'boolean') {
+      configs.push(['portal_skill_submit_enabled', skillSubmitEnabled ? 'true' : 'false']);
+    }
+    if (skillctlDocUrl !== undefined && skillctlDocUrl !== null) {
+      configs.push(['site_skillctl_doc_url', String(skillctlDocUrl).trim()]);
     }
 
     for (const [key, value] of configs) {
