@@ -8,7 +8,7 @@
       加载更多
     </button>
     <span v-else class="text-sm text-text-tertiary">
-      已加载全部 {{ total }} 个技能
+      已加载全部 {{ total }} 个{{ label }}
     </span>
   </div>
 </template>
@@ -17,6 +17,7 @@
 defineProps({
   hasMore: { type: Boolean, default: false },
   total: { type: Number, default: 0 },
+  label: { type: String, default: '技能' },
 })
 
 defineEmits(['load-more'])

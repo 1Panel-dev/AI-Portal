@@ -12,6 +12,7 @@ const routes = [
   { path: '/', component: ModelsView, meta: { public: true } },
   { path: '/models', redirect: '/' },
   { path: '/skills', component: () => import('./views/HomeView.vue') },
+  { path: '/mcp', component: () => import('./views/McpPlazaView.vue'), meta: { public: true } },
   { path: '/skill/:slug', component: () => import('./views/SkillDetailView.vue') },
   { path: '/submit', component: () => import('./views/SubmitSkillView.vue'), meta: { requiresUserAuth: true } },
   { path: '/my-skills', component: () => import('./views/MySkillsView.vue'), meta: { requiresUserAuth: true } },

@@ -22,6 +22,11 @@
           :class="isActive('/skills') ? 'font-semibold text-text' : 'text-text-secondary'">
           Skill 广场
         </router-link>
+        <router-link to="/mcp"
+          class="px-3 py-1.5 text-[14px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
+          :class="isActive('/mcp') ? 'font-semibold text-text' : 'text-text-secondary'">
+          MCP 广场
+        </router-link>
 
       </div>
 
@@ -101,6 +106,9 @@ const isActive = (path) => {
   }
   if (path === '/skills') {
     return route.path === '/skills' || route.path.startsWith('/skill') || route.query.redirect === '/skills'
+  }
+  if (path === '/mcp') {
+    return route.path === '/mcp'
   }
   if (path === '/docs') {
     return route.path === '/docs'

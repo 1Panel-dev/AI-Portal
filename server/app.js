@@ -61,6 +61,7 @@ app.use(require('./routes/admin'));
 app.use(require('./routes/marketplace'));
 app.use(require('./routes/portal'));
 app.use(require('./routes/oauth').router);
+app.use(require('./routes/mcp'));
 
 if (SERVE_STATIC) {
   // 关键:index.html 不能直接走 express.static,要先拦下来做 BASE_PATH 占位符替换
