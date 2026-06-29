@@ -18,6 +18,7 @@
           @update:model-value="$emit('update:category', $event)"
         />
         <FilterItem
+          v-if="sources.length > 1"
           label="来源"
           :options="sources"
           :model-value="currentSource"

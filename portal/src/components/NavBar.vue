@@ -20,7 +20,7 @@
         <router-link to="/skills"
           class="px-3 py-1.5 text-[14px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
           :class="isActive('/skills') ? 'font-semibold text-text' : 'text-text-secondary'">
-          Skill 市场
+          Skill 广场
         </router-link>
 
       </div>
