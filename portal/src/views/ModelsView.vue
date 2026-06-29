@@ -35,13 +35,13 @@
           <h2 class="text-[22px] font-semibold tracking-[-0.4px] text-text">调用示例</h2>
         </div>
         <!-- Apple 风深色代码块: 顶栏白底信息+底部深色代码区 -->
-        <div class="rounded-xl overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-[rgba(0,0,0,0.06)]">
+        <div class="rounded-xl overflow-hidden bg-white shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-[rgba(0,0,0,0.06)]">
           <!-- Base URL 信息行 -->
-          <div class="flex items-center gap-2 px-4 py-2.5 bg-white border-b border-[rgba(0,0,0,0.06)]">
-            <span class="text-[11px] font-medium text-text-tertiary uppercase tracking-wider shrink-0">Base URL</span>
-            <code class="text-[13px] font-mono text-text truncate flex-1">{{ baseUrl }}</code>
+          <div class="flex items-center gap-3 px-5 py-3.5 bg-[#f5f5f7] border-b border-[rgba(0,0,0,0.06)]">
+            <span class="text-[12px] font-semibold text-text-secondary uppercase tracking-wider shrink-0">Base URL</span>
+            <code class="text-[14px] font-mono text-text font-medium truncate flex-1 select-all">{{ baseUrl }}</code>
             <button @click="copyText(baseUrl, 'baseurl')"
-              class="shrink-0 w-6 h-6 flex items-center justify-center rounded-md hover:bg-black/5 transition-colors"
+              class="shrink-0 w-7 h-7 flex items-center justify-center rounded-md hover:bg-black/10 transition-colors"
               title="复制 Base URL">
               <svg v-if="copiedTarget !== 'baseurl'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
