@@ -32,22 +32,15 @@
 
     <!-- 完整文档链接 -->
     <div class="pt-4 border-t border-[rgba(0,0,0,0.06)]">
-      <a
-        v-if="flags.skillctlDocUrl"
-        :href="flags.skillctlDocUrl"
-        target="_blank"
-        rel="noopener noreferrer"
+      <router-link
+        to="/docs?chapter=skillctl"
         class="text-sm text-text hover:underline inline-flex items-center gap-1"
-      >查看完整在线文档 →</a>
-      <span v-else class="text-sm text-text-tertiary">管理员尚未配置文档地址</span>
+      >查看完整在线文档 →</router-link>
     </div>
   </section>
 </template>
 
 <script setup>
-defineProps({
-  flags: { type: Object, required: true },
-})
 
 const commands = [
   { cmd: 'skillctl login <endpoint> --token <token>', desc: '登录 1Panel' },

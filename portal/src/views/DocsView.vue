@@ -85,12 +85,17 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { loadAllChapters } from '../lib/markdown.js'
 
 const router = useRouter()
+const route = useRoute()
 const chapters = loadAllChapters()
-const activeId = ref(chapters[0]?.id || '')
+const initialChapterId = () => {
+  const id = String(route.query.chapter || '')
+  return chapters.some(c => c.id === id) ? id : (chapters[0]?.id || '')
+}
+const activeId = ref(initialChapterId())
 const activeSlug = ref('')
 const mainEl = ref(null)
 const showBackToTop = ref(false)
@@ -167,6 +172,16 @@ async function renderMermaid(scopeEl) {
   const mermaid = await mermaidPromise
   await mermaid.run({ nodes: scopeEl.querySelectorAll('.mermaid:not([data-processed="true"])') })
 }
+
+watch(() => route.query.chapter, async (chapter) => {
+  const id = String(chapter || '')
+  if (!id || !chapters.some(c => c.id === id) || activeId.value === id) return
+  activeId.value = id
+  activeSlug.value = ''
+  await nextTick()
+  renderMermaid(mainEl.value)
+  setupScrollSpy()
+})
 
 watch(activeId, async () => {
   await nextTick()

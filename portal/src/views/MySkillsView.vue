@@ -13,7 +13,7 @@
         </router-link>
       </div>
 
-      <SkillctlGuide :flags="featureFlags" class="mb-7" />
+      <SkillctlGuide class="mb-7" />
 
       <div v-if="loading" class="bg-white border border-[rgba(0,0,0,0.04)] rounded-xl p-10 text-center text-sm text-text-secondary shadow-card">
         加载中...
