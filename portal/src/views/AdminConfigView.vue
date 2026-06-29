@@ -326,6 +326,30 @@
             </label>
           </div>
 
+          <!-- 允许用户提交技能 -->
+          <div class="mt-3 flex items-center justify-between p-3 bg-surface-secondary rounded-lg">
+            <div>
+              <div class="text-sm font-medium text-text">允许用户提交技能</div>
+              <div class="text-xs text-text-secondary mt-0.5">关闭后,普通用户在「我的技能」页面看不到「提交技能」入口;提交接口也会被后端拒绝</div>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input v-model="panelForm.skillSubmitEnabled" type="checkbox" class="sr-only peer" />
+              <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-emerald-500 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-transform peer-checked:after:translate-x-5"></div>
+            </label>
+          </div>
+
+          <!-- skillctl 完整在线文档地址 -->
+          <div class="mt-3 p-3 bg-surface-secondary rounded-lg">
+            <div class="text-sm font-medium text-text mb-1">skillctl 完整在线文档地址</div>
+            <div class="text-xs text-text-secondary mb-2">在「我的技能」页面的 skillctl 卡片底部展示;留空则卡片底部链接不显示</div>
+            <input
+              v-model="panelForm.skillctlDocUrl"
+              type="url"
+              placeholder="https://docs.example.com/skillctl"
+              class="w-full px-3 py-2 border border-[rgba(0,0,0,0.08)] rounded-lg text-sm bg-white focus:outline-none focus:border-text"
+            />
+          </div>
+
           <!-- 1Panel 用户角色 -->
           <div class="flex items-center justify-between py-5 border-b border-[rgba(0,0,0,0.06)] last:border-b-0">
             <div class="min-w-0 flex-1 pr-4">
@@ -757,6 +781,8 @@ const panelForm = ref({
   syncEnabled: true,
   syncIntervalMinutes: 10,
   skillUploadEnabled: false,
+  skillSubmitEnabled: false,
+  skillctlDocUrl: '',
   lastSync: {},
 })
 const panelTesting = ref(false)
@@ -1185,6 +1211,8 @@ const fetchPanelConfig = async () => {
         syncEnabled: data.syncEnabled !== false,
         syncIntervalMinutes: data.syncIntervalMinutes || 10,
         skillUploadEnabled: data.skillUploadEnabled === true,
+        skillSubmitEnabled: data.skillSubmitEnabled === true,
+        skillctlDocUrl: data.skillctlDocUrl || '',
         userRoleId: data.panelUserRoleId || 4,
         lastSync: data.lastSync || {},
       }
@@ -1205,6 +1233,8 @@ const savePanelConfig = async () => {
       syncEnabled: panelForm.value.syncEnabled,
       syncIntervalMinutes: panelForm.value.syncIntervalMinutes,
       skillUploadEnabled: panelForm.value.skillUploadEnabled,
+      skillSubmitEnabled: panelForm.value.skillSubmitEnabled,
+      skillctlDocUrl: panelForm.value.skillctlDocUrl,
       panelUserRoleId: panelForm.value.userRoleId,
     }
     if (panelForm.value.apiKey && !panelForm.value.apiKey.startsWith('****')) {
