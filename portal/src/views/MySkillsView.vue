@@ -8,10 +8,12 @@
           <h1 class="text-[30px] font-bold text-text tracking-[-0.4px]">我的技能</h1>
           <p class="text-sm text-text-secondary mt-1">查看你提交的技能审核状态</p>
         </div>
-        <router-link to="/submit" class="px-4 py-2 text-sm font-medium bg-text text-white rounded-lg hover:bg-accent-hover transition-colors no-underline">
+        <router-link v-if="featureFlags.skillSubmitEnabled" to="/submit" class="px-4 py-2 text-sm font-medium bg-text text-white rounded-lg hover:bg-accent-hover transition-colors no-underline">
           提交技能
         </router-link>
       </div>
+
+      <SkillctlGuide :flags="featureFlags" class="mb-7" />
 
       <div v-if="loading" class="bg-white border border-[rgba(0,0,0,0.04)] rounded-xl p-10 text-center text-sm text-text-secondary shadow-card">
         加载中...
@@ -20,7 +22,7 @@
       <div v-else-if="skills.length === 0" class="bg-white border border-[rgba(0,0,0,0.04)] rounded-xl p-10 text-center shadow-card">
         <p class="text-base font-semibold text-text mb-2">还没有提交过技能</p>
         <p class="text-sm text-text-secondary mb-5">提交后可以在这里查看审核进度</p>
-        <router-link to="/submit" class="inline-flex px-4 py-2 text-sm font-medium bg-text text-white rounded-lg hover:bg-accent-hover transition-colors no-underline">
+        <router-link v-if="featureFlags.skillSubmitEnabled" to="/submit" class="inline-flex px-4 py-2 text-sm font-medium bg-text text-white rounded-lg hover:bg-accent-hover transition-colors no-underline">
           去提交
         </router-link>
       </div>
@@ -54,11 +56,13 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
+import SkillctlGuide from '../components/SkillctlGuide.vue'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const router = useRouter()
 const loading = ref(true)
 const skills = ref([])
+const featureFlags = ref({ skillSubmitEnabled: false, skillctlDocUrl: '' })
 
 const statusText = (status) => ({
   pending: '待审核',
@@ -75,6 +79,13 @@ const statusClass = (status) => ({
 const formatDate = (value) => {
   if (!value) return '-'
   return new Date(value).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
+}
+
+const loadFeatureFlags = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/config/feature-flags`)
+    if (res.ok) featureFlags.value = await res.json()
+  } catch (e) { console.warn('loadFeatureFlags failed:', e) }
 }
 
 const loadSkills = async () => {
@@ -95,5 +106,5 @@ const loadSkills = async () => {
   }
 }
 
-onMounted(loadSkills)
+onMounted(() => { loadSkills(); loadFeatureFlags() })
 </script>
