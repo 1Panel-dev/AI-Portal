@@ -43,6 +43,13 @@ async function isPanelSkillUploadEnabled() {
   return result.rows[0]?.value === 'true';
 }
 
+async function isSkillSubmitEnabled() {
+  const result = await global.pool.query(
+    "SELECT value FROM system_config WHERE key = 'portal_skill_submit_enabled' LIMIT 1"
+  );
+  return result.rows[0]?.value === 'true';
+}
+
 function buildPanelSkillName(originalName, skillId) {
   const base = path.basename(String(originalName || ''), path.extname(String(originalName || ''))).trim();
   return base || skillId;
@@ -468,6 +475,13 @@ router.post('/api/skills/:id/download', downloadLimiter, async (req, res) => {
 // 上传 Skill 包（zip）
 router.post('/api/skills/upload', verifyUser, uploadLimiter, upload.single('file'), async (req, res) => {
   try {
+    if (!(await isSkillSubmitEnabled())) {
+      return res.status(403).json({
+        code: 'SKILL_SUBMIT_DISABLED',
+        error: '提交技能功能暂未开放',
+      });
+    }
+
     const { skill_id, title, description, category, version = 'v1.0.0' } = req.body;
 
     if (!skill_id || !title || !category) {
