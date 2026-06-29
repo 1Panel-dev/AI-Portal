@@ -35,12 +35,29 @@ const router = createRouter({
   routes,
 })
 
+function isInsideWecomUA() {
+  return /wxwork|micromessenger/i.test(navigator.userAgent || '')
+}
+
+let wecomOauthAllowed = false
+
 router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth) {
     const token = localStorage.getItem('admin_token')
     if (!token) return next('/admin/login')
   }
   if (to.meta.requiresUserAuth) {
+    if (isInsideWecomUA()) {
+      if (sessionStorage.getItem('wecom_oauth_completed') === '1') {
+        sessionStorage.removeItem('wecom_oauth_completed')
+        wecomOauthAllowed = true
+      } else if (!wecomOauthAllowed) {
+        localStorage.removeItem('token')
+        localStorage.removeItem('admin_token')
+        localStorage.removeItem('user')
+        return next({ path: '/login', query: { redirect: to.fullPath } })
+      }
+    }
     const token = localStorage.getItem('token')
     if (!token) return next({ path: '/login', query: { redirect: to.fullPath } })
   }

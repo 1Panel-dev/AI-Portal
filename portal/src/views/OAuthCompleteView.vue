@@ -29,10 +29,14 @@ onMounted(async () => {
       return
     }
     if (data.user.role === 'admin') {
+      localStorage.removeItem('token')
       localStorage.setItem('admin_token', data.token)
     } else {
+      localStorage.removeItem('admin_token')
       localStorage.setItem('token', data.token)
     }
+    localStorage.setItem('user', JSON.stringify(data.user))
+    sessionStorage.setItem('wecom_oauth_completed', '1')
     // 用全路径跳转(兼容企微客户端 webview, router.replace 可能不生效)
     const appBase = (window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__'))
       ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/')

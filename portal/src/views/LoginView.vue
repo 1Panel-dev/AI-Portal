@@ -136,11 +136,11 @@ async function maybeAutoLoginInsideWecom() {
   if (!isInsideWecomUA()) return
   // 立即隐藏登录表单,显示 loading,避免页面闪现
   autoRedirecting.value = true
-  // 已有 token → 直接跳到 profile,不走 OAuth 流程(避免重复重定向)
-  if (localStorage.getItem('token') || localStorage.getItem('admin_token')) {
-    window.location.href = getAppBase() + 'profile'
-    return
-  }
+  // 企微客户端内每次进入登录页都重新走静默授权，不能复用上一位用户的本地 token
+  sessionStorage.removeItem('wecom_oauth_completed')
+  localStorage.removeItem('token')
+  localStorage.removeItem('admin_token')
+  localStorage.removeItem('user')
   const hasWecom = oauthProviders.value.some(p => p.provider === 'wecom')
   if (!hasWecom) {
     autoRedirecting.value = false   // 企微未启用,恢复显示登录表单
