@@ -178,11 +178,13 @@
             </div>
           </div>
 
-          <div v-if="activeTab === 'skills'" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
-            <div class="flex items-center justify-between gap-3 mb-6">
-              <h2 class="text-lg font-semibold text-text">{{ isAdmin ? '技能审核' : '我的技能' }}</h2>
-              <router-link v-if="!isAdmin" to="/submit" class="shrink-0 px-4 py-2 text-sm bg-text text-white rounded-lg hover:bg-accent-hover transition-all no-underline">提交技能</router-link>
-            </div>
+          <div v-if="activeTab === 'skills'" class="space-y-6">
+            <SkillctlGuide :flags="featureFlags" />
+            <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
+              <div class="flex items-center justify-between gap-3 mb-6">
+                <h2 class="text-lg font-semibold text-text">{{ isAdmin ? '技能审核' : '我的技能' }}</h2>
+                <router-link v-if="!isAdmin && featureFlags.skillSubmitEnabled" to="/submit" class="shrink-0 px-4 py-2 text-sm bg-text text-white rounded-lg hover:bg-accent-hover transition-all no-underline">提交技能</router-link>
+              </div>
             <div v-if="mySkillsLoading" class="py-10 text-center text-text-secondary text-sm">加载中...</div>
             <div v-else-if="mySkills.length === 0" class="py-12 text-center">
               <div class="w-12 h-12 bg-surface-secondary rounded-full mx-auto mb-3 flex items-center justify-center">
@@ -408,6 +410,7 @@ import { useRouter, useRoute } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
 import SkillDetailModal from '../components/SkillDetailModal.vue'
 import AppDialog from '../components/AppDialog.vue'
+import SkillctlGuide from '../components/SkillctlGuide.vue'
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const router = useRouter()
 const route = useRoute()
@@ -424,6 +427,7 @@ const mySkillsLoading = ref(false)
 const showResetDialog = ref(false)
 const showDeleteDialog = ref(false)
 const selectedSkill = ref(null)
+const featureFlags = ref({ skillSubmitEnabled: false, skillctlDocUrl: '' })
 
 // 根据角色动态生成标签页
 const tabs = computed(() => {
@@ -654,6 +658,12 @@ const authHeader = () => {
   return { Authorization: `Bearer ${t}` }
 }
 const findBoundIdentity = (provider) => myIdentities.value.find((i) => i.provider === provider)
+const loadFeatureFlags = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/config/feature-flags`)
+    if (res.ok) featureFlags.value = await res.json()
+  } catch (e) { console.warn('loadFeatureFlags failed:', e) }
+}
 const loadOauthState = async () => {
   try {
     const [pr, idr] = await Promise.all([
@@ -797,6 +807,7 @@ onMounted(() => {
   if (activeTab.value === 'keys') fetchKeys()
   if (activeTab.value === 'skills') fetchMySkills()
   loadOauthState()
+  loadFeatureFlags()
   if (route.query.bound === '1') {
     setTimeout(() => showToast('已绑定企业微信'), 100)
   }
