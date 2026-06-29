@@ -47,15 +47,19 @@ if (!SERVE_STATIC) {
 app.use(express.json());
 app.use(morgan('combined'));
 
+// 确保上传目录存在（Docker volume 挂载会覆写镜像内空目录）
+const uploadsRoot = path.join(__dirname, '../data/uploads');
+[uploadsRoot, path.join(uploadsRoot, 'skills'), path.join(uploadsRoot, 'skills', '_tmp'), path.join(uploadsRoot, 'branding')].forEach(dir => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
+
 // 用户上传的品牌资源(logo / favicon)对外暴露
 // 走持久卷, 走 /uploads/branding/<filename>, 不需要 BASE_PATH 占位符
-const uploadsDir = path.join(__dirname, '../data/uploads');
-if (fs.existsSync(uploadsDir)) {
-  app.use('/uploads', express.static(uploadsDir, {
-    maxAge: '1h',           // 文件名带时间戳, 改完前端拿到新 url 自动换图
+const uploadsDir = uploadsRoot;
+app.use('/uploads', express.static(uploadsDir, {
+    maxAge: '1h',
     fallthrough: true,
   }));
-}
 
 app.use(require('./routes/admin'));
 app.use(require('./routes/marketplace'));

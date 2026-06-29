@@ -56,6 +56,24 @@ function initBackend() {
 
 const DEFAULT_UPLOAD_DIR = path.join(__dirname, '../../data/uploads/skills');
 
+/**
+ * 确保上传目录存在（Docker volume 挂载会覆写镜像内空目录）
+ * 在 index.js 启动时调用，保证 skills/、branding/ 等子目录就绪
+ */
+function ensureUploadDirs() {
+  const dirs = [
+    DEFAULT_UPLOAD_DIR,
+    path.join(DEFAULT_UPLOAD_DIR, '_tmp'),
+    path.join(__dirname, '../../data/uploads/branding'),
+  ];
+  for (const dir of dirs) {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+      console.log(`📁 已创建上传目录: ${dir}`);
+    }
+  }
+}
+
 function getUploadDir() {
   return currentConfig.localPath || DEFAULT_UPLOAD_DIR;
 }
@@ -258,6 +276,7 @@ module.exports = {
   reload,
   getConfig,
   getRawConfig,
+  ensureUploadDirs,
   get upload() { return activeBackend.upload; },
   get download() { return activeBackend.download; },
   get delete() { return activeBackend.delete; },
