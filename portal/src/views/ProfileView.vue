@@ -185,29 +185,29 @@
                 <h2 class="text-lg font-semibold text-text">{{ isAdmin ? '技能审核' : '我的技能' }}</h2>
                 <router-link v-if="!isAdmin && featureFlags.skillSubmitEnabled" to="/submit" class="shrink-0 px-4 py-2 text-sm bg-text text-white rounded-lg hover:bg-accent-hover transition-all no-underline">提交技能</router-link>
               </div>
-            <div v-if="mySkillsLoading" class="py-10 text-center text-text-secondary text-sm">加载中...</div>
-            <div v-else-if="mySkills.length === 0" class="py-12 text-center">
-              <div class="w-12 h-12 bg-surface-secondary rounded-full mx-auto mb-3 flex items-center justify-center">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="1.5"><path d="M12 2l7 4v6c0 5-3 8-7 10-4-2-7-5-7-10V6l7-4z"/><path d="M9 12l2 2 4-4"/></svg>
-              </div>
-              <p class="text-text-secondary text-sm">{{ isAdmin ? '暂无待审核的技能' : '暂未提交任何技能' }}</p>
-            </div>
-            <div v-else class="space-y-3">
-              <div v-for="skill in mySkills" :key="skill.id" class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 border border-[rgba(0,0,0,0.06)] rounded-xl">
-                <div class="min-w-0 flex-1">
-                  <div class="text-sm font-medium text-text truncate">{{ skill.title }}</div>
-                  <div class="text-xs text-text-tertiary mt-0.5 truncate">{{ skill.skill_id }} · {{ skill.category }}</div>
-                  <div v-if="skill.package_name" class="text-xs text-text-tertiary mt-1 truncate">技能包：{{ skill.package_name }}</div>
+              <div v-if="mySkillsLoading" class="py-10 text-center text-text-secondary text-sm">加载中...</div>
+              <div v-else-if="mySkills.length === 0" class="py-12 text-center">
+                <div class="w-12 h-12 bg-surface-secondary rounded-full mx-auto mb-3 flex items-center justify-center">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="1.5"><path d="M12 2l7 4v6c0 5-3 8-7 10-4-2-7-5-7-10V6l7-4z"/><path d="M9 12l2 2 4-4"/></svg>
                 </div>
-                <div class="flex shrink-0 items-center gap-2">
-                  <span class="w-fit text-xs px-2 py-0.5 rounded-full"
-                    :class="skill.status === 'pending' ? 'text-amber-600 bg-amber-50' : skill.status === 'approved' ? 'text-green-600 bg-green-50' : skill.status === 'deleted' ? 'text-slate-600 bg-slate-100' : 'text-red-500 bg-red-50'">
-                    {{ skill.status === 'pending' ? '待审核' : skill.status === 'approved' ? '已通过' : skill.status === 'deleted' ? '已删除' : '已拒绝' }}
-                  </span>
-                  <button v-if="skill.status !== 'rejected' && skill.status !== 'deleted'" @click="openSkillDetail(skill)" class="px-2.5 py-1 text-xs text-text-secondary border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary hover:text-text transition-colors">查看</button>
+                <p class="text-text-secondary text-sm">{{ isAdmin ? '暂无待审核的技能' : '暂未提交任何技能' }}</p>
+              </div>
+              <div v-else class="space-y-3">
+                <div v-for="skill in mySkills" :key="skill.id" class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 border border-[rgba(0,0,0,0.06)] rounded-xl">
+                  <div class="min-w-0 flex-1">
+                    <div class="text-sm font-medium text-text truncate">{{ skill.title }}</div>
+                    <div class="text-xs text-text-tertiary mt-0.5 truncate">{{ skill.skill_id }} · {{ skill.category }}</div>
+                    <div v-if="skill.package_name" class="text-xs text-text-tertiary mt-1 truncate">技能包：{{ skill.package_name }}</div>
+                  </div>
+                  <div class="flex shrink-0 items-center gap-2">
+                    <span class="w-fit text-xs px-2 py-0.5 rounded-full"
+                      :class="skill.status === 'pending' ? 'text-amber-600 bg-amber-50' : skill.status === 'approved' ? 'text-green-600 bg-green-50' : skill.status === 'deleted' ? 'text-slate-600 bg-slate-100' : 'text-red-500 bg-red-50'">
+                      {{ skill.status === 'pending' ? '待审核' : skill.status === 'approved' ? '已通过' : skill.status === 'deleted' ? '已删除' : '已拒绝' }}
+                    </span>
+                    <button v-if="skill.status !== 'rejected' && skill.status !== 'deleted'" @click="openSkillDetail(skill)" class="px-2.5 py-1 text-xs text-text-secondary border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary hover:text-text transition-colors">查看</button>
+                  </div>
                 </div>
               </div>
-            </div>
           </div>
         </div>
       </div>
