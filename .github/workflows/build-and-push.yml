@@ -60,4 +60,4 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - run: docker buildx build --output "type=image,push=true" ${{ steps.prepare.outputs.buildx_args }} -f Dockerfile.all-in-one
+      - run: docker buildx build --output "type=image,push=true" ${{ steps.prepare.outputs.buildx_args }}
