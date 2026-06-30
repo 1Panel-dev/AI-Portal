@@ -9,7 +9,7 @@
 services:
   app:
     image: 1panel/ai-portal:v0.0.1
-    container_name: ai-portal-app
+    container_name: aiportal
     restart: unless-stopped
     ports:
       - "3000:3000"
