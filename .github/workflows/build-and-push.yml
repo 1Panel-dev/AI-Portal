@@ -1,0 +1,110 @@
+name: build-and-push
+
+on:
+  workflow_dispatch:
+    inputs:
+      dockerImageTag:
+        description: 'Image Tag'
+        default: 'v0.0.1-dev'
+        required: true
+      dockerImageTagWithLatest:
+        description: '是否发布latest tag（正式发版时选择）'
+        default: false
+        type: boolean
+      architecture:
+        description: 'Architecture'
+        required: true
+        default: 'linux/amd64'
+        type: choice
+        options:
+          - linux/amd64
+          - linux/arm64
+          - linux/amd64,linux/arm64
+      registry:
+        description: 'Push To Registry'
+        required: true
+        default: 'dockerhub, fit2cloud-registry'
+        type: choice
+        options:
+          - fit2cloud-registry
+          - dockerhub
+          - dockerhub, fit2cloud-registry
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  dockerhub:
+    if: github.event_name == 'push' || contains(github.event.inputs.registry, 'dockerhub')
+    runs-on: ubuntu-latest
+    steps:
+      - run: rm -rf -- ./* ./.??*
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref_name }}
+      - id: prepare
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${{ github.ref_name }}"
+            ARCH="linux/amd64,linux/arm64"
+            WITH_LATEST=$(echo "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$' && echo true || echo false)
+          else
+            TAG="${{ github.event.inputs.dockerImageTag }}"
+            ARCH="${{ github.event.inputs.architecture }}"
+            WITH_LATEST="${{ github.event.inputs.dockerImageTagWithLatest }}"
+          fi
+          IMAGE=1panel/ai-portal
+          TAGS="--tag ${IMAGE}:${TAG}"
+          [ "$WITH_LATEST" = "true" ] && TAGS="${TAGS} --tag ${IMAGE}:${TAG%%.*} --tag ${IMAGE}:latest"
+          echo "buildx_args=--platform $ARCH --no-cache \
+            --build-arg DOCKER_IMAGE_TAG=${TAG} \
+            --build-arg BUILD_AT=$(TZ=Asia/Shanghai date +'%Y-%m-%dT%H:%M') \
+            --build-arg GITHUB_COMMIT=${GITHUB_SHA::8} \
+            ${TAGS} ." >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v4
+        with:
+          cache-image: false
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - run: docker buildx build --output "type=image,push=true" ${{ steps.prepare.outputs.buildx_args }} -f Dockerfile.all-in-one
+
+  fit2cloud:
+    if: github.event_name == 'push' || contains(github.event.inputs.registry, 'fit2cloud')
+    runs-on: ubuntu-latest
+    steps:
+      - run: rm -rf -- ./* ./.??*
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref_name }}
+      - id: prepare
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${{ github.ref_name }}"
+            ARCH="linux/amd64,linux/arm64"
+            WITH_LATEST=$(echo "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$' && echo true || echo false)
+          else
+            TAG="${{ github.event.inputs.dockerImageTag }}"
+            ARCH="${{ github.event.inputs.architecture }}"
+            WITH_LATEST="${{ github.event.inputs.dockerImageTagWithLatest }}"
+          fi
+          IMAGE=${{ secrets.FIT2CLOUD_REGISTRY_HOST }}/1panel/ai-portal
+          TAGS="--tag ${IMAGE}:${TAG}"
+          [ "$WITH_LATEST" = "true" ] && TAGS="${TAGS} --tag ${IMAGE}:${TAG%%.*} --tag ${IMAGE}:latest"
+          echo "buildx_args=--platform $ARCH --no-cache \
+            --build-arg DOCKER_IMAGE_TAG=${TAG} \
+            --build-arg BUILD_AT=$(TZ=Asia/Shanghai date +'%Y-%m-%dT%H:%M') \
+            --build-arg GITHUB_COMMIT=${GITHUB_SHA::8} \
+            ${TAGS} ." >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@v4
+        with:
+          cache-image: false
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ${{ secrets.FIT2CLOUD_REGISTRY_HOST }}
+          username: ${{ secrets.FIT2CLOUD_REGISTRY_USERNAME }}
+          password: ${{ secrets.FIT2CLOUD_REGISTRY_PASSWORD }}
+      - run: docker buildx build --output "type=image,push=true" ${{ steps.prepare.outputs.buildx_args }} -f Dockerfile.all-in-one

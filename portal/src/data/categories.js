@@ -1,13 +1,11 @@
 export const categoryLabels = {
   skill: '技能',
-  package: '技能包',
   all: '全部',
 }
 
 export const categories = [
   { id: 'all', name: '全部' },
   { id: 'skill', name: '技能' },
-  { id: 'package', name: '技能包' },
 ]
 
 export const sources = [
