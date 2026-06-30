@@ -1,71 +1,27 @@
-# AI-Portal Docker Compose
+# AI-Portal（all-in-one 版，内嵌 PostgreSQL）
 #
-# 一键启动（内置 PostgreSQL）:
+# 一键启动:
 #   docker-compose up -d
 #
-# 只用外部数据库（生产）:
-#   在 .env 中配置 DB_HOST、DB_PASSWORD 等覆盖默认值
-#
-# 停止: docker-compose down
-# 清空数据: rm -rf data/postgresql
+# 停止:   docker-compose down
+# 清空数据: rm -rf ./data
 
 services:
-  db:
-    image: swr.cn-north-4.myhuaweicloud.com/maxkb/postgres:17-alpine
-    container_name: ai-portal-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${DB_USER:-aiportal}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-Password123@aiportal}
-      POSTGRES_DB: ${DB_NAME:-ai_portal}
-    ports:
-      - "5432:5432"
-    volumes:
-      - ./data/postgresql:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-aiportal} -d ${DB_NAME:-ai_portal}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   app:
-    image: swr.cn-north-4.myhuaweicloud.com/maxkb/ai-portal:latest-amd64
+    image: 1panel/ai-portal:v0.0.1
     container_name: ai-portal-app
     restart: unless-stopped
     ports:
       - "3000:3000"
-    depends_on:
-      db:
-        condition: service_healthy
     environment:
-      # ===== 安全（建议修改默认值） =====
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-
-      # ===== 数据库（默认连内置 PostgreSQL） =====
-      DB_HOST: ${DB_HOST:-db}
-      DB_PORT: ${DB_PORT:-5432}
-      DB_NAME: ${DB_NAME:-ai_portal}
-      DB_USER: ${DB_USER:-aiportal}
-      DB_PASSWORD: ${DB_PASSWORD:-Password123@aiportal}
-
-      # ===== 默认管理员（默认密码 admintest） =====
       INIT_ADMIN_PASSWORD: ${INIT_ADMIN_PASSWORD:-admintest}
-
-      # ===== 可选：1Panel 网关 =====
       PANEL_BASE_URL: ${PANEL_BASE_URL:-}
       PANEL_API_KEY: ${PANEL_API_KEY:-}
-      PANEL_API_TIMEOUT: ${PANEL_API_TIMEOUT:-10000}
-
-      # ===== 反向代理前缀 =====
-      BASE_PATH: ${BASE_PATH:-/}
-
-      # ===== 存储后端（默认本地存储） =====
-      STORAGE_TYPE: ${STORAGE_TYPE:-local}
     volumes:
-      - ./data/uploads:/app/data/uploads
+      - ./data:/app/data
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1)).on('error', () => process.exit(1))"]
       interval: 30s
       timeout: 5s
-      start_period: 30s
+      start_period: 40s
       retries: 3

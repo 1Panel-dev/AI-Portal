@@ -34,8 +34,10 @@ AI-Portal/
 ├── skills-packages/      ← Skill Package 资源
 ├── docs/
 │   └── 1panel-api-gotchas.md  ← 1Panel 调用必读
-├── Dockerfile            ← 三阶段:frontend-builder + backend-deps + runtime
-└── docker-compose.yml    ← 仅启 app,DB 自备
+├── Dockerfile              ← all-in-one 版(内嵌 PostgreSQL,默认)
+├── Dockerfile.separate     ← 分离版(app 镜像,需外部 PG)
+├── docker-compose.yml      ← all-in-one 版(默认)
+├── docker-compose.separate.yml  ← 分离版(app + db 双容器)
 ```
 
 **ESM/CJS 分裂注意**：
