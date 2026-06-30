@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- BASE_PATH 占位符:Express 启动时读 env BASE_PATH 替换为实际前缀(例:/portal/),默认 / -->
   <base href="__BASE_PATH__">
-  <title>AI-Portal</title>
+  <!-- 站点名占位符:后端服务 index.html 时从 system_config 注入,首屏 title 即正确,无闪烁 -->
+  <title>__SITE_NAME__</title>
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,6 +15,10 @@
     // 全局访问入口前缀,由后端在 Express 中间件里替换
     // 注意:必须以 / 开头并以 / 结尾,默认 /
     window.__APP_BASE__ = '__BASE_PATH__';
+    // 站点品牌初值(站名 / logo / favicon 已 resolve 的 URL),由后端注入;
+    // 前端 useSiteBranding 首屏直接用,避免刷新时先闪默认值再 fetch 回填。
+    // 值为占位符字符串时(本地 dev 由 vite 插件替换)前端会回退默认值并 fetch。
+    window.__SITE_BRANDING__ = __SITE_BRANDING_JSON__;
   </script>
 </head>
 <body>

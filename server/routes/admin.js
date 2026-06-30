@@ -1496,6 +1496,10 @@ router.post('/api/admin/branding', verifyAdmin, async (req, res) => {
         [key, value]
       );
     }
+    // 品牌已落库,失效 index.html 注入缓存,让下次刷新首屏即显示新站名/favicon
+    if (typeof req.app?.locals?.invalidateIndexCache === 'function') {
+      req.app.locals.invalidateIndexCache();
+    }
     res.json({ success: true, message: '站点品牌已保存' });
   } catch (err) {
     console.error('保存站点品牌失败:', err);

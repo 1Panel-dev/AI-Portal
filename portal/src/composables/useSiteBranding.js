@@ -19,9 +19,13 @@ export function resolveAssetUrl(url) {
   return url.startsWith('/') ? APP_BASE.replace(/\/$/, '') + url : url
 }
 
-export const siteName    = ref('AI-Portal')
-export const siteLogo    = ref('') // 已 resolve 后的可用 URL,空表示用默认 SVG 占位
-export const siteFavicon = ref('')
+// 首屏初值:优先用后端注入到 index.html 的 window.__SITE_BRANDING__
+// (站名/logo/favicon 已 resolve 成完整 URL),避免刷新时先闪默认值再 fetch 回填。
+// 注入值缺失(本地 dev 由 vite 插件填默认 JSON, 或注入失败)则回退默认值, 再由 loadSiteBranding fetch。
+const injected = (typeof window !== 'undefined' && window.__SITE_BRANDING__) || {}
+export const siteName    = ref(injected.site_name || 'AI-Portal')
+export const siteLogo    = ref(injected.site_logo || '') // 已 resolve 后的可用 URL,空表示用默认 SVG 占位
+export const siteFavicon = ref(injected.site_favicon || '')
 
 let loaded = false
 export async function loadSiteBranding() {
