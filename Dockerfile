@@ -1,4 +1,4 @@
-# 多阶段构建：构建前端 + 安装后端依赖 + 运行时镜像
+# 多阶段构建：构建前端 + 安装后端依赖 + 构建 skillctl + 运行时镜像
 
 # ---- 阶段 1: 构建前端 ----
 FROM node:20-alpine AS frontend-builder
@@ -24,7 +24,19 @@ COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev \
  && apk del .build-deps
 
-# ---- 阶段 3: 运行时镜像 ----
+# ---- 阶段 3: 构建 skillctl 下载产物 ----
+FROM golang:1.22-alpine AS skillctl-builder
+WORKDIR /app/skillctl
+
+RUN apk add --no-cache make
+
+COPY skillctl/go.mod skillctl/go.sum ./
+RUN go mod download
+
+COPY skillctl/ ./
+RUN make release
+
+# ---- 阶段 4: 运行时镜像 ----
 FROM node:20-alpine
 WORKDIR /app
 
@@ -33,6 +45,7 @@ RUN apk add --no-cache tini
 COPY --from=backend-deps /app/node_modules ./node_modules
 COPY server/ ./
 COPY --from=frontend-builder /app/portal/dist ./dist
+COPY --from=skillctl-builder /app/skillctl/dist/ ./dist/downloads/
 
 RUN mkdir -p /app/data/uploads/skills /app/data/uploads/branding
 
