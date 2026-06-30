@@ -16,7 +16,7 @@ if (fs.existsSync(envPath)) {
 
 // ===== JWT_SECRET 自动生成（用户未指定时） =====
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'change-me-in-production') {
-  const secretsFile = path.join(__dirname, 'data/.generated_secrets');
+  const secretsFile = path.join(__dirname, '.generated_secrets');
   if (fs.existsSync(secretsFile)) {
     const content = fs.readFileSync(secretsFile, 'utf-8');
     const match = content.match(/^JWT_SECRET=(.+)/m);
