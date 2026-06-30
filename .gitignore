@@ -150,3 +150,7 @@ docs/superpowers/
 
 # Runtime data
 data/
+
+# 分离版文件（本地保留，不提交到仓库）
+Dockerfile.separate
+docker-compose.separate.yml
