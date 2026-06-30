@@ -45,6 +45,7 @@ COPY --from=frontend /app/portal/dist ./dist
 COPY --from=skillctl-builder /app/skillctl/dist/ ./dist/downloads/
 
 COPY start-all.sh /usr/local/bin/start-all.sh
+RUN chmod +x /usr/local/bin/start-all.sh
 
 RUN mkdir -p /app/data/pgdata /app/data/uploads/skills /app/data/uploads/branding
 
