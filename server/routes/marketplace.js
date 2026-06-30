@@ -531,7 +531,7 @@ router.post('/api/skills/upload', verifyUser, uploadLimiter, upload.single('file
     if (fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
-    const installCommand = `f2chub install ${skill_id}`;
+    const installCommand = `skillctl install ${skill_id}`;
     const installUrl = `/api/skills/${skill_id}/download`;
 
     // 写入待审核表

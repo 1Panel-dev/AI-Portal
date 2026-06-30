@@ -287,7 +287,7 @@ async function syncSkillsFromPanel() {
       const skillId = `1panel-${item.id}`;       // 1panel- 前缀避免和本地 skill_id 撞
       const slug = `1panel-${item.name}`;         // slug 也加 1panel- 前缀,避免与本地 skill 同名冲突 UNIQUE 约束
       const title = item.name;                   // 远端没单独 title,name 兼任
-      const installCommand = `f2chub install ${slug}`;
+      const installCommand = `skillctl install ${slug}`;
       const installUrl = `/api/skills/${slug}/download`;
 
       await global.pool.query(`
