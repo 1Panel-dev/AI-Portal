@@ -16,11 +16,20 @@ RUN apk add --no-cache --virtual .build-deps python3 make g++
 COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev && apk del .build-deps
 
-# ---- 阶段 3: 提取 Node 二进制 ----
+# ---- 阶段 3: 构建 skillctl 下载产物 ----
+FROM golang:1.22-alpine AS skillctl-builder
+WORKDIR /app/skillctl
+RUN apk add --no-cache make
+COPY skillctl/go.mod skillctl/go.sum ./
+RUN go mod download
+COPY skillctl/ ./
+RUN make release
+
+# ---- 阶段 4: 提取 Node 二进制 ----
 FROM node:20-alpine AS node-bin
 # 仅用于 COPY node 到运行时镜像
 
-# ---- 阶段 4: 运行时 ----
+# ---- 阶段 5: 运行时 ----
 FROM postgres:17-alpine
 WORKDIR /app
 
@@ -33,6 +42,7 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm
 COPY --from=backend /app/node_modules ./node_modules
 COPY server/ ./
 COPY --from=frontend /app/portal/dist ./dist
+COPY --from=skillctl-builder /app/skillctl/dist/ ./dist/downloads/
 
 COPY start-all.sh /usr/local/bin/start-all.sh
 
