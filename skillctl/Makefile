@@ -6,7 +6,7 @@ TARGET_ARCH ?= $(shell $(GO) env GOARCH)
 GO_LDFLAGS ?= -s -w
 TEST_FLAGS ?= -count=1
 
-.PHONY: all build test check release linux-amd64 linux-arm64 darwin-amd64 darwin-arm64 mac-amd64 mac-arm64 clean
+.PHONY: all build test check release linux-amd64 linux-arm64 darwin-amd64 darwin-arm64 windows-amd64 mac-amd64 mac-arm64 clean
 
 all: build
 
@@ -19,7 +19,7 @@ test:
 
 check: test
 
-release: check linux-amd64 linux-arm64 darwin-amd64 darwin-arm64
+release: check linux-amd64 linux-arm64 darwin-amd64 darwin-arm64 windows-amd64
 
 linux-amd64:
 	@mkdir -p $(BUILD_DIR)
@@ -36,6 +36,10 @@ darwin-amd64:
 darwin-arm64:
 	@mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 $(GO) build -trimpath -ldflags '$(GO_LDFLAGS)' -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 .
+
+windows-amd64:
+	@mkdir -p $(BUILD_DIR)
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 $(GO) build -trimpath -ldflags '$(GO_LDFLAGS)' -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe .
 
 mac-amd64: darwin-amd64
 

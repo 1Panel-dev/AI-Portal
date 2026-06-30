@@ -1107,4 +1107,10 @@ router.post('/api/auth/password/set', verifyUser, async (req, res) => {
   }
 });
 
+// GET /api/version — 返回当前版本号
+const pkg = require('../package.json');
+router.get('/api/version', (req, res) => {
+  res.json({ version: pkg.version });
+});
+
 module.exports = router;

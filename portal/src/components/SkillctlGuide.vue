@@ -1,11 +1,30 @@
 <template>
   <section class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
-    <div class="mb-4">
-      <h3 class="text-base font-semibold text-text">CLI 工具 skillctl</h3>
-      <p class="text-sm text-text-secondary mt-1">使用本地命令行安装/管理 Skill</p>
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h3 class="text-base font-semibold text-text">CLI 工具 skillctl</h3>
+        <p class="text-sm text-text-secondary mt-1">使用本地命令行安装/管理 Skill</p>
+      </div>
+      <span v-if="version" class="text-xs text-text-tertiary bg-surface-secondary px-2.5 py-1 rounded-full">v{{ version }}</span>
     </div>
 
-    <!-- Token 占位区(后续接真实拉取) -->
+    <!-- 下载区域 -->
+    <div class="mb-5 rounded-xl border border-[rgba(0,0,0,0.06)] bg-surface-secondary px-4 py-3">
+      <div class="text-xs text-text-tertiary mb-2.5">下载最新版本</div>
+      <div class="flex flex-wrap gap-2">
+        <a
+          v-for="(item, i) in platforms"
+          :key="i"
+          :href="item.url"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-[rgba(0,0,0,0.08)] bg-white hover:bg-surface-secondary transition-colors cursor-pointer no-underline text-text"
+        >
+          <span>{{ item.icon }}</span>
+          <span>{{ item.label }}</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Token 占位区 -->
     <div class="mb-5 rounded-xl border border-[rgba(0,0,0,0.06)] bg-surface-secondary px-4 py-3">
       <div class="text-xs text-text-tertiary mb-1.5">你的登录 Token</div>
       <div class="flex items-center gap-3">
@@ -41,6 +60,17 @@
 </template>
 
 <script setup>
+import { ref, onMounted } from 'vue'
+
+const version = ref('')
+
+const platforms = [
+  { icon: '🪟', label: 'Windows', url: '/downloads/skillctl-windows-amd64.exe' },
+  { icon: '🍎', label: 'macOS Intel', url: '/downloads/skillctl-darwin-amd64' },
+  { icon: '🍎', label: 'macOS Apple Silicon', url: '/downloads/skillctl-darwin-arm64' },
+  { icon: '🐧', label: 'Linux x86_64', url: '/downloads/skillctl-linux-amd64' },
+  { icon: '🐧', label: 'Linux ARM64', url: '/downloads/skillctl-linux-arm64' },
+]
 
 const commands = [
   { cmd: 'skillctl login <endpoint> --token <token>', desc: '登录 1Panel' },
@@ -50,4 +80,14 @@ const commands = [
   { cmd: 'skillctl search [keyword]', desc: '搜索 Skill' },
   { cmd: 'skillctl install <skill-name>', desc: '安装 Skill' },
 ]
+
+onMounted(async () => {
+  try {
+    const res = await fetch('/api/version')
+    const data = await res.json()
+    version.value = data.version || ''
+  } catch {
+    // ignore
+  }
+})
 </script>
