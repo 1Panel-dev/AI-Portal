@@ -16,6 +16,7 @@
           v-for="(item, i) in platforms"
           :key="i"
           :href="item.url"
+          :download="item.filename"
           class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-[rgba(0,0,0,0.08)] bg-white hover:bg-surface-secondary transition-colors cursor-pointer no-underline text-text"
         >
           <span>{{ item.icon }}</span>
@@ -65,11 +66,11 @@ import { ref, onMounted } from 'vue'
 const version = ref('')
 
 const platforms = [
-  { icon: '🪟', label: 'Windows', url: '/downloads/skillctl-windows-amd64.exe' },
-  { icon: '🍎', label: 'macOS Intel', url: '/downloads/skillctl-darwin-amd64' },
-  { icon: '🍎', label: 'macOS Apple Silicon', url: '/downloads/skillctl-darwin-arm64' },
-  { icon: '🐧', label: 'Linux x86_64', url: '/downloads/skillctl-linux-amd64' },
-  { icon: '🐧', label: 'Linux ARM64', url: '/downloads/skillctl-linux-arm64' },
+  { icon: '🪟', label: 'Windows', url: '/downloads/skillctl-windows-amd64.exe', filename: 'skillctl-windows-amd64.exe' },
+  { icon: '🍎', label: 'macOS Intel', url: '/downloads/skillctl-darwin-amd64', filename: 'skillctl-darwin-amd64' },
+  { icon: '🍎', label: 'macOS Apple Silicon', url: '/downloads/skillctl-darwin-arm64', filename: 'skillctl-darwin-arm64' },
+  { icon: '🐧', label: 'Linux x86_64', url: '/downloads/skillctl-linux-amd64', filename: 'skillctl-linux-amd64' },
+  { icon: '🐧', label: 'Linux ARM64', url: '/downloads/skillctl-linux-arm64', filename: 'skillctl-linux-arm64' },
 ]
 
 const commands = [
