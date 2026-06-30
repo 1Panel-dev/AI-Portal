@@ -34,7 +34,7 @@
     <!-- AI Agent Copy Button -->
     <div class="flex items-center gap-2 mb-3">
       <div class="flex-1 min-w-0 bg-surface-secondary rounded-lg px-3 py-2.5 font-mono text-[11px] text-text-secondary truncate">
-        f2c skill install {{ skill.slug }}
+        skillctl install {{ skill.slug }}
       </div>
       <button
         @click.stop="copyAgentCommand"
