@@ -193,7 +193,7 @@ const agentPrompt = computed(() => {
   if (!skill.value) return ''
   const p = platforms.find(x => x.id === selectedPlatform.value)
   const flag = p?.cmd ? ` ${p.cmd}` : ''
-  return `如果尚未安装 Skill 安装 CLI，请先执行：npm install -g @fitskill/f2chub-cli\n\n然后执行以下命令安装 ${skill.value.title} 技能：\n\nf2c skill install${flag} ${skill.value.slug}`
+  return `如果尚未安装 skillctl，请先访问文档页下载：\n\n然后执行以下命令安装 ${skill.value.title} 技能：\n\nskillctl install${flag} ${skill.value.slug}`
 })
 
 const loadSkill = async () => {

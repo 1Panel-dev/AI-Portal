@@ -154,7 +154,7 @@ const agentPrompt = computed(() => {
   if (!props.skill) return ''
   const p = platforms.find(x => x.id === selectedPlatform.value)
   const flag = p?.cmd ? ` ${p.cmd}` : ''
-  return `如果尚未安装 Skill 安装 CLI，请先执行：npm install -g @fitskill/f2chub-cli\n\n然后执行以下命令安装 ${props.skill.title} 技能：\n\nf2c skill install${flag} ${props.skill.slug}`
+  return `如果尚未安装 skillctl，请先访问文档页下载：\n\n然后执行以下命令安装 ${props.skill.title} 技能：\n\nskillctl install${flag} ${props.skill.slug}`
 })
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))

@@ -81,7 +81,7 @@ const formatDownloads = (num) => {
 }
 
 const copyAgentCommand = async () => {
-  const cmd = `如果尚未安装 Skill 安装 CLI，请先执行：npm install -g @fitskill/f2chub-cli\n\n然后执行以下命令安装 ${props.skill.title} 技能：\n\nf2c skill install ${props.skill.slug}`
+  const cmd = `如果尚未安装 skillctl，请先访问文档页下载：\n\n然后执行以下命令安装 ${props.skill.title} 技能：\n\nskillctl install ${props.skill.slug}`
   try {
     await navigator.clipboard.writeText(cmd)
     copied.value = true

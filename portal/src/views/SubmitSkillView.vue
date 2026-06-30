@@ -118,7 +118,7 @@
         <!-- Install Preview -->
         <div class="bg-surface-secondary rounded-[10px] p-3.5 mb-6">
           <p class="text-[11px] text-text-tertiary mb-1">安装命令（自动生成）</p>
-          <code class="text-[13px] font-mono text-text">f2chub install {{ form.skill_id || '<skill-id>' }}</code>
+          <code class="text-[13px] font-mono text-text">skillctl install {{ form.skill_id || '<skill-id>' }}</code>
         </div>
 
         <!-- Submit -->
