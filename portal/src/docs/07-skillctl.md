@@ -45,6 +45,33 @@ make darwin-amd64
 make darwin-arm64
 ```
 
+## 下载 skillctl
+
+预编译二进制（适用于已部署的 AI-Portal 实例）：
+
+| 平台 | 下载链接 |
+|------|----------|
+| 🪟 Windows x86_64 | [skillctl-windows-amd64.exe](/downloads/skillctl-windows-amd64.exe) |
+| 🍎 macOS Intel | [skillctl-darwin-amd64](/downloads/skillctl-darwin-amd64) |
+| 🍎 macOS Apple Silicon | [skillctl-darwin-arm64](/downloads/skillctl-darwin-arm64) |
+| 🐧 Linux x86_64 | [skillctl-linux-amd64](/downloads/skillctl-linux-amd64) |
+| 🐧 Linux ARM64 | [skillctl-linux-arm64](/downloads/skillctl-linux-arm64) |
+
+下载后赋予执行权限：
+
+```bash
+chmod +x skillctl-*
+# Linux / macOS
+sudo mv skillctl-linux-amd64（或对应的文件名） /usr/local/bin/skillctl
+# Windows: 将 .exe 文件放到 PATH 目录即可
+```
+
+验证安装：
+
+```bash
+skillctl help
+```
+
 ## 安装到系统命令
 
 将二进制文件安装为系统命令：
