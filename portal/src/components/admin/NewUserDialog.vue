@@ -58,8 +58,9 @@ async function submit() {
       return
     }
     if (data.syncWarning) {
+      emit('created', data.user)  // 用户已创建,刷新列表
       error.value = data.syncWarning
-      return
+      return  // 弹窗不关,让管理员看到警告
     }
     emit('created', data.user)
     emit('close')
