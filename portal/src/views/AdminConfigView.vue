@@ -46,7 +46,7 @@
         <div>
           <h1 class="text-2xl font-bold text-text">系统配置</h1>
           <p class="text-text-secondary text-sm mt-1">
-            配置 1Panel 网关对接与站点品牌
+            配置 1Panel 与站点品牌
           </p>
         </div>
         <button
@@ -232,15 +232,15 @@
 
         </div><!-- /Tab: 存储 -->
 
-        <!-- ===== Tab: 1Panel 网关 ===== -->
+        <!-- ===== Tab: 1Panel 配置 ===== -->
         <div v-show="activeTab === 'panel'" class="space-y-6">
 
-        <!-- 1Panel 网关配置 -->
+        <!-- 1Panel 配置 -->
         <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-6">
           <div class="flex items-center justify-between mb-4">
             <div>
-              <h2 class="text-lg font-semibold text-text">1Panel 网关</h2>
-              <p class="text-xs text-text-secondary mt-1">配置 1Panel 企业版地址,用于聚合模型与技能列表</p>
+              <h2 class="text-lg font-semibold text-text">1Panel 配置</h2>
+              <p class="text-xs text-text-secondary mt-1">配置 1Panel 企业版地址与密钥,用于聚合模型与技能列表</p>
             </div>
             <span v-if="panelForm.apiKeyConfigured" class="px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-500/10 text-emerald-600">
               已配置
@@ -252,23 +252,23 @@
 
           <div class="grid grid-cols-2 gap-4">
             <div class="col-span-2">
-              <label class="block text-sm font-medium text-text mb-1">网关地址 (Base URL)</label>
+              <label class="block text-sm font-medium text-text mb-1">1Panel 访问地址</label>
               <input
                 v-model="panelForm.baseUrl"
                 type="text"
                 class="w-full px-3 py-2 border border-[rgba(0,0,0,0.06)] rounded-lg text-text bg-surface-secondary outline-none focus:border-text font-mono text-sm"
                 placeholder="http://192.168.1.100:33846"
               />
-              <p class="text-xs text-text-secondary mt-1">1Panel 服务地址,需包含协议和端口</p>
+              <p class="text-xs text-text-secondary mt-1">1Panel 管理面板地址,需包含协议和端口。在 1Panel 菜单「AI → AI 网关访问地址」中查看</p>
             </div>
             <div class="col-span-2">
-              <label class="block text-sm font-medium text-text mb-1">API Key</label>
+              <label class="block text-sm font-medium text-text mb-1">1Panel API Key</label>
               <div class="relative">
                 <input
                   v-model="panelForm.apiKey"
                   :type="showPanelKey ? 'text' : 'password'"
                   class="w-full px-3 py-2 pr-10 border border-[rgba(0,0,0,0.06)] rounded-lg text-text bg-surface-secondary outline-none focus:border-text font-mono text-sm"
-                  :placeholder="panelForm.apiKeyConfigured ? '已配置,如需修改请输入新值' : '在 1Panel 设置 → API 接口中创建'"
+                  :placeholder="panelForm.apiKeyConfigured ? '已配置,如需修改请输入新值' : '在 1Panel 菜单 AI → AI 网关访问地址 中获取'"
                 />
                 <button
                   @click="showPanelKey = !showPanelKey"
@@ -397,7 +397,7 @@
           </div>
         </div>
 
-        </div><!-- /Tab: 1Panel 网关 -->
+        </div><!-- /Tab: 1Panel 配置 -->
 
         <!-- ===== Tab: 站点设置 (合并: 站点品牌 + 调用示例 + 公告横幅) ===== -->
         <div v-show="activeTab === 'site'" class="space-y-6">
@@ -415,6 +415,7 @@
           <div class="space-y-4">
             <div>
               <label class="block text-sm font-medium text-text mb-1">调用地址 (Base URL)</label>
+              <p class="text-xs text-text-secondary mt-1 mb-2">即 1Panel AI 网关的访问地址,在 1Panel 菜单「AI → AI 网关访问地址」中查看</p>
               <input
                 v-model="modelExampleForm.endpoint"
                 type="text"
@@ -689,7 +690,7 @@ const showKey = ref(false)
 
 // Tab 切换 + URL hash 双向同步
 const tabs = [
-  { id: 'panel',   label: '1Panel 网关' },
+  { id: 'panel',   label: '1Panel 配置' },
   { id: 'site',    label: '站点设置' },
 ]
 const VALID_TAB_IDS = tabs.map(t => t.id)

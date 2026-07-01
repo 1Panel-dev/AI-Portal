@@ -81,25 +81,26 @@ import {
 const visible = ref(false)
 const dontShowAgain = ref(false)
 
-// 本会话已看过 dialog 的锁: 关一次就写 sessionStorage, 本次会话(含刷新前)不再弹。
-// 刷新会开新会话,所以 sessionStorage 天然区分"本次浏览"与"重新打开"。
-// 勾「不再提示」另写 localStorage(跨会话永久),key 带 version,admin 改完 version 自增即失效。
-const SESSION_SEEN_KEY = 'aiportal_dialog_seen_this_session'
+// 会话锁改为 localStorage + 时间戳:企微 WebView 刷新会清 sessionStorage,导致每次刷新都弹。
+// 改用 localStorage 存时间戳,1 小时内的刷新算"同一会话",不重复弹。
+// 超过 1 小时或关闭 Tab 重开(模拟新会话)会重新弹,但用户勾了「不再提示」则永久不弹。
+const SESSION_SEEN_KEY = 'aiportal_dialog_seen_timestamp'
+const SESSION_TTL = 3600000 // 1 小时有效期(毫秒)
 
-// 弹框判定: 监听 dialogHtml(初始 '', fetch 回来一定变非空, 必然触发; 不会像 version 那样
-// 可能"初始值=后端值"导致 1→1 不触发)。
+// 弹框判定: 监听 dialogHtml(初始 '', fetch 回来一定变非空, 必然触发)。
 // 三道门槛任一不满足都不弹: 后端开启 dialog / 本会话没看过 / 没勾过永久不再提示。
 // 永久不再提示的 key 带 dialog_version, admin 改完 version 自增即 key 失效, 用户重新看到。
 watch(dialogHtml, (html) => {
   if (!html || !dialogEnabled.value) return
-  if (sessionStorage.getItem(SESSION_SEEN_KEY) === 'true') return
   if (localStorage.getItem(dismissDialogKey()) === 'true') return
+  const lastSeen = parseInt(localStorage.getItem(SESSION_SEEN_KEY) || '0', 10)
+  if (lastSeen && Date.now() - lastSeen < SESSION_TTL) return
   visible.value = true
 })
 
 const close = () => {
-  // 不管勾没勾「不再提示」, 关一次就本会话不再弹
-  safeSet(sessionStorage, SESSION_SEEN_KEY, 'true')
+  // 写临时锁(1 小时有效期):1 小时内刷新不弹,模拟会话级记忆
+  safeSet(localStorage, SESSION_SEEN_KEY, Date.now().toString())
   // 勾了「不再提示」就跨会话永久记忆(version 变更前不再弹),
   // 无论用户是点按钮还是点遮罩关闭——勾选即代表永久记忆意图
   if (dontShowAgain.value) {
