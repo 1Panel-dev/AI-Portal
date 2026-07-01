@@ -5,10 +5,10 @@
     <!-- Hero -->
     <section class="pt-[124px] pb-12 text-center max-w-[720px] mx-auto animate-fade-up">
       <h1 class="text-[52px] font-bold text-text tracking-[-1.6px] leading-[1.05] mb-3 max-md:text-[40px] max-sm:text-[32px]">
-        发现可安装的 AI 技能
+        查找可安装的 AI 技能
       </h1>
       <p class="text-[18px] text-text-secondary font-normal mb-8 leading-relaxed">
-        从企业技能库中查找、复制并安装你的下一项 AI 能力
+        查找适合的 Skill，一键复制安装指令，快速扩展你的 AI 能力
       </p>
 
       <!-- Search -->
