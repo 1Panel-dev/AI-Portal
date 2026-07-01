@@ -5,10 +5,10 @@
     <!-- Hero -->
     <section class="pt-[124px] pb-12 text-center max-w-[720px] mx-auto animate-fade-up">
       <h1 class="text-[52px] font-bold text-text tracking-[-1.6px] leading-[1.05] mb-3 max-md:text-[40px] max-sm:text-[32px]">
-        发现 MCP 服务
+        查找可用的 MCP 服务
       </h1>
       <p class="text-[18px] text-text-secondary font-normal mb-8 leading-relaxed">
-        浏览并连接 1Panel 中可用的 MCP 服务器
+        查找可用的 MCP 服务，一键复制配置并接入到常用客户端
       </p>
 
       <!-- Search -->
