@@ -61,11 +61,23 @@ function inspectWecomBiz(body) {
 const { createTokenCache } = require('./token-cache');
 const tokenCache = createTokenCache();
 
+// 企微 API 调用加超时,防止网络异常时请求永久挂起(用户卡在"登录中...")
+const WECOM_FETCH_TIMEOUT = 10000; // 10 秒
+async function fetchWithTimeout(url, opts = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), WECOM_FETCH_TIMEOUT);
+  try {
+    return await fetch(url, { ...opts, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function _fetchTokenFromWecom(config) {
   const url = `https://qyapi.weixin.qq.com/cgi-bin/gettoken` +
     `?corpid=${encodeURIComponent(config.corpid)}` +
     `&corpsecret=${encodeURIComponent(config.secret)}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url);
   if (!res.ok) throw new Error(`gettoken HTTP ${res.status}`);
   const body = await res.json();
   inspectWecomBiz(body);   // 检查 errcode
@@ -94,7 +106,7 @@ async function exchangeCode({ config, code }) {
   // 1. 拿 userid
   const u1 = `https://qyapi.weixin.qq.com/cgi-bin/auth/getuserinfo` +
     `?access_token=${encodeURIComponent(token)}&code=${encodeURIComponent(code)}`;
-  const r1 = await fetch(u1);
+  const r1 = await fetchWithTimeout(u1);
   if (!r1.ok) throw new Error(`getuserinfo HTTP ${r1.status}`);
   const b1 = await r1.json();
   inspectWecomBiz(b1);
@@ -112,7 +124,7 @@ async function exchangeCode({ config, code }) {
     try {
       const u2 = `https://qyapi.weixin.qq.com/cgi-bin/user/get` +
         `?access_token=${encodeURIComponent(token)}&userid=${encodeURIComponent(b1.userid)}`;
-      const r2 = await fetch(u2);
+      const r2 = await fetchWithTimeout(u2);
       if (r2.ok) {
         const b2 = await r2.json();
         if (b2.errcode === 0) {
