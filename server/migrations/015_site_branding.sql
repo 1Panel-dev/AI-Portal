@@ -3,7 +3,7 @@
 
 -- 站点品牌
 INSERT INTO system_config (key, value, updated_at) VALUES
-  ('site_name',    'AI门户', CURRENT_TIMESTAMP),
+  ('site_name',    'AI 门户', CURRENT_TIMESTAMP),
   ('site_logo',    '',              CURRENT_TIMESTAMP),
   ('site_favicon', '',              CURRENT_TIMESTAMP)
 ON CONFLICT (key) DO NOTHING;
@@ -12,16 +12,16 @@ ON CONFLICT (key) DO NOTHING;
 INSERT INTO system_config (key, value, updated_at) VALUES
   ('banner_enabled', 'true', CURRENT_TIMESTAMP),
   ('banner_html',
-$$欢迎使用 <span class="banner-emphasis">AI门户</span> —— 企业 AI 自助门户，探索模型、申请密钥、安装技能，一站式开启 AI 之旅。$$,
+$$欢迎使用 <span class="banner-emphasis">AI 门户</span> —— 企业 AI 自助门户，探索模型、申请密钥、安装技能，一站式开启 AI 之旅。$$,
    CURRENT_TIMESTAMP)
 ON CONFLICT (key) DO NOTHING;
 
 -- 首次访问详细公告 dialog
 INSERT INTO system_config (key, value, updated_at) VALUES
   ('dialog_enabled', 'true',                  CURRENT_TIMESTAMP),
-  ('dialog_title',   '欢迎使用 AI门户',     CURRENT_TIMESTAMP),
+  ('dialog_title',   '欢迎使用 AI 门户',     CURRENT_TIMESTAMP),
   ('dialog_html',
-$$<p>欢迎来到 <strong>AI门户</strong> —— 企业 AI 自助门户。</p>
+$$<p>欢迎来到 <strong>AI 门户</strong> —— 企业 AI 自助门户。</p>
 <p>在这里你可以：</p>
 <ul>
   <li>🧠 <strong>模型广场</strong> — 浏览所有可调用的 AI 模型，一键复制模型名称</li>

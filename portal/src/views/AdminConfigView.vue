@@ -465,7 +465,7 @@
                 type="text"
                 maxlength="100"
                 class="w-full px-3 py-2 border border-[rgba(0,0,0,0.06)] rounded-lg text-text bg-surface-secondary outline-none focus:border-text text-sm"
-                placeholder="AI门户"
+                placeholder="AI 门户"
               />
               <p class="text-xs text-text-secondary mt-1">显示在顶部导航栏 Logo 旁、浏览器标签页标题。最多 100 个字符。</p>
             </div>

@@ -19,7 +19,7 @@ export function resolveAssetUrl(url) {
   return url.startsWith('/') ? APP_BASE.replace(/\/$/, '') + url : url
 }
 
-const DEFAULT_SITE_NAME = 'AI门户'
+const DEFAULT_SITE_NAME = 'AI 门户'
 // site_logo 为空时的兜底:用 1panel-logo.svg(宽幅,带 1Panel 图标+文字)。
 // 后台管理员仍可单独上传 logo 覆盖。
 const DEFAULT_SITE_LOGO = '/1panel-logo.svg'

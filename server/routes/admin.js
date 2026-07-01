@@ -1466,7 +1466,7 @@ router.get('/api/admin/branding', verifyAdmin, async (req, res) => {
     const map = {};
     for (const row of result.rows) map[row.key] = row.value;
     res.json({
-      site_name:    map.site_name    || 'AI门户',
+      site_name:    map.site_name    || 'AI 门户',
       site_logo:    map.site_logo    || '',
       site_favicon: map.site_favicon || '',
     });
