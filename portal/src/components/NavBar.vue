@@ -3,20 +3,20 @@
     class="fixed left-0 right-0 z-[260] h-[52px] border-b border-[rgba(0,0,0,0.06)] bg-white shadow-[0_1px_10px_rgba(15,23,42,0.04)]"
     :class="hasVisibleBanner ? 'top-10' : 'top-0'"
   >
-    <div class="max-w-[1024px] mx-auto px-6 h-full flex items-center">
-      <router-link to="/" class="flex items-center text-[18px] tracking-[-0.45px] text-text no-underline">
+    <div class="max-w-[1024px] mx-auto px-6 h-full flex items-center md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:gap-4">
+      <router-link to="/" class="flex min-w-0 items-center text-[18px] text-text no-underline md:w-full">
         <!-- 默认 logo 直接渲染 SVG 图片,避免小尺寸 mask 栅格化后边缘发虚。 -->
         <img v-if="siteLogoIsDefault"
           :src="siteLogo"
           alt="1Panel"
           class="h-[24px] w-[88px] mr-[8px] shrink-0 block object-contain object-left" />
-        <div v-else class="h-[24px] flex items-center mr-[8px]">
+        <div v-else class="h-[24px] flex shrink-0 items-center mr-[8px]">
           <img :src="siteLogo" alt="logo" class="h-full w-auto" />
         </div>
-      {{ siteName }}
+        <span class="min-w-0 truncate font-[900] [-webkit-text-stroke:0.5px_currentColor]">{{ siteName }}</span>
       </router-link>
 
-      <div class="flex items-center gap-1 ml-6">
+      <div class="flex items-center gap-1 ml-6 md:ml-0 md:justify-self-center">
         <router-link to="/"
           class="px-3 py-1.5 text-[14px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
           :class="isActive('/') ? 'font-semibold text-text' : 'text-text-secondary'">
@@ -35,7 +35,7 @@
 
       </div>
 
-      <div class="flex items-center gap-1 ml-auto">
+      <div class="flex items-center gap-1 ml-auto md:ml-0 md:justify-self-end">
         <router-link to="/docs"
           class="flex items-center gap-1.5 px-2 py-1.5 text-[13px] text-text-secondary rounded-lg transition-colors hover:bg-black/5 hover:text-text no-underline">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
