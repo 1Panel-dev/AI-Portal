@@ -555,7 +555,7 @@
 
           <div class="space-y-4">
             <label class="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" v-model="announcementForm.banner_enabled" class="h-4 w-4 accent-text" />
+              <input type="checkbox" v-model="announcementForm.banner_enabled" class="h-4 w-4 accent-accent" />
               <span class="text-sm font-medium text-text">启用顶部滚动横幅</span>
             </label>
             <div>
@@ -579,7 +579,7 @@
 
           <div class="space-y-4">
             <label class="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" v-model="announcementForm.dialog_enabled" class="h-4 w-4 accent-text" />
+              <input type="checkbox" v-model="announcementForm.dialog_enabled" class="h-4 w-4 accent-accent" />
               <span class="text-sm font-medium text-text">启用首次访问公告</span>
             </label>
             <div>

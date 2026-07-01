@@ -33,14 +33,14 @@
       <div v-else class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-hidden shadow-card">
         <div class="grid grid-cols-[36px_1.2fr_1fr_0.8fr_0.8fr_0.8fr_120px] gap-3 px-4 py-3 text-xs font-semibold text-text-secondary bg-surface-secondary border-b border-[rgba(0,0,0,0.06)]">
           <div class="flex items-center">
-            <input type="checkbox" :checked="allSelected" @change="toggleAll" class="h-4 w-4 accent-text cursor-pointer" />
+            <input type="checkbox" :checked="allSelected" @change="toggleAll" class="h-4 w-4 accent-accent cursor-pointer" />
           </div>
           <div>用户</div><div>角色/状态</div><div>API Key</div><div>提交数</div><div @click="toggleSort" class="cursor-pointer select-none flex items-center gap-1 hover:text-text transition-colors">创建时间 <component :is="sortOrder === 'desc' ? ChevronDown : ChevronUp" class="w-3 h-3" /></div><div class="text-right">操作</div>
         </div>
         <div v-if="users.length === 0" class="py-14 text-center text-sm text-text-secondary">暂无用户</div>
         <div v-for="user in users" :key="user.id" class="grid grid-cols-[36px_1.2fr_1fr_0.8fr_0.8fr_0.8fr_120px] gap-3 px-4 py-3 items-center border-b border-[rgba(0,0,0,0.04)] last:border-b-0 text-sm">
           <div class="flex items-center">
-            <input v-if="user.role !== 'admin'" type="checkbox" :checked="selectedUsers.has(user.id)" @change="toggleUser(user.id)" class="h-4 w-4 accent-text cursor-pointer" />
+            <input v-if="user.role !== 'admin'" type="checkbox" :checked="selectedUsers.has(user.id)" @change="toggleUser(user.id)" class="h-4 w-4 accent-accent cursor-pointer" />
           </div>
           <div class="min-w-0">
             <div class="font-medium text-text truncate">{{ user.name || user.username }}</div>

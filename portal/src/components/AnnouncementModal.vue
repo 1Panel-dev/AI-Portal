@@ -2,7 +2,8 @@
   <Teleport to="body">
     <div
       v-if="bannerVisible && bannerEnabled && bannerHtml"
-      class="fixed left-0 right-0 top-0 z-[270] h-10 overflow-hidden bg-[#2563eb]/95 text-white shadow-[0_2px_12px_rgba(37,99,235,0.22)] backdrop-blur-xl"
+      class="fixed left-0 right-0 top-0 h-10 overflow-hidden bg-[#2563eb]/95 text-white shadow-[0_2px_12px_rgba(37,99,235,0.22)] backdrop-blur-xl transition-opacity"
+      :class="visible ? 'z-[230] opacity-30' : 'z-[270]'"
       role="status"
     >
       <div class="mx-auto flex h-full max-w-[1024px] items-center gap-2.5 px-6 text-[13.5px] leading-5 text-white">
@@ -30,7 +31,7 @@
       v-if="visible && dialogEnabled && dialogHtml"
       class="fixed inset-0 z-[240] flex items-center justify-center bg-black/45 px-5 py-8 backdrop-blur-[8px] animate-fade-in"
       role="presentation"
-      @click="close(false)"
+      @click="close()"
     >
       <div
         class="w-full max-w-[500px] overflow-hidden rounded-[22px] bg-white shadow-[0_24px_80px_rgba(0,0,0,0.18),0_0_0_1px_rgba(0,0,0,0.04)] animate-modal-in"
@@ -53,13 +54,13 @@
 
         <div class="mt-7 border-t border-[rgba(0,0,0,0.06)] px-8 py-5">
           <label class="mb-4 flex cursor-pointer select-none items-center gap-2 text-[13px] text-text-secondary">
-            <input v-model="dontShowAgain" type="checkbox" class="h-4 w-4 accent-text" />
+            <input v-model="dontShowAgain" type="checkbox" class="h-4 w-4 accent-accent" />
             <span>不再提示</span>
           </label>
           <button
             type="button"
             class="h-[46px] w-full rounded-xl bg-accent text-[15px] font-semibold text-white transition-colors hover:bg-accent-hover"
-            @click="close(true)"
+            @click="close()"
           >
             我已了解
           </button>
@@ -81,19 +82,37 @@ const visible = ref(false)
 const bannerVisible = ref(true)
 const dontShowAgain = ref(false)
 
-// 等公告数据从接口拿到再决定要不要弹 dialog
-// dialog_version 变化 → localStorage key 变化 → 已勾「不再提示」的人重新看到
-watch(dialogVersion, (v) => {
-  if (v && dialogEnabled.value && dialogHtml.value) {
-    visible.value = localStorage.getItem(dismissDialogKey()) !== 'true'
-  }
-}, { immediate: true })
+// 本会话已看过 dialog 的锁: 关一次就写 sessionStorage, 本次会话(含刷新前)不再弹。
+// 刷新会开新会话,所以 sessionStorage 天然区分"本次浏览"与"重新打开"。
+// 勾「不再提示」另写 localStorage(跨会话永久),key 带 version,admin 改完 version 自增即失效。
+const SESSION_SEEN_KEY = 'aiportal_dialog_seen_this_session'
 
-const close = (fromButton) => {
-  if (fromButton && dontShowAgain.value) {
-    localStorage.setItem(dismissDialogKey(), 'true')
+// 弹框判定: 监听 dialogHtml(初始 '', fetch 回来一定变非空, 必然触发; 不会像 version 那样
+// 可能"初始值=后端值"导致 1→1 不触发)。
+// 三道门槛任一不满足都不弹: 后端开启 dialog / 本会话没看过 / 没勾过永久不再提示。
+// 永久不再提示的 key 带 dialog_version, admin 改完 version 自增即 key 失效, 用户重新看到。
+watch(dialogHtml, (html) => {
+  if (!html || !dialogEnabled.value) return
+  if (sessionStorage.getItem(SESSION_SEEN_KEY) === 'true') return
+  if (localStorage.getItem(dismissDialogKey()) === 'true') return
+  visible.value = true
+})
+
+const close = () => {
+  // 不管勾没勾「不再提示」, 关一次就本会话不再弹
+  safeSet(sessionStorage, SESSION_SEEN_KEY, 'true')
+  // 勾了「不再提示」就跨会话永久记忆(version 变更前不再弹),
+  // 无论用户是点按钮还是点遮罩关闭——勾选即代表永久记忆意图
+  if (dontShowAgain.value) {
+    safeSet(localStorage, dismissDialogKey(), 'true')
   }
   visible.value = false
+}
+
+// Web Storage 在隐私模式/禁用/配额耗尽时 setItem 可能抛 SecurityError/QuotaExceededError,
+// 包一层确保即使写入失败也能关掉弹框(visible=false 照常执行),不锁死 UI
+const safeSet = (store, key, value) => {
+  try { store.setItem(key, value) } catch (e) { /* 存储不可用,忽略 */ }
 }
 </script>
 

@@ -3,7 +3,7 @@
     <NavBar />
 
     <!-- Hero -->
-    <section class="pt-[170px] pb-12 text-center max-w-[720px] mx-auto">
+    <section class="pt-[170px] pb-12 text-center max-w-[720px] mx-auto animate-fade-up">
       <div class="text-[12px] font-semibold text-text-secondary uppercase tracking-[1.8px] mb-3">
         Skill 广场
       </div>
