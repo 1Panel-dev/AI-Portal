@@ -1,10 +1,7 @@
 <template>
   <div>
     <NavBar />
-    <section class="pt-[170px] pb-12 text-center max-w-[720px] mx-auto animate-fade-up">
-      <div class="text-[12px] font-semibold text-text-secondary uppercase tracking-[1.8px] mb-3">
-        1Panel AI Gateway
-      </div>
+    <section class="pt-[124px] pb-12 text-center max-w-[720px] mx-auto animate-fade-up">
       <h1 class="text-[52px] font-bold text-text tracking-[-1.6px] leading-[1.05] mb-3 max-md:text-[40px] max-sm:text-[32px]">
         探索可调用的 AI 模型
       </h1>
