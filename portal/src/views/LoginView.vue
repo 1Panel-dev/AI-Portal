@@ -11,7 +11,7 @@
       <template v-else>
       <div class="text-center mb-8">
         <h1 class="text-[28px] font-bold text-text tracking-[-0.5px] mb-2">登录</h1>
-        <p class="text-text-secondary text-sm">登录 AI-Portal</p>
+        <p class="text-text-secondary text-sm">登录 1Panel AI 门户</p>
       </div>
 
       <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">

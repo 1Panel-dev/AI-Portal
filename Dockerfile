@@ -1,8 +1,10 @@
 # ---- 阶段 1: 前端构建 ----
-FROM node:20-alpine AS frontend
+# 固定 --platform=linux/amd64: vite 产物是纯静态 JS/CSS,架构无关。
+# 双架构构建时只在原生 amd64 跑一次,arm64 镜像直接复用,省掉 QEMU 模拟下重跑 vite(~2-3min)。
+FROM --platform=linux/amd64 node:20-alpine AS frontend
 WORKDIR /app/portal
 COPY portal/package.json portal/package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci
 COPY portal/index.html portal/vite.config.js portal/tailwind.config.js portal/postcss.config.js ./
 COPY portal/src ./src
 COPY portal/public ./public
@@ -10,20 +12,23 @@ ENV VITE_API_URL=/api
 RUN npm run build
 
 # ---- 阶段 2: 后端依赖 ----
+# 不固定平台: bcrypt 是 native 模块,各架构需各自的 node_modules
 FROM node:20-alpine AS backend
 WORKDIR /app
 RUN apk add --no-cache --virtual .build-deps python3 make g++
 COPY server/package.json server/package-lock.json ./
-RUN npm ci --omit=dev && apk del .build-deps
+RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev && apk del .build-deps
 
 # ---- 阶段 3: 构建 skillctl 下载产物 ----
-FROM golang:1.22-alpine AS skillctl-builder
+# 固定 --platform=linux/amd64: skillctl 是 Go 交叉编译(CGO_ENABLED=0 纯静态),产物只由
+# GOOS/GOARCH 决定,与编译机架构无关。5 个平台二进制在原生 amd64 编一次,两架构镜像共享。
+FROM --platform=linux/amd64 golang:1.22-alpine AS skillctl-builder
 WORKDIR /app/skillctl
 RUN apk add --no-cache make
 COPY skillctl/go.mod skillctl/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY skillctl/ ./
-RUN make release
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build make release
 
 # ---- 阶段 4: 提取 Node 二进制 ----
 FROM node:20-alpine AS node-bin

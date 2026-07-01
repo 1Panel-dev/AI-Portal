@@ -90,7 +90,7 @@ CC Switch 本地代理（127.0.0.1:15721）
         │  └─ 处理流式响应（SSE / JSON）
         ▼
 目标 API 供应商
-        ├─ AI-Portal
+        ├─ 1Panel AI 门户
         ├─ Anthropic 官方
         ├─ OpenAI 官方
         └─ 第三方中转站 / 国产大模型
@@ -133,7 +133,7 @@ CC Switch 安装完成后，下面分别接入 Codex 和 Claude Code。
 
 ## Codex
 
-在 CC Switch 中为 Codex 添加 AI-Portal 这个 Provider。
+在 CC Switch 中为 Codex 添加 1Panel AI 门户这个 Provider。
 
 **Step 1**：打开 CC Switch，点击右上角 **+** 新增 Provider。
 
@@ -151,7 +151,7 @@ CC Switch 安装完成后，下面分别接入 Codex 和 Claude Code。
 
 ## Claude Code
 
-在 CC Switch 中为 Claude Code 添加 AI-Portal 这个 Provider。
+在 CC Switch 中为 Claude Code 添加 1Panel AI 门户这个 Provider。
 
 **Step 1**：打开 CC Switch，点击右上角 **+** 新增 Provider。
 

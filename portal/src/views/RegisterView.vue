@@ -5,7 +5,7 @@
     <main class="max-w-[400px] mx-auto px-6 pt-[160px] pb-20 animate-fade-up">
       <div class="text-center mb-8">
         <h1 class="text-[28px] font-bold text-text tracking-[-0.5px] mb-2">注册</h1>
-        <p class="text-text-secondary text-sm">创建 AI-Portal 门户账号</p>
+        <p class="text-text-secondary text-sm">创建 1Panel AI 门户账号</p>
       </div>
 
       <div v-if="checking" class="text-center py-12 text-text-secondary text-sm">

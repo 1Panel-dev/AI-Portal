@@ -5,7 +5,7 @@
     <main class="max-w-[400px] mx-auto px-6 py-20 pt-[160px]">
       <div class="text-center mb-8">
         <h1 class="text-2xl font-bold text-text mb-2">管理员登录</h1>
-        <p class="text-text-secondary text-sm">AI-Portal 技能审核后台</p>
+        <p class="text-text-secondary text-sm">1Panel AI 门户 技能审核后台</p>
       </div>
 
       <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-lg">
