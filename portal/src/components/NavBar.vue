@@ -1,14 +1,15 @@
 ﻿<template>
-  <nav class="fixed top-[40px] left-0 right-0 z-[260] h-[52px] border-b border-[rgba(0,0,0,0.04)] bg-white/78 backdrop-blur-xl backdrop-saturate-[1.8]">
+  <nav
+    class="fixed left-0 right-0 z-[260] h-[52px] border-b border-[rgba(0,0,0,0.06)] bg-white shadow-[0_1px_10px_rgba(15,23,42,0.04)]"
+    :class="hasVisibleBanner ? 'top-10' : 'top-0'"
+  >
     <div class="max-w-[1024px] mx-auto px-6 h-full flex items-center">
       <router-link to="/" class="flex items-center font-bold text-[18px] tracking-[-0.45px] text-text no-underline">
-        <!-- 默认 logo(1panel-logo.svg)走 mask 渲染:SVG 的 currentColor 无法被 <img> 外部改色,
-             用 mask 把 logo 形状当成遮罩、背景刷成主题蓝,实现"logo 变蓝"。
-             管理员上传的 logo 仍用 <img> 原样显示。 -->
-        <div v-if="siteLogoIsDefault"
-          class="h-[24px] w-[88px] mr-[8px] bg-accent"
-          :style="{ mask: `url(${siteLogo}) no-repeat left center / contain`, WebkitMask: `url(${siteLogo}) no-repeat left center / contain` }">
-        </div>
+        <!-- 默认 logo 直接渲染 SVG 图片,避免小尺寸 mask 栅格化后边缘发虚。 -->
+        <img v-if="siteLogoIsDefault"
+          :src="siteLogo"
+          alt="1Panel"
+          class="h-[24px] w-[88px] mr-[8px] shrink-0 block object-contain object-left" />
         <div v-else class="h-[24px] flex items-center mr-[8px]">
           <img :src="siteLogo" alt="logo" class="h-full w-auto" />
         </div>
@@ -98,11 +99,13 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { siteName, siteLogo, siteLogoIsDefault } from '../composables/useSiteBranding.js'
+import { bannerEnabled, bannerHtml, bannerVisible } from '../composables/useAnnouncement.js'
 import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
 const router = useRouter()
 const showDropdown = ref(false)
+const hasVisibleBanner = computed(() => bannerEnabled.value && bannerVisible.value && !!bannerHtml.value)
 
 const isActive = (path) => {
   if (path === '/') {

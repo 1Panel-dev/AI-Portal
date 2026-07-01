@@ -73,13 +73,12 @@
 <script setup>
 import { ref, watch } from 'vue'
 import {
-  bannerEnabled, bannerHtml,
+  bannerEnabled, bannerHtml, bannerVisible,
   dialogEnabled, dialogTitle, dialogHtml, dialogVersion,
   dismissDialogKey,
 } from '../composables/useAnnouncement.js'
 
 const visible = ref(false)
-const bannerVisible = ref(true)
 const dontShowAgain = ref(false)
 
 // 本会话已看过 dialog 的锁: 关一次就写 sessionStorage, 本次会话(含刷新前)不再弹。
