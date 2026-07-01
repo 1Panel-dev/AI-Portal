@@ -16,7 +16,7 @@ const configSchema = {
 };
 
 function isInsideWecomClient(userAgent = '') {
-  return /wxwork|MicroMessenger/i.test(userAgent);
+  return /wxwork/i.test(userAgent);
 }
 
 /**

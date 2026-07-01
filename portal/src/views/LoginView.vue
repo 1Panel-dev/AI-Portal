@@ -129,11 +129,14 @@ async function loadOauthProviders() {
 }
 
 function isInsideWecomUA() {
-  return /wxwork|micromessenger/i.test(navigator.userAgent || '')
+  return /wxwork/i.test(navigator.userAgent || '')
 }
 
 async function maybeAutoLoginInsideWecom() {
   if (!isInsideWecomUA()) return
+  // 先检查企微是否已启用,未启用则不处理(避免误清 localStorage)
+  const hasWecom = oauthProviders.value.some(p => p.provider === 'wecom')
+  if (!hasWecom) return
   // 立即隐藏登录表单,显示 loading,避免页面闪现
   autoRedirecting.value = true
   // 企微客户端内每次进入登录页都重新走静默授权，不能复用上一位用户的本地 token
@@ -141,11 +144,6 @@ async function maybeAutoLoginInsideWecom() {
   localStorage.removeItem('token')
   localStorage.removeItem('admin_token')
   localStorage.removeItem('user')
-  const hasWecom = oauthProviders.value.some(p => p.provider === 'wecom')
-  if (!hasWecom) {
-    autoRedirecting.value = false   // 企微未启用,恢复显示登录表单
-    return
-  }
   try {
     const res = await fetch(`${API_BASE}/auth/oauth/wecom/url?return=/profile`)
     const data = await res.json()

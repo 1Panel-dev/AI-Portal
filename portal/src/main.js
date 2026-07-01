@@ -37,7 +37,7 @@ const router = createRouter({
 })
 
 function isInsideWecomUA() {
-  return /wxwork|micromessenger/i.test(navigator.userAgent || '')
+  return /wxwork/i.test(navigator.userAgent || '')
 }
 
 let wecomOauthAllowed = false
