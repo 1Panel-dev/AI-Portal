@@ -1,6 +1,6 @@
 {
   "name": "ai-portal-server",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "AI-Portal backend API service",
   "main": "index.js",
   "scripts": {
