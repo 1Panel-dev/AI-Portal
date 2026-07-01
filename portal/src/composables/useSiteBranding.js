@@ -29,8 +29,8 @@ const DEFAULT_SITE_LOGO = '/1panel-logo.svg'
 // 注入值缺失(本地 dev 由 vite 插件填默认 JSON, 或注入失败)则回退默认值, 再由 loadSiteBranding fetch。
 const injected = (typeof window !== 'undefined' && window.__SITE_BRANDING__) || {}
 export const siteName    = ref(injected.site_name || DEFAULT_SITE_NAME)
-// 是否在用默认 logo:默认 1panel-logo.svg 走内联 mask 渲染(可被 CSS 改成主题蓝);
-// 管理员上传的 logo 用 <img> 原样显示。
+// 是否在用默认 logo:默认 1panel-logo.svg 已内置主题蓝色,直接用 <img> 渲染;
+// 管理员上传的 logo 同样用 <img> 原样显示。
 export const siteLogoIsDefault = ref(!injected.site_logo)
 export const siteLogo    = ref(injected.site_logo ? resolveAssetUrl(injected.site_logo) : resolveAssetUrl(DEFAULT_SITE_LOGO))
 export const siteFavicon = ref(injected.site_favicon || '')

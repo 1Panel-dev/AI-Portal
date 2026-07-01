@@ -11,6 +11,7 @@ const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !windo
 
 export const bannerEnabled = ref(false)
 export const bannerHtml    = ref('')
+export const bannerVisible = ref(true)
 export const dialogEnabled = ref(false)
 export const dialogTitle   = ref('')
 export const dialogHtml    = ref('')
