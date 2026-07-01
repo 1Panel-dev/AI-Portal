@@ -39,8 +39,8 @@
           <!-- Base URL 信息行 -->
           <div class="flex items-center gap-3 px-5 py-3.5 bg-[#f5f5f7] border-b border-[rgba(0,0,0,0.06)]">
             <span class="text-[12px] font-semibold text-text-secondary uppercase tracking-wider shrink-0">Base URL</span>
-            <code class="text-[14px] font-mono text-text font-medium truncate flex-1 select-all">{{ baseUrl }}</code>
-            <button @click="copyText(baseUrl, 'baseurl')"
+            <code class="text-[14px] font-mono text-text font-medium truncate flex-1 select-all">{{ effectiveBaseUrl }}</code>
+            <button @click="copyText(effectiveBaseUrl, 'baseurl')"
               class="shrink-0 w-7 h-7 flex items-center justify-center rounded-md hover:bg-black/10 transition-colors"
               title="复制 Base URL">
               <svg v-if="copiedTarget !== 'baseurl'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -56,7 +56,7 @@
               <span class="ml-2 text-[11px] font-mono text-white/40">shell</span>
             </div>
             <div class="relative overflow-x-auto px-5 py-4">
-              <pre class="text-[12.5px] font-mono leading-[1.85] whitespace-pre"><code v-html="highlightedExample"></code></pre>
+              <pre class="text-[13px] font-mono leading-[1.8] whitespace-pre text-[#e8e8ed]"><code v-html="highlightedExample"></code></pre>
               <button @click="copyCurlExample"
                 class="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-md bg-white/5 hover:bg-white/10 transition-colors"
                 title="复制调用示例">
@@ -152,13 +152,16 @@ const fetchExampleConfig = async () => {
   } catch (e) { console.error('Failed to fetch example config:', e) }
 }
 
+// Base URL 兜底:管理员未配置 endpoint 时,给一个示例占位地址
+const effectiveBaseUrl = computed(() => baseUrl.value || 'https://example.com/v1')
+
 // 占位符替换:{{base_url}} {{model_name}} {{api_key}}
 // model_name / api_key 当前用占位串,后续若选中具体模型可注入
 const exampleRendered = computed(() => {
   const tpl = exampleTemplate.value
     || `curl -X POST {{base_url}}/chat/completions \\\n  -H "Authorization: Bearer {{api_key}}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"{{model_name}}","messages":[{"role":"user","content":"你好"}]}'`
   return tpl
-    .replace(/\{\{base_url\}\}/g, baseUrl.value)
+    .replace(/\{\{base_url\}\}/g, effectiveBaseUrl.value)
     .replace(/\{\{model_name\}\}/g, 'model-name')
     .replace(/\{\{api_key\}\}/g, 'sk-xxx')
 })
