@@ -57,6 +57,10 @@ async function submit() {
       error.value = data.error || '创建失败'
       return
     }
+    if (data.syncWarning) {
+      error.value = data.syncWarning
+      return
+    }
     emit('created', data.user)
     emit('close')
   } catch (err) {

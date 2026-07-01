@@ -48,6 +48,7 @@
           <p class="text-text-secondary text-sm mt-1">
             已上架: {{ stats.active }} 个 | 已下架: {{ stats.inactive }} 个 | 共 {{ pagination.total }} 个
           </p>
+          <p v-if="skillError" class="text-sm text-red-500 mt-2">{{ skillError }}</p>
         </div>
         <div class="flex gap-3">
           <button
@@ -350,6 +351,11 @@ const editForm = ref({})
 const saving = ref(false)
 const deletingSkill = ref(null)
 const deleting = ref(false)
+const skillError = ref('')
+function showSkillError(msg) {
+  skillError.value = msg
+  if (msg) setTimeout(() => { skillError.value = '' }, 4000)
+}
 
 // 可用分类列表（排除"全部"）
 const categoryOptions = categories.filter(c => c.id !== 'all')
@@ -535,10 +541,10 @@ const saveEdit = async () => {
       editingSkill.value = null
       await fetchSkills(true)
     } else {
-      alert('保存失败')
+      showSkillError('保存失败')
     }
   } catch (err) {
-    alert('网络错误')
+    showSkillError('网络错误')
   } finally {
     saving.value = false
   }
@@ -557,10 +563,10 @@ const toggleSkill = async (skill) => {
     if (response.ok) {
       await fetchSkills(true)
     } else {
-      alert('操作失败')
+      showSkillError('操作失败')
     }
   } catch (err) {
-    alert('网络错误')
+    showSkillError('网络错误')
   } finally {
     processing.value[skill.id] = false
   }
@@ -586,10 +592,10 @@ const deleteSkill = async () => {
       deletingSkill.value = null
       await fetchSkills(true)
     } else {
-      alert('删除失败')
+      showSkillError('删除失败')
     }
   } catch (err) {
-    alert('网络错误')
+    showSkillError('网络错误')
   } finally {
     deleting.value = false
   }

@@ -68,6 +68,7 @@
           <p class="text-text-secondary text-sm mt-1">
             待审核: {{ stats.pending }} 个 | 已通过: {{ stats.approved }} 个 | 已拒绝: {{ stats.rejected }} 个
           </p>
+          <p v-if="reviewError" class="text-sm text-red-500 mt-2">{{ reviewError }}</p>
         </div>
         <button
           @click="logout"
@@ -229,6 +230,11 @@ const processing = ref({})
 const rejectingId = ref(null)
 const rejectNote = ref('')
 const dashboardStats = ref({})
+const reviewError = ref('')
+function showReviewError(msg) {
+  reviewError.value = msg
+  if (msg) setTimeout(() => { reviewError.value = '' }, 4000)
+}
 
 const tabs = [
   { id: 'pending', name: '待审核' },
@@ -369,10 +375,10 @@ const approve = async (id) => {
     if (response.ok) {
       await fetchSubmissions()
     } else {
-      alert('审核失败')
+      showReviewError('审核失败')
     }
   } catch (err) {
-    alert('网络错误')
+    showReviewError('网络错误')
   } finally {
     processing.value[id] = false
   }
@@ -399,10 +405,10 @@ const reject = async (id) => {
       rejectingId.value = null
       await fetchSubmissions()
     } else {
-      alert('操作失败')
+      showReviewError('操作失败')
     }
   } catch (err) {
-    alert('网络错误')
+    showReviewError('网络错误')
   } finally {
     processing.value[id] = false
   }

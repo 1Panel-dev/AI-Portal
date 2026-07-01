@@ -655,6 +655,7 @@
               </ul>
             </div>
           </div>
+          <p v-if="switchError" class="text-sm text-red-500 mb-4">{{ switchError }}</p>
           <div class="flex items-center gap-3 justify-end">
             <button
               @click="showConfirm = false"
@@ -687,6 +688,11 @@ const router = useRouter()
 
 const loading = ref(true)
 const showKey = ref(false)
+const switchError = ref('')
+function showSwitchError(msg) {
+  switchError.value = msg
+  if (msg) setTimeout(() => { switchError.value = '' }, 4000)
+}
 
 // Tab 切换 + URL hash 双向同步
 const tabs = [
@@ -1150,7 +1156,7 @@ const doSwitch = async () => {
       })
       const testData = await testRes.json()
       if (!testData.success) {
-        alert('COS 连接失败: ' + testData.error + '\n请先配置并测试通过后再切换')
+        showSwitchError('COS 连接失败: ' + testData.error + '，请先配置并测试通过后再切换')
         switching.value = false
         showConfirm.value = false
         return
@@ -1168,10 +1174,10 @@ const doSwitch = async () => {
       activeStorageType.value = confirmTarget.value
       showConfirm.value = false
     } else {
-      alert('切换失败，请重试')
+      showSwitchError('切换失败，请重试')
     }
   } catch {
-    alert('网络错误')
+    showSwitchError('网络错误')
   } finally {
     switching.value = false
   }

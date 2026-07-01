@@ -125,6 +125,7 @@
 
           <!-- API Keys -->
           <div v-if="activeTab === 'keys'" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
+            <p v-if="keyError" class="text-sm mb-4" :class="keyErrorOk ? 'text-emerald-600' : 'text-red-500'">{{ keyError }}</p>
             <div class="flex items-center justify-between mb-6">
               <h2 class="text-lg font-semibold text-text">API Key 管理</h2>
               <div v-if="apiKeyData" class="flex items-center gap-2">
@@ -429,6 +430,13 @@ const showResetDialog = ref(false)
 const showDeleteDialog = ref(false)
 const selectedSkill = ref(null)
 const featureFlags = ref({ skillSubmitEnabled: false, skillctlDocUrl: '' })
+const keyError = ref('')
+const keyErrorOk = ref(false)
+function showKeyError(msg, ok = false) {
+  keyError.value = msg
+  keyErrorOk.value = ok
+  if (msg) setTimeout(() => { keyError.value = '' }, 4000)
+}
 
 // 根据角色动态生成标签页
 const tabs = computed(() => {
@@ -506,7 +514,7 @@ const createKey = async () => {
       apiKeyData.value = data.key || null
     } else {
       const err = await res.json().catch(() => ({}))
-      alert(err.error || '创建失败')
+      showKeyError(err.error || '创建失败')
     }
   } catch (e) { console.error(e) } finally { creatingKey.value = false }
 }
@@ -528,7 +536,7 @@ const confirmResetKey = async () => {
       showResetDialog.value = false
     } else {
       const err = await res.json().catch(() => ({}))
-      alert(err.error || '重置失败')
+      showKeyError(err.error || '重置失败')
     }
   } catch (e) { console.error(e) } finally { resettingKey.value = false }
 }
@@ -553,7 +561,7 @@ const confirmDeleteKey = async () => {
     } else {
       const err = await res.json().catch(() => ({}))
       // 与后端错误码对齐:PANEL_UNREACHABLE / PANEL_REJECTED 都不动本地,允许用户重试
-      alert(err.error || '删除失败')
+      showKeyError(err.error || '删除失败')
     }
   } catch (e) { console.error(e) } finally { deletingKey.value = false }
 }
@@ -599,20 +607,20 @@ const copyFullKey = async () => {
         key = data.api_key || ''
       } else if (res.status === 409 && data.code === 'REVEAL_FAILED') {
         // 后端明确告知：拿不到明文，引导重置
-        alert(data.error || '无法获取完整 API Key，请点击「重置 Key」重新生成')
+        showKeyError(data.error || '无法获取完整 API Key，请点击「重置 Key」重新生成')
         return
       } else {
-        alert(data.error || `获取 API Key 失败 (HTTP ${res.status})`)
+        showKeyError(data.error || `获取 API Key 失败 (HTTP ${res.status})`)
         return
       }
     } catch (e) {
       console.error('reveal API Key 失败:', e)
-      alert('网络异常，无法获取完整 API Key')
+      showKeyError('网络异常，无法获取完整 API Key')
       return
     }
   }
   if (!key || key.includes('*')) {
-    alert('未取到完整 API Key，请点击「重置 Key」重新生成')
+    showKeyError('未取到完整 API Key，请点击「重置 Key」重新生成')
     return
   }
   const ok = await writeClipboard(key)

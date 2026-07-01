@@ -1625,6 +1625,7 @@ router.post('/api/admin/portal-users', verifyAdmin, async (req, res) => {
     // 同步到 1Panel(失败不阻断,沿用 /register 的容错语义)
     let panelUserId = null;
     let sessionTimeout = 86400;
+    let syncWarning = null;
     try {
       const panelUser = await findPanelUser(rawUsername);
       if (panelUser) {
@@ -1640,10 +1641,12 @@ router.post('/api/admin/portal-users', verifyAdmin, async (req, res) => {
           }
         } catch (createErr) {
           console.error('[admin/portal-users] 1Panel 创建用户失败,仍创建本地用户:', createErr.message);
+          syncWarning = '1Panel 用户创建失败,本地用户已创建,请检查 1Panel 网络连接后重试';
         }
       }
     } catch (panelErr) {
       console.error('[admin/portal-users] 1Panel 查询用户失败,仍创建本地用户:', panelErr.message);
+      syncWarning = '1Panel 用户查询失败,本地用户已创建,请检查 1Panel 网络连接后重试';
     }
 
     const passwordHash = await bcrypt.hash(rawPassword, 12);
@@ -1664,7 +1667,8 @@ router.post('/api/admin/portal-users', verifyAdmin, async (req, res) => {
         status: user.status,
         last_login_at: user.last_login_at,
         created_at: user.created_at,
-      }
+      },
+      ...(syncWarning ? { syncWarning } : {}),
     });
   } catch (err) {
     console.error('[admin/portal-users] 创建失败:', err);
