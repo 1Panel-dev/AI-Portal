@@ -4,7 +4,7 @@
     :class="hasVisibleBanner ? 'top-10' : 'top-0'"
   >
     <div class="max-w-[1024px] mx-auto px-6 h-full flex items-center">
-      <router-link to="/" class="flex items-center font-bold text-[18px] tracking-[-0.45px] text-text no-underline">
+      <router-link to="/" class="flex items-center text-[18px] tracking-[-0.45px] text-text no-underline">
         <!-- 默认 logo 直接渲染 SVG 图片,避免小尺寸 mask 栅格化后边缘发虚。 -->
         <img v-if="siteLogoIsDefault"
           :src="siteLogo"
