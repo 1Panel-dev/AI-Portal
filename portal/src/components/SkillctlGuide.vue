@@ -25,18 +25,19 @@
       </div>
     </div>
 
-    <!-- Token 占位区 -->
+    <!-- Token -->
     <div class="mb-5 rounded-xl border border-[rgba(0,0,0,0.06)] bg-surface-secondary px-4 py-3">
       <div class="text-xs text-text-tertiary mb-1.5">你的登录 Token</div>
       <div class="flex items-center gap-3">
-        <code class="font-mono text-sm text-text-secondary select-all">••••••••（未生成）</code>
+        <code class="font-mono text-sm text-text-secondary select-all">L2npRFAFoMTSuD697118h7Nd2FTUlisk</code>
         <button
           type="button"
-          disabled
-          class="ml-auto px-3 py-1.5 text-xs rounded-lg border border-[rgba(0,0,0,0.08)] text-text-tertiary cursor-not-allowed"
-        >复制</button>
+          @click="copyToken"
+          class="ml-auto px-3 py-1.5 text-xs rounded-lg border border-[rgba(0,0,0,0.08)] hover:bg-white transition-colors cursor-pointer"
+          :class="copied ? 'text-green-600 border-green-200 bg-green-50' : 'text-text-secondary'"
+        >{{ copied ? '已复制' : '复制' }}</button>
       </div>
-      <p class="text-[11px] text-text-tertiary mt-1.5">真实 Token 生成/复制功能即将开放</p>
+      <p class="text-[11px] text-text-tertiary mt-1.5">使用此 Token 通过 skillctl 登录 1Panel Skills Hub</p>
     </div>
 
     <!-- 6 条主命令 -->
@@ -64,6 +65,15 @@
 import { ref, onMounted } from 'vue'
 
 const version = ref('')
+const copied = ref(false)
+
+const copyToken = async () => {
+  try {
+    await navigator.clipboard.writeText('L2npRFAFoMTSuD697118h7Nd2FTUlisk')
+    copied.value = true
+    setTimeout(() => { copied.value = false }, 2000)
+  } catch { /* ignore */ }
+}
 
 const platforms = [
   { icon: '🪟', label: 'Windows', url: '/downloads/skillctl-windows-amd64.exe', filename: 'skillctl-windows-amd64.exe' },
