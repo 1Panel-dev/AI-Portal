@@ -34,7 +34,11 @@ AI-Portal/
 │   │   ├── AdminLoginView.vue   # 管理员登录
 │   │   ├── AdminView.vue        # 审核管理
 │   │   ├── AdminSkillsView.vue  # 技能管理
-│   │   └── AdminConfigView.vue  # 系统配置
+│   │   ├── AdminUsersView.vue   # 用户管理
+│   │   ├── AdminConfigView.vue  # 系统配置
+│   │   ├── AdminOAuthView.vue   # 第三方登录配置
+│   │   ├── McpPlazaView.vue     # MCP 广场
+│   │   └── DocsView.vue         # 在线文档
 │   ├── main.js                  # 前端入口与路由
 │   └── style.css                # 全局样式
 ├── server/
@@ -90,6 +94,8 @@ npm start            # 启动后端服务
 | `/admin` | AdminView | 审核管理，需管理员登录 |
 | `/admin/skills` | AdminSkillsView | 技能管理，需管理员登录 |
 | `/admin/config` | AdminConfigView | 系统配置，需管理员登录 |
+| `/admin/users` | AdminUsersView | 用户管理，需管理员登录 |
+| `/admin/oauth` | AdminOAuthView | 第三方登录配置，需管理员登录 |
 
 ## 数据结构
 
@@ -116,12 +122,13 @@ npm start            # 启动后端服务
 
 ## 设计规范
 
-苹果极简风格，纯亮色模式：
+1Panel 蓝白主题，纯亮色模式：
 
-- 背景：`#f5f5f7`，卡片：`#fff`，文字：`#1d1d1f`
+- 背景：`#f5f5f7`，卡片：`#fff`，正文：`#1D2129`
 - 导航栏：毛玻璃效果（white/80 + backdrop-blur）
 - 卡片：4 列响应式网格，无头图，小图标 + 内联色彩
-- 按钮：黑色系（`bg-text text-white`）
+- 按钮：蓝底白字（accent `rgba(0,94,235,1)`），hover 深蓝（`rgba(0,58,150,1)`）
+- 管理页图标：lucide-vue-next（描边风格，fill=none stroke=currentColor）
 - 暗黑模式：已移除
 
 ## 注意事项

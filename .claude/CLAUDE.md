@@ -35,9 +35,7 @@ AI-Portal/
 ├── docs/
 │   └── 1panel-api-gotchas.md  ← 1Panel 调用必读
 ├── Dockerfile              ← all-in-one 版(内嵌 PostgreSQL,默认)
-├── Dockerfile.separate     ← 分离版(app 镜像,需外部 PG)
 ├── docker-compose.yml      ← all-in-one 版(默认)
-├── docker-compose.separate.yml  ← 分离版(app + db 双容器)
 ```
 
 **ESM/CJS 分裂注意**：
@@ -99,7 +97,29 @@ AI-Portal/
 
 ## 设计规范（不要回退到深色）
 
-苹果极简纯亮色：背景 `#f5f5f7`、卡片 `#fff`、文字 `#1d1d1f`，导航毛玻璃（white/80 + backdrop-blur），主按钮黑底白字。**已移除暗黑模式，不要再加回来**——上一级 `D:\claude-code\CLAUDE.md` 里的 `zinc-950` 深色规范是 MaxPal 项目的，与本仓库无关。
+1Panel 蓝白主题：背景 `#f5f5f7`、卡片 `#fff`、正文 `#1D2129`，导航毛玻璃（white/80 + backdrop-blur），主按钮蓝底白字（accent `rgba(0,94,235,1)`）。**已移除暗黑模式，不要再加回来**——上一级 `D:\claude-code\CLAUDE.md` 里的 `zinc-950` 深色规范是 MaxPal 项目的，与本仓库无关。
+
+### 颜色 Token（tailwind.config.js）
+
+| Token | 值 | 用途 |
+|---|---|---|
+| `text.DEFAULT` | `#1D2129` | 正文/标题文字 |
+| `text.secondary` | `#475569` | 次要文字 |
+| `text.tertiary` | `#94a3b8` | 三级文字 |
+| `accent.DEFAULT` | `rgba(0,94,235,1)` | 主按钮、选中态、强调色 |
+| `accent.hover` | `rgba(0,58,150,1)` | 主按钮 hover |
+
+### 前端依赖
+
+- **lucide-vue-next**：管理页图标库（tree-shake 按需引入）。图标用 `fill="none" stroke="currentColor" viewBox="0 0 24 24"` 描边风格。
+
+### 站点品牌机制
+
+站点名、Logo、favicon 通过 `system_config` 表可配置（admin 后台「系统配置 → 站点设置」）。默认值在 `server/migrations/015_site_branding.sql` 种子里，仅新安装生效。前端 `portal/src/composables/useSiteBranding.js` 负责：
+- 首屏通过 `window.__SITE_BRANDING__` 注入避免闪烁
+- 运行时 fetch `/api/site/branding` 更新
+- 默认 logo 兜底 `/1panel-logo.svg`（CSS mask 渲染变蓝），管理员上传后走 `<img>` 原样显示
+- `siteLogoIsDefault` 标志区分两种渲染路径
 
 ## 与 AGENTS.md 的关系
 
