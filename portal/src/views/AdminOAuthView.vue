@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { Lock, ShieldCheck, AlertTriangle, Link } from 'lucide-vue-next'
 import NavBar from '../components/NavBar.vue'
 import OAuthProviderCard from '../components/admin/OAuthProviderCard.vue'
 import { API_BASE } from '../lib/apiBase.js'
@@ -73,35 +74,35 @@ onMounted(load)
         <button
           @click="$router.push('/admin')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           审核管理
         </button>
         <button
           @click="$router.push('/admin/skills')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/skills' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin/skills' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           技能管理
         </button>
         <button
           @click="$router.push('/admin/users')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/users' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin/users' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           用户管理
         </button>
         <button
           @click="$router.push('/admin/config')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/config' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin/config' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           系统配置
         </button>
         <button
           @click="$router.push('/admin/oauth')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/oauth' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin/oauth' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           第三方登录
         </button>
@@ -128,22 +129,25 @@ onMounted(load)
         :class="anyEnabled
           ? 'bg-amber-50 border-amber-200 text-amber-800'
           : 'bg-emerald-50 border-emerald-200 text-emerald-800'">
-        <p class="text-sm">
-          <template v-if="anyEnabled">
-            🔒 当前已启用第三方登录,<span class="font-medium">自助注册接口已自动关闭</span>。
-            新用户由管理员在「用户管理」中添加,或在首次扫码后通过「跳过绑定」自动创建。
-          </template>
-          <template v-else>
-            🟢 当前未启用任何第三方登录,<span class="font-medium">自助注册接口正常开放</span>。
-            一旦启用任一登录方式,自助注册会自动关闭。
-          </template>
+        <p class="text-sm flex items-start gap-2">
+          <component :is="anyEnabled ? Lock : ShieldCheck" class="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            <template v-if="anyEnabled">
+              当前已启用第三方登录,<span class="font-medium">自助注册接口已自动关闭</span>。
+              新用户由管理员在「用户管理」中添加,或在首次扫码后通过「跳过绑定」自动创建。
+            </template>
+            <template v-else>
+              当前未启用任何第三方登录,<span class="font-medium">自助注册接口正常开放</span>。
+              一旦启用任一登录方式,自助注册会自动关闭。
+            </template>
+          </span>
         </p>
       </div>
 
       <!-- 可信域名提示 -->
       <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
         <div class="flex items-start gap-3">
-          <span class="text-amber-600 text-lg">⚠️</span>
+          <AlertTriangle class="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
           <div class="flex-1 text-sm">
             <p class="font-medium text-text mb-1">启用前必读:可信域名与可信 IP 配置</p>
             <p class="text-text-secondary mb-2">当前部署域名:<span class="font-mono">{{ currentHost }}</span></p>
@@ -166,7 +170,7 @@ onMounted(load)
       <!-- 回调地址(只读 + 可复制) -->
       <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4 mb-6">
         <div class="flex items-start gap-3">
-          <span class="text-text-secondary text-lg">🔗</span>
+          <Link class="w-5 h-5 text-text-secondary shrink-0 mt-0.5" />
           <div class="flex-1 text-sm">
             <p class="font-medium text-text mb-1">OAuth 回调地址(自动生成,无需填写)</p>
             <p class="text-text-secondary mb-2">企业微信扫码完成后,会回调到此地址。系统根据当前部署域名自动推导,管理员一般无需关心。</p>

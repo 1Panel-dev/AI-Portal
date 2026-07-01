@@ -44,7 +44,7 @@
       </div>
       <button
         @click.stop="copyConfig"
-        class="shrink-0 w-9 h-9 bg-text text-white border-none rounded-lg cursor-pointer flex items-center justify-center transition-colors duration-150 hover:bg-accent-hover"
+        class="shrink-0 w-9 h-9 bg-accent text-white border-none rounded-lg cursor-pointer flex items-center justify-center transition-colors duration-150 hover:bg-accent-hover"
         title="复制客户端配置"
       >
         <svg v-if="copied" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>

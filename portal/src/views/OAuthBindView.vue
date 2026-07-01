@@ -139,7 +139,7 @@ function cancel() {
           class="w-full px-3 py-2.5 border border-[rgba(0,0,0,0.08)] rounded-lg text-sm focus:outline-none focus:border-text" />
         <p v-if="error" class="text-sm text-red-500">{{ error }}</p>
         <button @click="doLoginBind" :disabled="submitting"
-          class="w-full px-4 py-2.5 bg-text text-white rounded-lg text-sm hover:opacity-80 disabled:opacity-50">
+          class="w-full px-4 py-2.5 bg-accent text-white rounded-lg text-sm hover:bg-accent-hover disabled:opacity-50">
           {{ submitting ? '处理中...' : '登录并绑定' }}
         </button>
       </div>
@@ -157,7 +157,7 @@ function cancel() {
         </p>
         <p v-if="error" class="text-sm text-red-500">{{ error }}</p>
         <button @click="doSkip" :disabled="submitting"
-          class="w-full px-4 py-2.5 bg-text text-white rounded-lg text-sm hover:opacity-80 disabled:opacity-50">
+          class="w-full px-4 py-2.5 bg-accent text-white rounded-lg text-sm hover:bg-accent-hover disabled:opacity-50">
           {{ submitting ? '创建中...' : '确认创建并登录' }}
         </button>
       </div>

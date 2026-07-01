@@ -28,7 +28,7 @@ const emit = defineEmits(['close', 'confirm'])
           </button>
           <button
             @click="type === 'confirm' ? $emit('confirm') : $emit('close')"
-            class="px-4 py-2 text-sm bg-text text-white rounded-lg hover:opacity-80"
+            class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover"
           >
             {{ type === 'confirm' ? confirmText : '知道了' }}
           </button>

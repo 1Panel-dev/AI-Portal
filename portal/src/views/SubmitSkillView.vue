@@ -125,7 +125,7 @@
         <button
           @click="submit"
           :disabled="submitting"
-          class="w-full h-12 bg-text text-white border-none rounded-xl text-[15px] font-semibold cursor-pointer transition-colors duration-150 hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
+          class="w-full h-12 bg-accent text-white border-none rounded-xl text-[15px] font-semibold cursor-pointer transition-colors duration-150 hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {{ submitting ? '上传中...' : '提交技能' }}
         </button>
@@ -145,7 +145,7 @@
           <p class="text-xs text-text-tertiary mb-6 font-mono">安装命令：{{ submitInstallCmd }}</p>
           <div class="flex gap-2.5">
             <button @click="closeSuccess" class="flex-1 py-2.5 text-sm font-medium bg-surface-secondary text-text rounded-[10px] border-none cursor-pointer transition-colors hover:bg-[#e8e8ed]">继续提交</button>
-            <button @click="goAfterSuccess" class="flex-1 py-2.5 text-sm font-medium bg-text text-white rounded-[10px] border-none cursor-pointer transition-colors hover:bg-accent-hover">返回首页</button>
+            <button @click="goAfterSuccess" class="flex-1 py-2.5 text-sm font-medium bg-accent text-white rounded-[10px] border-none cursor-pointer transition-colors hover:bg-accent-hover">返回首页</button>
           </div>
         </div>
       </div>
@@ -161,7 +161,7 @@
           </div>
           <h3 class="text-xl font-bold text-text mb-2">提交失败</h3>
           <p class="text-sm text-text-secondary mb-6">{{ errorMessage }}</p>
-          <button @click="showError = false" class="w-full py-2.5 text-sm font-medium bg-text text-white rounded-[10px] border-none cursor-pointer transition-colors hover:bg-accent-hover">知道了</button>
+          <button @click="showError = false" class="w-full py-2.5 text-sm font-medium bg-accent text-white rounded-[10px] border-none cursor-pointer transition-colors hover:bg-accent-hover">知道了</button>
         </div>
       </div>
     </Teleport>

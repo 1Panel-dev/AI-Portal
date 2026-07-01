@@ -17,13 +17,13 @@ export default {
           strong: 'rgba(0,0,0,0.1)',
         },
         text: {
-          DEFAULT: '#1d1d1f',
-          secondary: '#86868b',
-          tertiary: '#aeaeb2',
+          DEFAULT: '#1D2129',   // 中性深色(1Panel 同款),让"蓝"集中在 accent 上,蓝白更平衡(原 #1e293b 偏冷硬)
+          secondary: '#475569', // 原 #86868b
+          tertiary: '#94a3b8',  // 原 #aeaeb2
         },
         accent: {
-          DEFAULT: '#1d1d1f',
-          hover: '#424245',
+          DEFAULT: 'rgba(0, 94, 235, 1)',
+          hover: 'rgba(0, 58, 150, 1)',   // 更深一档,hover 反馈更明显(原 rgba(0,70,180,1) 明度差不够)
         },
       },
       fontFamily: {

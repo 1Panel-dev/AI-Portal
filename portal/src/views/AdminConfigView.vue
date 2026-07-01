@@ -8,35 +8,35 @@
         <button
           @click="$router.push('/admin')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           审核管理
         </button>
         <button
           @click="$router.push('/admin/skills')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/skills' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin/skills' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           技能管理
         </button>
         <button
           @click="$router.push('/admin/users')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/users' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin/users' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           用户管理
         </button>
         <button
           @click="$router.push('/admin/config')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/config' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin/config' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           系统配置
         </button>
         <button
           @click="$router.push('/admin/oauth')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/oauth' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin/oauth' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           第三方登录
         </button>
@@ -46,7 +46,7 @@
         <div>
           <h1 class="text-2xl font-bold text-text">系统配置</h1>
           <p class="text-text-secondary text-sm mt-1">
-            配置文件存储方式和云存储参数
+            配置 1Panel 网关对接与站点品牌
           </p>
         </div>
         <button
@@ -73,7 +73,7 @@
             @click="activeTab = tab.id"
             class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
             :class="activeTab === tab.id
-              ? 'bg-text text-white'
+              ? 'bg-accent text-white'
               : 'text-text-secondary hover:text-text hover:bg-surface-secondary'"
           >
             {{ tab.label }}
@@ -87,9 +87,9 @@
         <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-6">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg"
+              <div class="w-10 h-10 rounded-full flex items-center justify-center"
                    :class="activeStorageType === 'cos' ? 'bg-blue-500/10 text-blue-500' : 'bg-emerald-500/10 text-emerald-500'">
-                {{ activeStorageType === 'cos' ? '☁️' : '💾' }}
+                <component :is="activeStorageType === 'cos' ? Cloud : HardDrive" class="w-5 h-5" />
               </div>
               <div>
                 <div class="text-sm text-text-secondary">当前存储模式</div>
@@ -137,7 +137,7 @@
           <button
             @click="saveLocalPath"
             :disabled="savingLocal"
-            class="mt-4 px-4 py-2 text-sm font-medium bg-text text-white rounded-lg hover:bg-text/90 transition-all disabled:opacity-50"
+            class="mt-4 px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
           >
             {{ savingLocal ? '保存中...' : '保存路径' }}
           </button>
@@ -178,7 +178,7 @@
                   @click="showKey = !showKey"
                   class="absolute right-2 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text"
                 >
-                  {{ showKey ? '🙈' : '👁️' }}
+                  <component :is="showKey ? EyeOff : Eye" class="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -210,9 +210,9 @@
             <button
               @click="testCOS"
               :disabled="testing"
-              class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"
+              class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"
             >
-              {{ testing ? '测试中...' : '🔗 测试连接' }}
+              <PlugZap class="w-4 h-4" />{{ testing ? '测试中...' : '测试连接' }}
             </button>
             <span v-if="testResult" class="text-sm" :class="testSuccess ? 'text-green-600' : 'text-red-500'">
               {{ testResult }}
@@ -221,7 +221,7 @@
           <button
             @click="saveCOSConfig"
             :disabled="savingCOS"
-            class="mt-4 px-4 py-2 text-sm font-medium bg-text text-white rounded-lg hover:bg-text/90 transition-all disabled:opacity-50"
+            class="mt-4 px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
           >
             {{ savingCOS ? '保存中...' : '保存 COS 配置' }}
           </button>
@@ -274,7 +274,7 @@
                   @click="showPanelKey = !showPanelKey"
                   class="absolute right-2 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text"
                 >
-                  {{ showPanelKey ? '🙈' : '👁️' }}
+                  <component :is="showPanelKey ? EyeOff : Eye" class="w-4 h-4" />
                 </button>
               </div>
               <p class="text-xs text-text-secondary mt-1">留空保留原值;填新值则覆盖</p>
@@ -359,12 +359,12 @@
             <div v-if="panelForm.lastSync.models" class="text-xs flex items-center gap-2 mb-1">
               <span class="font-medium">模型:</span>
               <span class="text-text-secondary">{{ formatDate(panelForm.lastSync.models.created_at) }}</span>
-              <span class="text-emerald-600">✓ {{ panelForm.lastSync.models.message }}</span>
+              <span class="text-emerald-600 inline-flex items-center gap-1"><Check class="w-3 h-3" />{{ panelForm.lastSync.models.message }}</span>
             </div>
             <div v-if="panelForm.lastSync.skills" class="text-xs flex items-center gap-2">
               <span class="font-medium">技能:</span>
               <span class="text-text-secondary">{{ formatDate(panelForm.lastSync.skills.created_at) }}</span>
-              <span class="text-emerald-600">✓ {{ panelForm.lastSync.skills.message }}</span>
+              <span class="text-emerald-600 inline-flex items-center gap-1"><Check class="w-3 h-3" />{{ panelForm.lastSync.skills.message }}</span>
             </div>
           </div>
 
@@ -373,21 +373,21 @@
             <button
               @click="testPanel"
               :disabled="panelTesting"
-              class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"
+              class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"
             >
-              {{ panelTesting ? '测试中...' : '🔗 测试连接' }}
+              <PlugZap class="w-4 h-4" />{{ panelTesting ? '测试中...' : '测试连接' }}
             </button>
             <button
               @click="syncNow"
               :disabled="panelSyncing"
-              class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"
+              class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"
             >
-              {{ panelSyncing ? '同步中...' : '⚡ 立即同步' }}
+              <RefreshCw class="w-4 h-4" />{{ panelSyncing ? '同步中...' : '立即同步' }}
             </button>
             <button
               @click="savePanelConfig"
               :disabled="panelSaving"
-              class="px-4 py-2 text-sm font-medium bg-text text-white rounded-lg hover:bg-text/90 transition-all disabled:opacity-50"
+              class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
             >
               {{ panelSaving ? '保存中...' : '保存配置' }}
             </button>
@@ -438,7 +438,7 @@
             <button
               @click="saveModelExample"
               :disabled="modelExampleSaving"
-              class="px-4 py-2 text-sm font-medium bg-text text-white rounded-lg hover:bg-text/90 transition-all disabled:opacity-50"
+              class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
             >
               {{ modelExampleSaving ? '保存中...' : '保存' }}
             </button>
@@ -465,7 +465,7 @@
                 type="text"
                 maxlength="100"
                 class="w-full px-3 py-2 border border-[rgba(0,0,0,0.06)] rounded-lg text-text bg-surface-secondary outline-none focus:border-text text-sm"
-                placeholder="AI-Portal"
+                placeholder="AI门户"
               />
               <p class="text-xs text-text-secondary mt-1">显示在顶部导航栏 Logo 旁、浏览器标签页标题。最多 100 个字符。</p>
             </div>
@@ -535,7 +535,7 @@
             <button
               @click="saveBranding"
               :disabled="brandingSaving"
-              class="px-4 py-2 text-sm font-medium bg-text text-white rounded-lg hover:bg-text/90 transition-all disabled:opacity-50"
+              class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
             >
               {{ brandingSaving ? '保存中...' : '保存' }}
             </button>
@@ -610,7 +610,7 @@
             <button
               @click="saveAnnouncement"
               :disabled="announcementSaving"
-              class="px-4 py-2 text-sm font-medium bg-text text-white rounded-lg hover:bg-text/90 transition-all disabled:opacity-50"
+              class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
             >
               {{ announcementSaving ? '保存中...' : '保存公告' }}
             </button>
@@ -664,8 +664,7 @@
             <button
               @click="doSwitch"
               :disabled="switching"
-              class="px-5 py-2 text-sm font-medium text-white rounded-lg transition-all disabled:opacity-50"
-              :class="confirmTarget === 'cos' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-text hover:bg-text/90'"
+              class="px-5 py-2 text-sm font-medium text-white rounded-lg transition-all disabled:opacity-50 bg-accent hover:bg-accent-hover"
             >
               {{ switching ? '切换中...' : '确认切换' }}
             </button>
@@ -680,6 +679,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
+import { Cloud, HardDrive, Eye, EyeOff, PlugZap, RefreshCw, Check } from 'lucide-vue-next'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const router = useRouter()

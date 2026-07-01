@@ -33,7 +33,7 @@
         <button
           @click="login"
           :disabled="!username || !password || loading"
-          class="w-full py-3 bg-text text-white font-medium rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          class="w-full py-3 bg-accent text-white font-medium rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {{ loading ? '登录中...' : '登录' }}
         </button>

@@ -4,11 +4,11 @@
 
     <main class="max-w-[1000px] mx-auto px-6 py-10 pt-[132px]">
       <div class="flex items-center gap-4 mb-6">
-        <button @click="$router.push('/admin')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">审核管理</button>
-        <button @click="$router.push('/admin/skills')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/skills' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">技能管理</button>
-        <button @click="$router.push('/admin/users')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/users' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">用户管理</button>
-        <button @click="$router.push('/admin/config')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/config' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">系统配置</button>
-        <button @click="$router.push('/admin/oauth')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/oauth' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">第三方登录</button>
+        <button @click="$router.push('/admin')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">审核管理</button>
+        <button @click="$router.push('/admin/skills')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/skills' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">技能管理</button>
+        <button @click="$router.push('/admin/users')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/users' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">用户管理</button>
+        <button @click="$router.push('/admin/config')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/config' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">系统配置</button>
+        <button @click="$router.push('/admin/oauth')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/oauth' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">第三方登录</button>
       </div>
 
       <div class="flex items-center justify-between mb-6">
@@ -17,16 +17,16 @@
           <p class="text-text-secondary text-sm mt-1">查看门户用户，删除时会先清理 1Panel 远端用户与 API Key</p>
         </div>
         <div class="flex items-center gap-3">
-          <button @click="syncUsers" :disabled="syncing" class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50">{{ syncing ? '同步中...' : '🔄 同步用户' }}</button>
-          <button v-if="selectedUsers.size > 0" @click="openBatchPassword" class="px-4 py-2 text-sm bg-text text-white rounded-lg hover:bg-accent-hover transition-all">{{ `批量改密 (${selectedUsers.size})` }}</button>
-          <button @click="showNewUserDialog = true" class="px-4 py-2 text-sm bg-text text-white rounded-lg hover:opacity-80 transition-all">+ 新增用户</button>
+          <button @click="syncUsers" :disabled="syncing" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"><RefreshCw class="w-4 h-4" />{{ syncing ? '同步中...' : '同步用户' }}</button>
+          <button v-if="selectedUsers.size > 0" @click="openBatchPassword" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">{{ `批量改密 (${selectedUsers.size})` }}</button>
+          <button @click="showNewUserDialog = true" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all"><UserPlus class="w-4 h-4" />新增用户</button>
           <button @click="logout" class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all">退出登录</button>
         </div>
       </div>
 
       <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4 mb-4 flex items-center gap-3">
         <input v-model="keyword" @keyup.enter="fetchUsers(1)" class="flex-1 px-3 py-2 border border-[rgba(0,0,0,0.08)] rounded-lg text-sm outline-none focus:border-text bg-surface-secondary" placeholder="搜索用户名或姓名..." />
-        <button @click="fetchUsers(1)" class="px-4 py-2 text-sm font-medium bg-text text-white rounded-lg hover:bg-accent-hover transition-all">搜索</button>
+        <button @click="fetchUsers(1)" class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">搜索</button>
       </div>
 
       <div v-if="loading" class="py-20 text-center text-text-secondary">加载中...</div>
@@ -35,7 +35,7 @@
           <div class="flex items-center">
             <input type="checkbox" :checked="allSelected" @change="toggleAll" class="h-4 w-4 accent-text cursor-pointer" />
           </div>
-          <div>用户</div><div>角色/状态</div><div>API Key</div><div>提交数</div><div @click="toggleSort" class="cursor-pointer select-none flex items-center gap-1 hover:text-text transition-colors">创建时间 <span class="text-[10px] leading-none">{{ sortOrder === 'desc' ? '▼' : '▲' }}</span></div><div class="text-right">操作</div>
+          <div>用户</div><div>角色/状态</div><div>API Key</div><div>提交数</div><div @click="toggleSort" class="cursor-pointer select-none flex items-center gap-1 hover:text-text transition-colors">创建时间 <component :is="sortOrder === 'desc' ? ChevronDown : ChevronUp" class="w-3 h-3" /></div><div class="text-right">操作</div>
         </div>
         <div v-if="users.length === 0" class="py-14 text-center text-sm text-text-secondary">暂无用户</div>
         <div v-for="user in users" :key="user.id" class="grid grid-cols-[36px_1.2fr_1fr_0.8fr_0.8fr_0.8fr_120px] gap-3 px-4 py-3 items-center border-b border-[rgba(0,0,0,0.04)] last:border-b-0 text-sm">
@@ -94,20 +94,20 @@
               <label class="block text-sm font-medium text-text mb-1.5">新密码</label>
               <div class="relative">
                 <input v-model="passwordForm.newPassword" :type="passwordForm.showNew ? 'text' : 'password'" class="w-full px-3 py-2 pr-10 border border-[rgba(0,0,0,0.08)] rounded-lg text-sm outline-none focus:border-text bg-surface-secondary" placeholder="至少 6 位" />
-                <button type="button" @click="passwordForm.showNew = !passwordForm.showNew" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text text-sm">👁️</button>
+                <button type="button" @click="passwordForm.showNew = !passwordForm.showNew" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text"><component :is="passwordForm.showNew ? EyeOff : Eye" class="w-4 h-4" /></button>
               </div>
             </div>
             <div>
               <label class="block text-sm font-medium text-text mb-1.5">确认密码</label>
               <div class="relative">
                 <input v-model="passwordForm.confirmPassword" :type="passwordForm.showConfirm ? 'text' : 'password'" class="w-full px-3 py-2 pr-10 border border-[rgba(0,0,0,0.08)] rounded-lg text-sm outline-none focus:border-text bg-surface-secondary" placeholder="再次输入新密码" />
-                <button type="button" @click="passwordForm.showConfirm = !passwordForm.showConfirm" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text text-sm">👁️</button>
+                <button type="button" @click="passwordForm.showConfirm = !passwordForm.showConfirm" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text"><component :is="passwordForm.showConfirm ? EyeOff : Eye" class="w-4 h-4" /></button>
               </div>
             </div>
           </div>
           <div class="flex justify-end gap-3">
             <button @click="closePasswordDialog" :disabled="changingPassword" class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary disabled:opacity-50">取消</button>
-            <button @click="changePassword" :disabled="changingPassword || !passwordForm.newPassword || passwordForm.newPassword.length < 6 || passwordForm.newPassword !== passwordForm.confirmPassword" class="px-4 py-2 text-sm bg-text text-white rounded-lg hover:bg-accent-hover disabled:opacity-50">{{ changingPassword ? '修改中...' : '确认修改' }}</button>
+            <button @click="changePassword" :disabled="changingPassword || !passwordForm.newPassword || passwordForm.newPassword.length < 6 || passwordForm.newPassword !== passwordForm.confirmPassword" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50">{{ changingPassword ? '修改中...' : '确认修改' }}</button>
           </div>
         </div>
       </div>
@@ -132,6 +132,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { RefreshCw, UserPlus, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-vue-next'
 import NavBar from '../components/NavBar.vue'
 import NewUserDialog from '../components/admin/NewUserDialog.vue'
 

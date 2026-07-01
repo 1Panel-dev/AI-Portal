@@ -143,7 +143,7 @@
                   <a
                     v-if="v.file_path"
                     :href="`${API_BASE}/skills/${skill.slug}/download?v=${encodeURIComponent(v.version)}`"
-                    class="px-3 py-1 text-[11px] font-medium bg-text text-white rounded-lg hover:bg-accent-hover transition-colors"
+                    class="px-3 py-1 text-[11px] font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors"
                   >下载</a>
                 </div>
               </div>

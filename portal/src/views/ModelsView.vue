@@ -10,7 +10,7 @@
       </h1>
       <p class="text-[18px] text-text-secondary font-normal mb-8 leading-relaxed">一键复制调用入口，快速接入企业 AI 能力</p>
       <router-link :to="ctaLink"
-        class="inline-flex items-center gap-2 px-5 py-2.5 bg-text text-white text-[14px] font-medium rounded-xl hover:opacity-85 transition-all no-underline shadow-[0_4px_12px_rgba(0,0,0,0.15)] mb-6">
+        class="inline-flex items-center gap-2 px-5 py-2.5 bg-accent text-white text-[14px] font-medium rounded-xl hover:bg-accent-hover transition-all no-underline shadow-[0_4px_12px_rgba(0,0,0,0.15)] mb-6">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
         {{ isLoggedIn ? '申请 API Key' : (oauthEnabled ? '登录后申请 API Key' : '申请 API Key 快速体验') }}
       </router-link>

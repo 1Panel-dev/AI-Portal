@@ -102,10 +102,10 @@
               >
                 <div class="flex items-center gap-2.5">
                   <span class="font-mono font-semibold text-text">{{ v.version }}</span>
-                  <span v-if="idx === 0" class="text-[10px] font-semibold px-2 py-[2px] rounded-md bg-text text-white">最新</span>
+                  <span v-if="idx === 0" class="text-[10px] font-semibold px-2 py-[2px] rounded-md bg-accent text-white">最新</span>
                   <span class="text-xs text-text-secondary">{{ v.date }}</span>
                 </div>
-                <a v-if="v.file_path" :href="`${API_BASE}/skills/${skill.slug}/download?v=${encodeURIComponent(v.version)}`" class="px-3 py-1 text-[11px] font-medium bg-text text-white rounded-lg hover:bg-accent-hover transition-colors">下载</a>
+                <a v-if="v.file_path" :href="`${API_BASE}/skills/${skill.slug}/download?v=${encodeURIComponent(v.version)}`" class="px-3 py-1 text-[11px] font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors">下载</a>
               </div>
             </div>
           </div>

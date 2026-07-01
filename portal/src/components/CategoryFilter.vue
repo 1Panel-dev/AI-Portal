@@ -6,7 +6,7 @@
       @click="$emit('select', cat.id)"
       class="px-4 py-[7px] rounded-full border-none text-[13px] font-medium cursor-pointer transition-all duration-150"
       :class="currentCategory === cat.id
-        ? 'bg-text text-white'
+        ? 'bg-accent text-white'
         : 'bg-surface-secondary text-text hover:bg-[#e8e8ed]'"
     >
       {{ cat.name }}

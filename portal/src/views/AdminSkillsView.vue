@@ -8,35 +8,35 @@
         <button
           @click="$router.push('/admin')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           审核管理
         </button>
         <button
           @click="$router.push('/admin/skills')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/skills' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin/skills' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           技能管理
         </button>
         <button
           @click="$router.push('/admin/users')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/users' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin/users' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           用户管理
         </button>
         <button
           @click="$router.push('/admin/config')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/config' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin/config' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           系统配置
         </button>
         <button
           @click="$router.push('/admin/oauth')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/oauth' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin/oauth' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           第三方登录
         </button>
@@ -52,9 +52,9 @@
         <div class="flex gap-3">
           <button
             @click="$router.push('/admin')"
-            class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all"
+            class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all"
           >
-            ← 返回审核
+            <ArrowLeft class="w-4 h-4" />返回审核
           </button>
           <button
             @click="logout"
@@ -74,7 +74,7 @@
             @click="onTabChange(tab.id)"
             class="px-4 py-2 text-sm font-medium transition-all rounded-lg"
             :class="currentTab === tab.id
-              ? 'bg-text text-white'
+              ? 'bg-accent text-white'
               : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
           >
             {{ tab.name }}
@@ -92,12 +92,10 @@
               {{ cat.name }}
             </option>
           </select>
-          <svg class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-          </svg>
+          <ChevronDown class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary pointer-events-none" />
         </div>
         <div class="flex-1 relative">
-          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
           <input
             v-model="searchQuery"
             type="text"
@@ -116,7 +114,7 @@
               {{ sort.name }}
             </option>
           </select>
-          <svg class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/></svg>
+          <ArrowUpDown class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary pointer-events-none" />
         </div>
       </div>
 
@@ -127,7 +125,7 @@
 
       <!-- Empty -->
       <div v-else-if="skills.length === 0" class="text-center py-20">
-        <div class="text-4xl mb-4">📂</div>
+        <Inbox class="w-12 h-12 mx-auto mb-4 text-text-tertiary" />
         <p class="text-text-secondary">暂无技能</p>
       </div>
 
@@ -177,7 +175,7 @@
                 class="p-2 text-text-secondary hover:text-accent transition-all"
                 title="编辑"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                <Pencil class="w-4 h-4" />
               </button>
               <button
                 @click="toggleSkill(skill)"
@@ -185,15 +183,14 @@
                 class="p-2 text-text-secondary hover:text-accent transition-all"
                 :title="skill.is_active ? '下架' : '上架'"
               >
-                <svg v-if="skill.is_active" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
+                <component :is="skill.is_active ? Eye : EyeOff" class="w-4 h-4" />
               </button>
               <button
                 @click="confirmDelete(skill)"
                 class="p-2 text-text-secondary hover:text-red-500 transition-all"
                 title="删除"
               >
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                <Trash2 class="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -204,7 +201,7 @@
           <button
             @click="loadMore"
             :disabled="loadingMore"
-            class="px-6 py-2 bg-white border border-[rgba(0,0,0,0.06)] rounded-lg text-sm font-medium hover:bg-text hover:text-white hover:border-text transition-all disabled:opacity-50"
+            class="px-6 py-2 bg-white border border-[rgba(0,0,0,0.06)] rounded-lg text-sm font-medium hover:bg-accent-hover hover:text-white hover:border-text transition-all disabled:opacity-50"
           >
             {{ loadingMore ? '加载中...' : `加载更多 (${skills.length}/${pagination.total})` }}
           </button>
@@ -227,9 +224,7 @@
             @click="editingSkill = null"
             class="p-1 text-text-tertiary hover:text-text transition-colors"
           >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X class="w-5 h-5" />
           </button>
         </div>
 
@@ -293,7 +288,7 @@
           <button
             @click="saveEdit"
             :disabled="saving"
-            class="flex-1 py-2 bg-text text-white rounded-lg text-sm"
+            class="flex-1 py-2 bg-accent text-white rounded-lg text-sm"
           >
             {{ saving ? '保存中...' : '保存' }}
           </button>
@@ -336,6 +331,7 @@
 import { ref, watchEffect, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
+import { ChevronDown, Search, ArrowUpDown, Inbox, Pencil, Eye, EyeOff, Trash2, X, ArrowLeft } from 'lucide-vue-next'
 import { avatarColors, categories } from '../data/categories.js'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
@@ -378,8 +374,8 @@ const tabs = [
 
 // 排序选项
 const sortOptions = [
-  { id: 'downloads', name: '下载量 ↓' },
-  { id: 'downloadsAsc', name: '下载量 ↑' },
+  { id: 'downloads', name: '下载量(高到低)' },
+  { id: 'downloadsAsc', name: '下载量(低到高)' },
   { id: 'newest', name: '最新创建' },
   { id: 'oldest', name: '最早创建' },
   { id: 'title', name: '名称 A-Z' },

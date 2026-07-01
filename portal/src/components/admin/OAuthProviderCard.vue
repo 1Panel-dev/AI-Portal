@@ -1,5 +1,6 @@
 <script setup>
 import { ref, reactive, watch } from 'vue'
+import { CheckCircle2, XCircle } from 'lucide-vue-next'
 
 const props = defineProps({
   provider: { type: Object, required: true },
@@ -163,9 +164,9 @@ async function doSave() {
 
     <!-- 提示 -->
     <p v-if="error" class="text-sm text-red-500 mt-4">{{ error }}</p>
-    <p v-if="saveSuccess" class="text-sm text-emerald-600 mt-4">✅ 保存成功</p>
-    <p v-if="testResult?.ok === true" class="text-sm text-emerald-600 mt-4">✅ 测试成功:已获取 access_token</p>
-    <p v-if="testResult?.ok === false" class="text-sm text-red-500 mt-4">❌ 测试失败:{{ testResult.reason }}</p>
+    <p v-if="saveSuccess" class="flex items-center gap-1.5 text-sm text-emerald-600 mt-4"><CheckCircle2 class="w-4 h-4" /> 保存成功</p>
+    <p v-if="testResult?.ok === true" class="flex items-center gap-1.5 text-sm text-emerald-600 mt-4"><CheckCircle2 class="w-4 h-4" /> 测试成功:已获取 access_token</p>
+    <p v-if="testResult?.ok === false" class="flex items-center gap-1.5 text-sm text-red-500 mt-4"><XCircle class="w-4 h-4" /> 测试失败:{{ testResult.reason }}</p>
 
     <!-- 按钮组 -->
     <div class="flex items-center justify-between mt-6">
@@ -182,7 +183,7 @@ async function doSave() {
           重置
         </button>
         <button @click="doSave" :disabled="saving"
-          class="px-4 py-2 text-sm bg-text text-white rounded-lg hover:opacity-80 disabled:opacity-50">
+          class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50">
           {{ saving ? '保存中...' : '保存配置' }}
         </button>
       </div>

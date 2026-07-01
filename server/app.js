@@ -101,7 +101,7 @@ if (SERVE_STATIC) {
   // 从 system_config 读站点品牌; 失败时回退默认值, 不阻塞首屏
   const readSiteBranding = async () => {
     if (cachedBranding) return cachedBranding;
-    const fallback = { site_name: 'AI-Portal', site_logo: '', site_favicon: '' };
+    const fallback = { site_name: 'AI门户', site_logo: '', site_favicon: '' };
     try {
       if (!global.pool) return fallback;
       const result = await global.pool.query(
@@ -110,7 +110,7 @@ if (SERVE_STATIC) {
       const map = {};
       for (const row of result.rows) map[row.key] = row.value;
       cachedBranding = {
-        site_name:    map.site_name    || 'AI-Portal',
+        site_name:    map.site_name    || 'AI门户',
         site_logo:    map.site_logo    || '',
         site_favicon: map.site_favicon || '',
       };

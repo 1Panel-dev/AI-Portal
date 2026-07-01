@@ -8,35 +8,35 @@
         <button
           @click="$router.push('/admin')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           审核管理
         </button>
         <button
           @click="$router.push('/admin/skills')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/skills' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin/skills' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           技能管理
         </button>
         <button
           @click="$router.push('/admin/users')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/users' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin/users' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           用户管理
         </button>
         <button
           @click="$router.push('/admin/config')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/config' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin/config' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           系统配置
         </button>
         <button
           @click="$router.push('/admin/oauth')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/oauth' ? 'bg-text text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+          :class="$route.path === '/admin/oauth' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
         >
           第三方登录
         </button>
@@ -105,7 +105,7 @@
 
       <!-- Empty -->
       <div v-else-if="filteredSubmissions.length === 0" class="text-center py-20">
-        <div class="text-4xl mb-4">{{ emptyEmoji }}</div>
+        <component :is="emptyIcon" class="w-12 h-12 mx-auto mb-4 text-text-tertiary" />
         <p class="text-text-secondary">{{ emptyText }}</p>
       </div>
 
@@ -148,8 +148,8 @@
               </div>
               <!-- Review Info -->
               <div v-if="sub.status !== 'pending'" class="mt-3 text-xs text-text-tertiary">
-                <span v-if="sub.reviewed_at">
-                  {{ sub.status === 'approved' ? '✓ 通过' : '✕ 拒绝' }}于 {{ formatDate(sub.reviewed_at) }}
+                <span v-if="sub.reviewed_at" class="inline-flex items-center gap-1">
+                  <component :is="sub.status === 'approved' ? Check : X" class="w-3 h-3" />{{ sub.status === 'approved' ? '通过' : '拒绝' }}于 {{ formatDate(sub.reviewed_at) }}
                 </span>
                 <span v-if="sub.review_note" class="ml-2 text-red-500">
                   原因: {{ sub.review_note }}
@@ -163,16 +163,16 @@
             <button
               @click="approve(sub.id)"
               :disabled="processing[sub.id]"
-              class="flex-1 py-2 bg-text text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition-all disabled:opacity-50"
+              class="inline-flex items-center justify-center gap-1.5 flex-1 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
             >
-              {{ processing[sub.id] ? '处理中...' : '✓ 通过' }}
+              <Check class="w-4 h-4" />{{ processing[sub.id] ? '处理中...' : '通过' }}
             </button>
             <button
               @click="showRejectDialog(sub.id)"
               :disabled="processing[sub.id]"
-              class="flex-1 py-2 border border-red-300 text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 transition-all disabled:opacity-50"
+              class="inline-flex items-center justify-center gap-1.5 flex-1 py-2 border border-red-300 text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 transition-all disabled:opacity-50"
             >
-              ✕ 拒绝
+              <X class="w-4 h-4" />拒绝
             </button>
           </div>
         </div>
@@ -216,6 +216,7 @@
 import { ref, computed, watchEffect, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
+import { Clock, CheckCircle2, ClipboardList, Inbox, Check, X } from 'lucide-vue-next'
 import { avatarColors } from '../data/categories.js'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
@@ -263,9 +264,9 @@ const filteredSubmissions = computed(() => {
   return submissions.value.filter(s => s.status === currentTab.value)
 })
 
-const emptyEmoji = computed(() => {
-  const map = { pending: '✅', approved: '✨', rejected: '📋', all: '📂' }
-  return map[currentTab.value] || '📂'
+const emptyIcon = computed(() => {
+  const map = { pending: Clock, approved: CheckCircle2, rejected: ClipboardList, all: Inbox }
+  return map[currentTab.value] || Inbox
 })
 
 const emptyText = computed(() => {

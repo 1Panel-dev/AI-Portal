@@ -22,7 +22,7 @@ const message = computed(() => REASON_TEXT[route.query.reason] || '未知错误,
     <div class="text-center max-w-md px-6">
       <h2 class="text-xl font-semibold text-text mb-3">登录失败</h2>
       <p class="text-sm text-text-secondary mb-6">{{ message }}</p>
-      <router-link to="/login" class="inline-block px-5 py-2 bg-text text-white text-sm rounded-lg hover:opacity-80">
+      <router-link to="/login" class="inline-block px-5 py-2 bg-accent text-white text-sm rounded-lg hover:bg-accent-hover">
         返回登录页
       </router-link>
     </div>

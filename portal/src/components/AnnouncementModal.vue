@@ -58,7 +58,7 @@
           </label>
           <button
             type="button"
-            class="h-[46px] w-full rounded-xl bg-text text-[15px] font-semibold text-white transition-colors hover:bg-accent-hover"
+            class="h-[46px] w-full rounded-xl bg-accent text-[15px] font-semibold text-white transition-colors hover:bg-accent-hover"
             @click="close(true)"
           >
             我已了解

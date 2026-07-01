@@ -2,11 +2,15 @@
   <nav class="fixed top-[40px] left-0 right-0 z-[260] h-[52px] border-b border-[rgba(0,0,0,0.04)] bg-white/78 backdrop-blur-xl backdrop-saturate-[1.8]">
     <div class="max-w-[1024px] mx-auto px-6 h-full flex items-center">
       <router-link to="/" class="flex items-center font-bold text-[18px] tracking-[-0.45px] text-text no-underline">
-        <div v-if="siteLogo" class="w-[26px] h-[26px] rounded-[6px] flex items-center justify-center mr-[7px] shadow-[0_6px_16px_rgba(0,0,0,0.10)] ring-1 ring-black/5 overflow-hidden bg-white">
-          <img :src="siteLogo" alt="logo" class="max-w-full max-h-full" />
+        <!-- 默认 logo(1panel-logo.svg)走 mask 渲染:SVG 的 currentColor 无法被 <img> 外部改色,
+             用 mask 把 logo 形状当成遮罩、背景刷成主题蓝,实现"logo 变蓝"。
+             管理员上传的 logo 仍用 <img> 原样显示。 -->
+        <div v-if="siteLogoIsDefault"
+          class="h-[24px] w-[88px] mr-[8px] bg-accent"
+          :style="{ mask: `url(${siteLogo}) no-repeat left center / contain`, WebkitMask: `url(${siteLogo}) no-repeat left center / contain` }">
         </div>
-        <div v-else class="w-[26px] h-[26px] bg-text rounded-[6px] flex items-center justify-center mr-[7px] shadow-[0_6px_16px_rgba(0,0,0,0.10)] ring-1 ring-black/5">
-          <span class="text-[10px] font-bold leading-none tracking-[-0.4px] text-white">AI</span>
+        <div v-else class="h-[24px] flex items-center mr-[8px]">
+          <img :src="siteLogo" alt="logo" class="h-full w-auto" />
         </div>
       {{ siteName }}
       </router-link>
@@ -82,7 +86,7 @@
 
         <!-- Login button (not logged in) -->
         <router-link v-else to="/login"
-          class="ml-2 px-4 py-1.5 text-[13px] bg-text text-white rounded-lg hover:bg-accent-hover transition-all no-underline">
+          class="ml-2 px-4 py-1.5 text-[13px] bg-accent text-white rounded-lg hover:bg-accent-hover transition-all no-underline">
           登录
         </router-link>
       </div>
@@ -93,7 +97,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { siteName, siteLogo } from '../composables/useSiteBranding.js'
+import { siteName, siteLogo, siteLogoIsDefault } from '../composables/useSiteBranding.js'
 import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()

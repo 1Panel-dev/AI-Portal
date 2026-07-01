@@ -7,7 +7,7 @@ import vue from '@vitejs/plugin-vue'
 // 所有相对路径都解析到 http://host:port/__BASE_PATH__/...,SPA 路由全炸。
 // 同时填上站点品牌的 dev 默认值(站名/logo/favicon),生产由后端从 system_config 注入。
 const DEV_BRANDING_JSON = JSON.stringify({
-  site_name: 'AI-Portal',
+  site_name: 'AI门户',
   site_logo: '',
   site_favicon: '',
 })
@@ -16,7 +16,7 @@ const replaceBasePath = {
   transformIndexHtml(html) {
     return html
       .split('__BASE_PATH__').join('/')
-      .split('__SITE_NAME__').join('AI-Portal')
+      .split('__SITE_NAME__').join('AI门户')
       .split('__SITE_BRANDING_JSON__').join(DEV_BRANDING_JSON)
   },
   apply: 'serve', // 仅在 vite dev 时生效;build 产物保留占位符,留给后端运行时替换

@@ -962,14 +962,14 @@ router.get('/api/site/branding', async (req, res) => {
     // 不缓存:admin 改完立即生效是更重要的诉求,几行 system_config 查询完全可以承受
     res.set('Cache-Control', 'no-store');
     res.json({
-      site_name:    map.site_name    || 'AI-Portal',
+      site_name:    map.site_name    || 'AI门户',
       site_logo:    map.site_logo    || '',
       site_favicon: map.site_favicon || '',
     });
   } catch (err) {
     console.error('获取站点品牌失败:', err);
     // 失败也给个 fallback, 别让首页空白
-    res.json({ site_name: 'AI-Portal', site_logo: '', site_favicon: '' });
+    res.json({ site_name: 'AI门户', site_logo: '', site_favicon: '' });
   }
 });
 

@@ -17,7 +17,7 @@
           系统已启用第三方账号登录。请使用第三方账号登录，或联系管理员开通账号。
         </p>
         <router-link to="/login"
-          class="inline-block px-5 py-2 bg-text text-white text-sm rounded-lg hover:opacity-80">
+          class="inline-block px-5 py-2 bg-accent text-white text-sm rounded-lg hover:bg-accent-hover">
           去登录
         </router-link>
       </div>
@@ -84,7 +84,7 @@
         <button
           @click="register"
           :disabled="!canSubmit || loading"
-          class="w-full py-3 bg-text text-white font-medium rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          class="w-full py-3 bg-accent text-white font-medium rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {{ loading ? '注册中...' : '注册' }}
         </button>

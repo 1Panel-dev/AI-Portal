@@ -103,7 +103,7 @@ async function submit() {
           取消
         </button>
         <button @click="submit" :disabled="loading"
-          class="px-4 py-2 text-sm bg-text text-white rounded-lg hover:opacity-80 disabled:opacity-50">
+          class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50">
           {{ loading ? '创建中...' : '确认创建' }}
         </button>
       </div>
