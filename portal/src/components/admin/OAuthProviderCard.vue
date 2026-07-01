@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, nextTick } from 'vue'
 import { CheckCircle2, XCircle } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -12,6 +12,7 @@ const emit = defineEmits(['updated'])
 const enabled = ref(false)
 const sortOrder = ref(0)
 const formValues = reactive({})
+const dirty = ref(false)  // 是否有未保存的修改
 
 const testing = ref(false)
 const saving = ref(false)
@@ -31,6 +32,14 @@ function reset() {
   }
   testResult.value = null
   error.value = ''
+  dirty.value = false
+}
+
+// 任何表单变更标记为 dirty
+watch(enabled, () => { dirty.value = true })
+watch(sortOrder, () => { dirty.value = true })
+for (const f of (props.provider.schema?.fields || [])) {
+  if (!f.sensitive) watch(() => formValues[f.key], () => { dirty.value = true })
 }
 
 watch(() => props.provider, reset, { immediate: true })
@@ -78,6 +87,7 @@ async function doSave() {
   saving.value = true
   error.value = ''
   saveSuccess.value = false
+  const scrollY = window.scrollY  // 保存滚动位置,防止 emit→reload 导致页面上滑
   try {
     const t = localStorage.getItem('admin_token') || ''
     const res = await fetch(`${props.apiBase}/admin/oauth/providers/${props.provider.provider}`, {
@@ -95,9 +105,12 @@ async function doSave() {
       return
     }
     saveSuccess.value = true
+    dirty.value = false
     // 3 秒后自动隐藏(父组件 emit('updated') 后会重新加载,但提示先显示给用户)
     setTimeout(() => { saveSuccess.value = false }, 3000)
     emit('updated')
+    await nextTick()
+    window.scrollTo(0, scrollY)
   } catch (e) {
     error.value = e.message || '网络错误'
   } finally {
@@ -167,6 +180,7 @@ async function doSave() {
     <p v-if="saveSuccess" class="flex items-center gap-1.5 text-sm text-emerald-600 mt-4"><CheckCircle2 class="w-4 h-4" /> 保存成功</p>
     <p v-if="testResult?.ok === true" class="flex items-center gap-1.5 text-sm text-emerald-600 mt-4"><CheckCircle2 class="w-4 h-4" /> 测试成功:已获取 access_token</p>
     <p v-if="testResult?.ok === false" class="flex items-center gap-1.5 text-sm text-red-500 mt-4"><XCircle class="w-4 h-4" /> 测试失败:{{ testResult.reason }}</p>
+    <p v-if="dirty && !saveSuccess" class="text-xs text-amber-600 mt-2">⚠️ 修改未保存,记得点「保存配置」生效</p>
 
     <!-- 按钮组 -->
     <div class="flex items-center justify-between mt-6">
