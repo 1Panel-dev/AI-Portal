@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { Lock, ShieldCheck, AlertTriangle, Link } from 'lucide-vue-next'
 import NavBar from '../components/NavBar.vue'
@@ -33,6 +33,7 @@ async function copyCallbackUrl() {
 }
 
 async function load() {
+  const scrollY = window.scrollY  // 保存滚动位置,防止 loading 切换导致页面上滑
   loading.value = true
   try {
     const token = localStorage.getItem('admin_token')
@@ -53,6 +54,8 @@ async function load() {
     console.error('load providers failed:', e)
   } finally {
     loading.value = false
+    await nextTick()
+    window.scrollTo(0, scrollY)
   }
 }
 

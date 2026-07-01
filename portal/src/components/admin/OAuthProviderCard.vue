@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, watch, nextTick } from 'vue'
+import { ref, reactive, watch } from 'vue'
 import { CheckCircle2, XCircle } from 'lucide-vue-next'
 
 const props = defineProps({
@@ -87,7 +87,6 @@ async function doSave() {
   saving.value = true
   error.value = ''
   saveSuccess.value = false
-  const scrollY = window.scrollY  // 保存滚动位置,防止 emit→reload 导致页面上滑
   try {
     const t = localStorage.getItem('admin_token') || ''
     const res = await fetch(`${props.apiBase}/admin/oauth/providers/${props.provider.provider}`, {
@@ -109,8 +108,6 @@ async function doSave() {
     // 3 秒后自动隐藏(父组件 emit('updated') 后会重新加载,但提示先显示给用户)
     setTimeout(() => { saveSuccess.value = false }, 3000)
     emit('updated')
-    await nextTick()
-    window.scrollTo(0, scrollY)
   } catch (e) {
     error.value = e.message || '网络错误'
   } finally {
