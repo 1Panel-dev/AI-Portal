@@ -2,6 +2,7 @@
 id: submit
 label: 提交技能
 order: 5
+group: 使用指南
 description: 向平台贡献你的 AI 技能，分享给更多用户。
 ---
 

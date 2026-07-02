@@ -2,6 +2,7 @@
 id: marketplace
 label: Skill 广场
 order: 4
+group: 使用指南
 description: 发现和安装 1Panel Skills Hub 中的 AI 技能与技能包。
 ---
 

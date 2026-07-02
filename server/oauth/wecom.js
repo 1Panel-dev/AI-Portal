@@ -78,8 +78,15 @@ async function _fetchTokenFromWecom(config) {
     `?corpid=${encodeURIComponent(config.corpid)}` +
     `&corpsecret=${encodeURIComponent(config.secret)}`;
   const res = await fetchWithTimeout(url);
-  if (!res.ok) throw new Error(`gettoken HTTP ${res.status}`);
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    console.error(`[wecom.gettoken] HTTP ${res.status} body=${t.slice(0, 500)}`);
+    throw new Error(`gettoken HTTP ${res.status}`);
+  }
   const body = await res.json();
+  // access_token 是敏感凭证,只打印前8位用于核对,不落全量日志
+  const masked = { ...body, access_token: body.access_token ? body.access_token.slice(0, 8) + '...(masked)' : null };
+  console.log(`[wecom.gettoken] response:`, JSON.stringify(masked));
   inspectWecomBiz(body);   // 检查 errcode
   return { token: body.access_token, expiresIn: body.expires_in || 7200 };
 }
@@ -107,14 +114,20 @@ async function exchangeCode({ config, code }) {
   const u1 = `https://qyapi.weixin.qq.com/cgi-bin/auth/getuserinfo` +
     `?access_token=${encodeURIComponent(token)}&code=${encodeURIComponent(code)}`;
   const r1 = await fetchWithTimeout(u1);
-  if (!r1.ok) throw new Error(`getuserinfo HTTP ${r1.status}`);
+  if (!r1.ok) {
+    const t = await r1.text().catch(() => '');
+    console.error(`[wecom.exchangeCode] getuserinfo HTTP ${r1.status} body=${t.slice(0, 500)}`);
+    throw new Error(`getuserinfo HTTP ${r1.status}`);
+  }
   const b1 = await r1.json();
+  console.log(`[wecom.exchangeCode] getuserinfo response:`, JSON.stringify(b1));
   inspectWecomBiz(b1);
 
   const externalId = b1.userid || b1.open_userid || b1.openid || '';
   if (!externalId) {
     throw new Error('企微响应未包含 userid / open_userid / openid');
   }
+  console.log(`[wecom.exchangeCode] getuserinfo ok: userid=${b1.userid || '-'} open_userid=${b1.open_userid || '-'} openid=${b1.openid || '-'} → externalId=${externalId}`);
 
   // 2. 拉 profile(best-effort,需要应用对该成员有可见权限)
   // 失败的常见原因:60011 应用可见范围外、60012 通讯录权限不足。失败不阻断登录,
@@ -127,14 +140,18 @@ async function exchangeCode({ config, code }) {
       const r2 = await fetchWithTimeout(u2);
       if (r2.ok) {
         const b2 = await r2.json();
+        console.log(`[wecom.exchangeCode] user/get response:`, JSON.stringify(b2));
         if (b2.errcode === 0) {
           profile = { name: b2.name || '', avatar: b2.avatar || '' };
+          console.log(`[wecom.exchangeCode] user/get ok: userid=${b1.userid} name=${profile.name || '(空)'} avatar=${profile.avatar ? '有' : '无'}`);
         } else {
-          console.warn(`[wecom.exchangeCode] user/get errcode=${b2.errcode} ${b2.errmsg || ''}`);
+          console.warn(`[wecom.exchangeCode] user/get errcode=${b2.errcode} ${b2.errmsg || ''} userid=${b1.userid}`);
         }
+      } else {
+        console.warn(`[wecom.exchangeCode] user/get HTTP ${r2.status} (non-fatal) userid=${b1.userid}`);
       }
     } catch (e) {
-      console.warn('[wecom.exchangeCode] user/get failed (non-fatal):', e.message);
+      console.warn(`[wecom.exchangeCode] user/get failed (non-fatal): userid=${b1.userid} ${e.message}`);
     }
   }
 

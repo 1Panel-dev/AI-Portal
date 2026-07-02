@@ -363,6 +363,9 @@ router.get('/api/config/feature-flags', async (req, res) => {
 
 router.get('/api/keys', verifyUser, async (req, res) => {
   try {
+    // 诊断:打印当前 token 解析出的身份,用于排查"第二天看不到 key"
+    console.log(`[GET /api/keys] portalUser id=${req.portalUser.id} username=${req.portalUser.username} panel_user_id=${req.portalUser.panel_user_id || '(空)'}`);
+
     // 先查本地数据库（含完整 key）
     const result = await global.pool.query(`
       SELECT id, panel_key_id, api_key_mask, api_key_cipher, status, remark, created_at
@@ -370,6 +373,9 @@ router.get('/api/keys', verifyUser, async (req, res) => {
       WHERE user_id = $1
       LIMIT 1
     `, [req.portalUser.id]);
+    console.log(`[GET /api/keys] 本地查询 → rowCount=${result.rowCount}${result.rowCount > 0 ? ` key.id=${result.rows[0].id} panel_key_id=${result.rows[0].panel_key_id}` : ''}`);
+    console.log(`[GET /api/keys] 本地 portal_api_keys 查询 user_id=${req.portalUser.id} → rowCount=${result.rowCount}`);
+    console.log(`[GET /api/keys] user.id=${req.portalUser.id} username=${req.portalUser.username} panel_user_id=${req.portalUser.panel_user_id || '(空)'} → 本地 rowCount=${result.rowCount}`);
 
     if (result.rowCount > 0) {
       const row = result.rows[0];
@@ -574,6 +580,7 @@ router.post('/api/keys', verifyUser, async (req, res) => {
       0,
       panelResData || {},
     ]);
+    console.log(`[POST /api/keys] 创建成功: 落库 user_id=${req.portalUser.id}(username=${req.portalUser.username}) panel_user_id=${panelUserId} panel_key_id=${panelKeyId}`);
 
     const saved = result.rows[0];
     res.json({

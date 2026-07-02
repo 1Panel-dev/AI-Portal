@@ -2,7 +2,7 @@
   <div class="min-h-screen bg-[#f5f5f7]">
     <div class="h-[92px]"></div>
 
-    <div class="max-w-[1280px] mx-auto px-6 pb-16 flex gap-8">
+    <div class="max-w-[1400px] mx-auto px-6 pb-16 flex gap-8">
       <!-- 左侧:章节导航 -->
       <aside class="w-[200px] shrink-0">
         <div class="sticky top-[100px]">
@@ -15,23 +15,26 @@
           <div class="mx-3 my-2 border-t border-[rgba(0,0,0,0.06)]"></div>
 
           <nav class="flex flex-col gap-0.5">
-            <button
-              v-for="chapter in chapters"
-              :key="chapter.id"
-              @click="switchChapter(chapter.id)"
-              class="text-left pl-8 pr-3 py-2 text-[13px] rounded-lg transition-colors no-underline"
-              :class="activeId === chapter.id
-                ? 'font-semibold text-text bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]'
-                : 'text-text-secondary hover:text-text hover:bg-black/5'"
-            >
-              {{ chapter.label }}
-            </button>
+            <template v-for="g in groupedChapters" :key="g.group">
+              <div class="px-3 pt-4 pb-1 text-[11px] font-semibold text-text-tertiary uppercase tracking-[1.2px]">{{ g.group }}</div>
+              <button
+                v-for="chapter in g.items"
+                :key="chapter.id"
+                @click="switchChapter(chapter.id)"
+                class="text-left pl-8 pr-3 py-2 text-[13px] rounded-lg transition-colors no-underline"
+                :class="activeId === chapter.id
+                  ? 'font-semibold text-text bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]'
+                  : 'text-text-secondary hover:text-text hover:bg-black/5'"
+              >
+                {{ chapter.label }}
+              </button>
+            </template>
           </nav>
         </div>
       </aside>
 
       <!-- 中间:正文 -->
-      <main ref="mainEl" class="flex-1 min-w-0 bg-white rounded-2xl shadow-sm border border-[rgba(0,0,0,0.04)] p-8 md:p-10">
+      <main ref="mainEl" class="flex-1 min-w-0 bg-white rounded-2xl p-6 md:p-8 overflow-x-hidden">
         <p v-if="activeChapter?.description" class="text-[13px] text-[#2563eb] bg-[#eef2ff] border border-[#dbeafe] rounded-xl px-4 py-3 mb-6 leading-relaxed">{{ activeChapter.description }}</p>
         <div v-if="activeChapter" class="markdown-body" v-html="activeChapter.html"></div>
         <div v-else class="text-text-secondary text-[14px]">未找到文档内容。</div>
@@ -101,6 +104,21 @@ const mainEl = ref(null)
 const showBackToTop = ref(false)
 
 const activeChapter = computed(() => chapters.find(c => c.id === activeId.value))
+
+// 按分组聚合左侧导航:loadAllChapters 已保证 chapters 按 (group, order) 排好,
+// 这里只需把相邻同 group 的章节归到一起,渲染成「组标题 + 章节列表」
+const groupedChapters = computed(() => {
+  const groups = []
+  for (const ch of chapters) {
+    const last = groups[groups.length - 1]
+    if (last && last.group === ch.group) {
+      last.items.push(ch)
+    } else {
+      groups.push({ group: ch.group, items: [ch] })
+    }
+  }
+  return groups
+})
 
 const goBack = () => router.back()
 
@@ -211,30 +229,30 @@ onBeforeUnmount(() => {
 <style scoped>
 /* Apple 极简亮色风格的 Markdown 排版 */
 .markdown-body :deep(h1) {
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
   letter-spacing: -0.5px;
   color: #1d1d1f;
   margin: 0 0 4px;
 }
 .markdown-body :deep(h2) {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
   color: #1d1d1f;
-  margin: 28px 0 10px;
+  margin: 32px 0 12px;
   padding-top: 4px;
 }
 .markdown-body :deep(h3) {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   color: #1d1d1f;
-  margin: 20px 0 8px;
+  margin: 24px 0 10px;
 }
 .markdown-body :deep(p) {
-  font-size: 14px;
-  line-height: 1.7;
+  font-size: 15px;
+  line-height: 1.75;
   color: #6e6e73;
-  margin: 0 0 12px;
+  margin: 0 0 16px;
 }
 .markdown-body :deep(strong) {
   color: #1d1d1f;
@@ -251,33 +269,33 @@ onBeforeUnmount(() => {
 }
 .markdown-body :deep(ul),
 .markdown-body :deep(ol) {
-  margin: 0 0 14px;
+  margin: 0 0 16px;
   padding-left: 20px;
 }
 .markdown-body :deep(ul) { list-style: none; padding-left: 0; }
 .markdown-body :deep(ul li) {
   position: relative;
   padding-left: 16px;
-  font-size: 14px;
-  line-height: 1.7;
+  font-size: 15px;
+  line-height: 1.75;
   color: #6e6e73;
-  margin: 6px 0;
+  margin: 8px 0;
 }
 .markdown-body :deep(ul li::before) {
   content: '';
   position: absolute;
   left: 2px;
-  top: 11px;
+  top: 12px;
   width: 5px;
   height: 5px;
   border-radius: 50%;
   background: #1d1d1f;
 }
 .markdown-body :deep(ol li) {
-  font-size: 14px;
-  line-height: 1.7;
+  font-size: 15px;
+  line-height: 1.75;
   color: #6e6e73;
-  margin: 6px 0;
+  margin: 8px 0;
 }
 .markdown-body :deep(blockquote) {
   background: #fff7e6;
@@ -299,7 +317,7 @@ onBeforeUnmount(() => {
 }
 .markdown-body :deep(code) {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12.5px;
+  font-size: 13px;
   background: rgba(0,0,0,0.05);
   padding: 1px 6px;
   border-radius: 4px;
@@ -312,28 +330,32 @@ onBeforeUnmount(() => {
   border-radius: 12px;
   padding: 14px 16px;
   overflow-x: auto;
-  margin: 12px 0;
-  font-size: 12.5px;
+  margin: 16px 0;
+  font-size: 13px;
   line-height: 1.6;
 }
 .markdown-body :deep(pre code) {
   background: transparent;
   padding: 0;
   border-radius: 0;
-  font-size: 12.5px;
+  font-size: 13px;
 }
 .markdown-body :deep(img) {
+  /* 图片不超过正文列宽,避免外扩钻到左右边栏底下被遮住
+     正文列已加宽到 ~872px,长截图按列宽显示已足够;小图居中不拉伸 */
   max-width: 100%;
   border-radius: 12px;
   border: 1px solid rgba(0,0,0,0.06);
-  margin: 12px 0;
+  margin: 16px auto;
   display: block;
 }
 .markdown-body :deep(table) {
   border-collapse: collapse;
-  margin: 12px 0;
-  font-size: 13px;
+  margin: 16px 0;
+  font-size: 13.5px;
   width: 100%;
+  display: block;
+  overflow-x: auto;
 }
 .markdown-body :deep(th),
 .markdown-body :deep(td) {

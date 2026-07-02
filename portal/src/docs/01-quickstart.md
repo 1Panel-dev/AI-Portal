@@ -2,6 +2,7 @@
 id: quickstart
 label: 快速开始
 order: 1
+group: 入门
 description: 1Panel AI 门户是一个 AI 门户与技能广场，帮你发现 AI 模型、获取 API Key、浏览和安装 AI 技能。
 ---
 

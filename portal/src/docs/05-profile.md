@@ -2,6 +2,7 @@
 id: profile
 label: 个人中心
 order: 6
+group: 使用指南
 description: 管理你的账号信息和 API Key。
 ---
 

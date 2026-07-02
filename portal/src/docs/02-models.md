@@ -2,6 +2,7 @@
 id: models
 label: 模型广场
 order: 3
+group: 使用指南
 description: 浏览所有可用的 AI 模型，一键复制模型名称和调用地址。
 ---
 

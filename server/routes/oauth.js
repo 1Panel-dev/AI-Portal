@@ -364,6 +364,7 @@ router.post('/api/auth/oauth/bind/skip', express.json(), async (req, res) => {
     const candidate = buildCandidateUsername(decoded.externalId, decoded.profile && decoded.profile.name);
     const username = await generateUniqueUsername(global.pool, candidate);
     const displayName = (decoded.profile && decoded.profile.name) || username;
+    console.log(`[oauth/bind/skip] 创建账号: externalId=${decoded.externalId} profile.name=${(decoded.profile && decoded.profile.name) || '(空)'} → username=${username} name=${displayName} fallback=${displayName === username ? '是' : '否'}`);
 
     // 随机密码(用户用不到,后续可在个人中心 set)
     const randomPassword = crypto.randomBytes(16).toString('base64').slice(0, 32);

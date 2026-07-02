@@ -2,6 +2,7 @@
 id: skillctl
 label: skillctl 命令行说明
 order: 8
+group: 进阶
 description: 使用 skillctl 登录 1Panel Skills Hub、搜索并安装 Skill。
 ---
 

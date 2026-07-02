@@ -67,6 +67,14 @@ export function renderMarkdown(raw) {
 }
 
 // 启动时一次性加载所有章节
+// group 字段可选:有则按组归类,没有的归到默认组「其他」
+// 输出顺序:组按 GROUP_ORDER 排,组内按 order 排
+const GROUP_ORDER = ['入门', '使用指南', '客户端对接', '进阶', '其他']
+const groupRank = (g) => {
+  const i = GROUP_ORDER.indexOf(g)
+  return i === -1 ? GROUP_ORDER.length : i
+}
+
 export function loadAllChapters() {
   const modules = import.meta.glob('../docs/*.md', { query: '?raw', import: 'default', eager: true })
   const chapters = []
@@ -77,12 +85,16 @@ export function loadAllChapters() {
       id: data.id,
       label: data.label || data.id,
       order: typeof data.order === 'number' ? data.order : 999,
+      group: data.group || '其他',
       description: data.description || '',
       html,
       toc,
       path
     })
   }
-  chapters.sort((a, b) => a.order - b.order)
+  chapters.sort((a, b) => {
+    const r = groupRank(a.group) - groupRank(b.group)
+    return r !== 0 ? r : a.order - b.order
+  })
   return chapters
 }

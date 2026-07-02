@@ -159,6 +159,21 @@
 
             <!-- Single Key Card -->
             <div v-else class="border border-[rgba(0,0,0,0.06)] rounded-xl px-5 py-4">
+              <!-- 调用地址(Base URL):与 key 同属凭证上下文,放卡片顶部,免去切换模型广场 -->
+              <div class="flex items-center justify-between gap-3 pb-3 mb-3 border-b border-[rgba(0,0,0,0.06)]">
+                <div class="min-w-0 flex-1">
+                  <div class="text-xs text-text-tertiary mb-0.5">调用地址 (Base URL)</div>
+                  <div v-if="baseUrl" class="text-sm text-text font-mono truncate">{{ baseUrl }}</div>
+                  <div v-else class="text-xs text-text-secondary">尚未配置，请让管理员在系统配置中设置调用地址</div>
+                </div>
+                <button v-if="baseUrl" @click="copyBaseUrl"
+                  class="shrink-0 px-3 py-1.5 text-xs border border-[rgba(0,0,0,0.12)] text-text-secondary rounded-lg hover:bg-surface-secondary transition-all flex items-center gap-1.5"
+                  :class="{ '!border-green-300 !text-green-600': copiedBaseUrl }">
+                  <svg v-if="!copiedBaseUrl" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  {{ copiedBaseUrl ? '已复制' : '复制' }}
+                </button>
+              </div>
               <div class="flex items-center gap-2 mb-3">
                 <span class="text-sm font-medium text-text font-mono tracking-wide">{{ apiKeyData.api_key_mask }}</span>
                 <span v-if="apiKeyData.status === 'Enable'"
@@ -432,6 +447,10 @@ const selectedSkill = ref(null)
 const featureFlags = ref({ skillSubmitEnabled: false, skillctlDocUrl: '' })
 const keyError = ref('')
 const keyErrorOk = ref(false)
+// 调用地址(Base URL):与模型广场同源,来自 model_example_endpoint
+// 放在 Key 卡片内,让用户在凭证位置同时拿到 key 和调用地址,免去切换模型广场
+const baseUrl = ref('')
+const copiedBaseUrl = ref(false)
 function showKeyError(msg, ok = false) {
   keyError.value = msg
   keyErrorOk.value = ok
@@ -479,6 +498,28 @@ const fetchKeys = async () => {
       apiKeyData.value = data.key || null
     }
   } catch (e) { console.error(e) } finally { keysLoading.value = false }
+}
+// Base URL 是全局共享的调用地址(管理员在系统配置里维护),与具体 key 无关
+// 复用公开接口 /api/models/example,失败时保持空串 → 模板里走"未配置"提示
+const fetchBaseUrl = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/models/example`)
+    if (res.ok) {
+      const data = await res.json()
+      baseUrl.value = data.endpoint || ''
+    }
+  } catch (e) { console.error('Failed to fetch base url:', e) }
+}
+const copyBaseUrl = async () => {
+  const url = baseUrl.value
+  if (!url) return
+  const ok = await writeClipboard(url)
+  if (!ok) {
+    window.prompt('自动复制失败，请手动复制以下地址：', url)
+    return
+  }
+  copiedBaseUrl.value = true
+  setTimeout(() => { copiedBaseUrl.value = false }, 2000)
 }
 const fetchMySkills = async () => {
   mySkillsLoading.value = true
@@ -813,7 +854,7 @@ watch(() => route.query.tab, (t) => {
 }, { immediate: true })
 onMounted(() => {
   fetchUser()
-  if (activeTab.value === 'keys') fetchKeys()
+  if (activeTab.value === 'keys') { fetchKeys(); fetchBaseUrl() }
   if (activeTab.value === 'skills') fetchMySkills()
   loadOauthState()
   loadFeatureFlags()
@@ -824,5 +865,5 @@ onMounted(() => {
     showWelcomeBanner.value = true
   }
 })
-watch(activeTab, (v) => { if (v === 'keys') fetchKeys(); if (v === 'skills') fetchMySkills() })
+watch(activeTab, (v) => { if (v === 'keys') { fetchKeys(); fetchBaseUrl() } if (v === 'skills') fetchMySkills() })
 </script>

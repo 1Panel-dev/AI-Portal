@@ -2,6 +2,7 @@
 id: faq
 label: 常见问题
 order: 7
+group: 进阶
 description: 使用过程中的常见问题。
 ---
 

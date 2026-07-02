@@ -2,6 +2,7 @@
 id: admin
 label: 管理员配置
 order: 9
+group: 进阶
 description: 面向管理员的初始化与日常配置：1Panel 网关对接、站点品牌、第三方登录、用户管理。
 ---
 
