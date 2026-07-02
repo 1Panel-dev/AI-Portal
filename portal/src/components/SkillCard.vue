@@ -31,18 +31,25 @@
       {{ skill.description }}
     </p>
 
-    <!-- AI Agent Copy Button -->
+    <!-- 安装操作:下载 / skillctl 两个等大小按钮,保持卡片底部轻盈 -->
     <div class="flex items-center gap-2 mb-3">
-      <div class="flex-1 min-w-0 bg-surface-secondary rounded-lg px-3 py-2.5 font-mono text-[11px] text-text-secondary truncate">
-        skillctl install {{ skill.slug }}
-      </div>
+      <a
+        :href="downloadUrl"
+        target="_blank"
+        @click.stop
+        class="flex-1 flex items-center justify-center gap-1.5 h-8 bg-surface-secondary text-text rounded-lg text-[12px] font-medium no-underline transition-colors duration-150 hover:bg-black/[0.06]"
+        title="下载技能包(zip)"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        下载
+      </a>
       <button
         @click.stop="copyAgentCommand"
-        class="shrink-0 w-9 h-9 bg-accent text-white border-none rounded-lg cursor-pointer flex items-center justify-center transition-colors duration-150 hover:bg-accent-hover"
-        title="复制 AI Agent 安装指令"
+        class="shrink-0 w-8 h-8 bg-surface-secondary text-text-secondary rounded-lg cursor-pointer flex items-center justify-center transition-colors duration-150 hover:bg-black/[0.06] hover:text-text"
+        title="复制 skillctl 安装命令(需先登录 skillctl)"
       >
-        <svg v-if="copied" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-        <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <svg v-if="copied" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
       </button>
     </div>
 
@@ -69,6 +76,12 @@ defineEmits(['click', 'download'])
 
 const copied = ref(false)
 
+// 与 SkillDetailModal 一致的 API_BASE 取法:优先用后端注入的 APP_BASE,fallback 到 /api
+const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
+
+// 直接下载最新版本 zip 的链接
+const downloadUrl = computed(() => `${API_BASE}/skills/${props.skill.slug}/download`)
+
 const avatarColor = computed(() => {
   return avatarColors[props.skill.avatarColor] || { bg: '#e0f2f1', text: '#00695c' }
 })
@@ -81,7 +94,8 @@ const formatDownloads = (num) => {
 }
 
 const copyAgentCommand = async () => {
-  const cmd = `如果尚未安装 skillctl，请先访问文档页下载：\n\n然后执行以下命令安装 ${props.skill.title} 技能：\n\nskillctl install ${props.skill.slug}`
+  // 只复制纯安装命令;前置步骤(下载/登录/配置)在详情页 skillctl 说明里给出
+  const cmd = `skillctl install ${props.skill.slug}`
   try {
     await navigator.clipboard.writeText(cmd)
     copied.value = true

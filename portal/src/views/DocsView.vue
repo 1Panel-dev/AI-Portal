@@ -121,9 +121,10 @@ const groupedChapters = computed(() => {
 })
 
 // 返回:有历史则后退,无历史(直接通过 URL 进入 /docs/)则回首页
-// router.back() 在 history 为空时无效果,直接访问场景下按钮会失灵
+// window.history.length 不可靠(直接访问时也可能 >1),用 history.state.back 判断更准:
+// Vue Router 在有上一条记录时会给 state.back 填值,直接 URL 进入时为 null
 const goBack = () => {
-  if (window.history.length > 1) router.back()
+  if (window.history.state?.back) router.back()
   else router.push('/')
 }
 
