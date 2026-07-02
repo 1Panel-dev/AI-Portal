@@ -120,7 +120,12 @@ const groupedChapters = computed(() => {
   return groups
 })
 
-const goBack = () => router.back()
+// 返回:有历史则后退,无历史(直接通过 URL 进入 /docs/)则回首页
+// router.back() 在 history 为空时无效果,直接访问场景下按钮会失灵
+const goBack = () => {
+  if (window.history.length > 1) router.back()
+  else router.push('/')
+}
 
 const backToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
 
