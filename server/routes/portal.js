@@ -379,6 +379,63 @@ router.get('/api/keys', verifyUser, async (req, res) => {
 
     if (result.rowCount > 0) {
       const row = result.rows[0];
+
+      // 有 panel_user_id 时验证 1Panel 端 key 是否还存在
+      // 防止用户在 1Panel 管理后台删了 key 但 Portal 还在展示假数据
+      if (req.portalUser.panel_user_id) {
+        try {
+          const userKeys = await listPanelKeysOfUser(req.portalUser.panel_user_id);
+          // 按 panel_key_id 精确匹配；若本地 panel_key_id 为空但该用户在远端恰好只有一把 key，也视为匹配
+          const match = row.panel_key_id
+            ? userKeys.find(k => String(k.id) === String(row.panel_key_id))
+            : (userKeys.length === 1 ? userKeys[0] : null);
+
+          if (match) {
+            // key 在 1Panel 还存在 → 用远端数据更新本地缓存（mask/cipher 可能已变化）
+            let fullKey = row.api_key_cipher;
+            let keyMask = match.apiKeyMask || row.api_key_mask;
+            try {
+              const revealRes = await panel.post('/api/v2/core/enterprise/ai-proxy/api-keys/reveal', { id: match.id });
+              const revealed = getPanelPayload(revealRes.data) || {};
+              if (revealed.apiKey) fullKey = revealed.apiKey;
+              if (revealed.apiKeyMask) keyMask = revealed.apiKeyMask;
+            } catch (e) { /* reveal 失败不阻断，沿用本地缓存 */ }
+
+            await global.pool.query(`
+              UPDATE portal_api_keys
+              SET api_key_mask = $1, api_key_cipher = $2, panel_key_id = $3,
+                  status = $4, synced_at = CURRENT_TIMESTAMP
+              WHERE id = $5
+            `, [keyMask, fullKey, match.id, match.status || 'Enable', row.id]);
+
+            return res.json({
+              key: {
+                id: row.id,
+                api_key: fullKey,
+                api_key_mask: keyMask,
+                panel_key_id: match.id,
+                status: match.status || 'Enable',
+                remark: row.remark || '',
+                created_at: row.created_at,
+                token_limit: match.tokenLimit || 0,
+                token_used: match.tokenUsed || 0,
+                token_remaining: match.tokenRemaining || 0,
+                token_unlimited: !!match.tokenUnlimited,
+              }
+            });
+          } else {
+            // 1Panel 上 key 已被删除，清理本地记录
+            console.log(`[GET /api/keys] 1Panel 端 key 已不存在(user=${req.portalUser.id}, panel_key_id=${row.panel_key_id})，清理本地记录`);
+            await global.pool.query('DELETE FROM portal_api_keys WHERE id = $1', [row.id]);
+            return res.json({ key: null });
+          }
+        } catch (panelErr) {
+          // 1Panel 不可达时兜底返回本地记录，不断网时误伤
+          console.error('[GET /api/keys] 1Panel 验证失败，兜底返回本地:', panelErr.message);
+        }
+      }
+
+      // 无 panel_user_id 或 1Panel 不可达 → 直接返回本地（不含实时 token 配额）
       return res.json({
         key: {
           id: row.id,
@@ -388,6 +445,7 @@ router.get('/api/keys', verifyUser, async (req, res) => {
           status: row.status,
           remark: row.remark || '',
           created_at: row.created_at,
+          token_quota: null,
         }
       });
     }
@@ -426,6 +484,10 @@ router.get('/api/keys', verifyUser, async (req, res) => {
               status: saved.status,
               remark: saved.remark || '',
               created_at: saved.created_at,
+              token_limit: userKey.tokenLimit || 0,
+              token_used: userKey.tokenUsed || 0,
+              token_remaining: userKey.tokenRemaining || 0,
+              token_unlimited: !!userKey.tokenUnlimited,
             }
           });
         }
@@ -1199,6 +1261,55 @@ router.post('/api/skillctl-token', verifyUser, async (req, res) => {
   } catch (err) {
     console.error('生成 skillctl token 失败:', err);
     res.status(500).json({ error: '生成 skillctl token 失败: ' + err.message });
+  }
+});
+
+// GET /api/usage/statistics — 当前用户的 Token 用量统计（代理 1Panel usage API）
+router.get('/api/usage/statistics', verifyUser, async (req, res) => {
+  try {
+    if (!req.portalUser.panel_user_id) {
+      return res.json({ data: null, hint: '尚未关联 1Panel 用户' });
+    }
+
+    let usageRes;
+    try {
+      usageRes = await panel.post('/api/v2/core/enterprise/ai-proxy/usage/statistics', {
+        info: '',
+        userId: req.portalUser.panel_user_id,
+        provider: '',
+        model: '',
+      });
+    } catch (e) {
+      console.error('[usage/statistics] 1Panel 网络异常:', e.message);
+      return res.status(502).json({ error: '1Panel 不可达', code: 'PANEL_UNREACHABLE' });
+    }
+
+    if (usageRes.status < 200 || usageRes.status >= 300) {
+      return res.status(502).json({ error: `1Panel 返回 HTTP ${usageRes.status}`, code: 'PANEL_REJECTED' });
+    }
+
+    const biz = inspectPanelBiz(usageRes);
+    if (!biz.ok) {
+      return res.status(502).json({ error: '1Panel 业务错误', reason: biz.message, code: 'PANEL_REJECTED' });
+    }
+
+    const payload = getPanelPayload(usageRes.data);
+    const data = payload && typeof payload === 'object' ? payload : {};
+    // 过滤掉 name 为空的脏条目（1Panel 有时返回空 name 行）
+    const clean = (arr) =>
+      Array.isArray(arr) ? arr.filter(v => v && v.name) : [];
+
+    res.json({
+      data: {
+        summary: data.summary || null,
+        trends: clean(data.trends),
+        models: clean(data.models),
+        providers: clean(data.providers),
+      },
+    });
+  } catch (err) {
+    console.error('获取用量统计失败:', err);
+    res.status(500).json({ error: '获取用量统计失败' });
   }
 });
 

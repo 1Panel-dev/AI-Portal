@@ -194,6 +194,74 @@
             </div>
           </div>
 
+          <!-- Token 用量统计 -->
+          <div v-if="apiKeyData" class="mt-6 bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
+            <h2 class="text-lg font-semibold text-text mb-5 flex items-center gap-2">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#005eeb" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+              Token 用量统计
+            </h2>
+            <div v-if="usageLoading" class="py-8 text-center text-text-secondary text-sm">加载中...</div>
+            <div v-else-if="usageError" class="py-4 text-center text-red-500 text-sm">{{ usageError }}</div>
+            <div v-else>
+              <!-- Token 配额 -->
+              <div v-if="apiKeyData.token_limit || apiKeyData.token_unlimited" class="mb-6 bg-[#f5f9ff] rounded-xl px-5 py-4">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-[13px] font-medium text-text">Token 配额</span>
+                  <span class="text-[12px] text-text-secondary font-mono">{{ fmtNum(apiKeyData.token_used) }} / {{ apiKeyData.token_unlimited ? '∞' : fmtNum(apiKeyData.token_limit) }}</span>
+                </div>
+                <div v-if="!apiKeyData.token_unlimited" class="h-2 bg-[rgba(0,0,0,0.06)] rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all"
+                    :class="(apiKeyData.token_used||0)/(apiKeyData.token_limit||1) > 0.9 ? 'bg-red-400' : (apiKeyData.token_used||0)/(apiKeyData.token_limit||1) > 0.7 ? 'bg-amber-400' : 'bg-accent'"
+                    :style="{ width: Math.min((apiKeyData.token_used||0)/(apiKeyData.token_limit||1)*100,100) + '%' }"></div>
+                </div>
+              </div>
+              <!-- Summary 卡片 -->
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                <div class="bg-[#f5f9ff] rounded-xl px-4 py-3 text-center"><div class="text-[22px] font-bold text-accent">{{ fmtNum(usageData.summary?.requestCount) }}</div><div class="text-[11px] text-text-tertiary mt-1">总请求</div></div>
+                <div class="bg-[#f5f9ff] rounded-xl px-4 py-3 text-center"><div class="text-[22px] font-bold text-accent">{{ fmtNum(usageData.summary?.totalTokens) }}</div><div class="text-[11px] text-text-tertiary mt-1">总 Token</div></div>
+                <div class="bg-[#f5f5f7] rounded-xl px-4 py-3 text-center"><div class="text-[22px] font-bold text-text">{{ fmtNum(usageData.summary?.cachedTokens) }}</div><div class="text-[11px] text-text-tertiary mt-1">缓存命中</div></div>
+                <div class="bg-[#f5f5f7] rounded-xl px-4 py-3 text-center"><div class="text-[22px] font-bold" :class="(usageData.summary?.failedRequests||0)>0?'text-red-500':'text-text'">{{ fmtNum(usageData.summary?.failedRequests) }}</div><div class="text-[11px] text-text-tertiary mt-1">失败请求</div></div>
+              </div>
+              <!-- 每月统计折线图 -->
+              <div class="mb-6">
+                <div class="flex items-center justify-between mb-3">
+                  <h3 class="text-[13px] font-semibold text-text">每月统计</h3>
+                  <select v-model.number="selectedMonth" class="px-2.5 py-1.5 border border-[rgba(0,0,0,0.1)] rounded-lg text-[13px] bg-white outline-none cursor-pointer">
+                    <option v-for="m in 12" :key="m" :value="m">{{ m }} 月</option>
+                  </select>
+                </div>
+                <div v-if="usageData.trends?.length > 1" class="bg-[#fafafa] rounded-xl p-4">
+                  <svg :viewBox="'0 0 '+chartW+' '+chartH" class="w-full" preserveAspectRatio="xMidYMid meet">
+                    <line v-for="(_,i) in 4" :key="'g'+i" :x1="chartPad" :y1="chartPad+i*chartInnerH/3" :x2="chartPad+chartInnerW" :y2="chartPad+i*chartInnerH/3" stroke="rgba(0,0,0,0.06)" stroke-width="1"/>
+                    <text v-for="(v,i) in yTicks" :key="'yt'+i" :x="chartPad-6" :y="yVal(v)+4" text-anchor="end" font-size="10" fill="#aeaeb2">{{ fmtNum(v) }}</text>
+                    <polyline :points="linePoints" fill="none" stroke="#005eeb" stroke-width="2" stroke-linejoin="round"/>
+                    <polygon v-if="areaPoints" :points="areaPoints" fill="rgba(0,94,235,0.08)"/>
+                    <circle v-for="(p,i) in chartPoints" :key="'c'+i" :cx="p.x" :cy="p.y" r="3.5" fill="#fff" stroke="#005eeb" stroke-width="2"/>
+                    <text v-for="(p,i) in chartPoints" :key="'xl'+i" :x="p.x" :y="chartH-6" text-anchor="middle" font-size="10" fill="#aeaeb2">{{ p.label }}</text>
+                  </svg>
+                </div>
+                <div v-else class="bg-[#fafafa] rounded-xl py-8 text-center text-[13px] text-text-tertiary">暂无数据</div>
+              </div>
+              <!-- 模型 + 供应商 -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                  <h3 class="text-[13px] font-semibold text-text mb-3">模型用量</h3>
+                  <div v-if="usageData.models?.length" class="space-y-1.5">
+                    <div v-for="m in usageData.models" :key="m.name" class="flex items-center justify-between text-[13px]"><span class="text-text truncate mr-2 max-w-[60%]">{{ m.name }}</span><span class="text-text-secondary font-mono shrink-0">{{ fmtNum(m.totalTokens) }}</span></div>
+                  </div>
+                  <div v-else class="text-[13px] text-text-tertiary">暂无</div>
+                </div>
+                <div>
+                  <h3 class="text-[13px] font-semibold text-text mb-3">供应商用量</h3>
+                  <div v-if="usageData.providers?.length" class="space-y-1.5">
+                    <div v-for="p in usageData.providers" :key="p.name" class="flex items-center justify-between text-[13px]"><span class="text-text truncate mr-2 max-w-[60%]">{{ p.name }}</span><span class="text-text-secondary font-mono shrink-0">{{ fmtNum(p.totalTokens) }}</span></div>
+                  </div>
+                  <div v-else class="text-[13px] text-text-tertiary">暂无</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div v-if="activeTab === 'skills'" class="space-y-6">
             <SkillctlGuide />
             <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
@@ -457,6 +525,21 @@ function showKeyError(msg, ok = false) {
   if (msg) setTimeout(() => { keyError.value = '' }, 4000)
 }
 
+// ====== Token 用量统计 ======
+const usageData = ref(null)
+const usageLoading = ref(false)
+const usageError = ref('')
+const selectedMonth = ref(new Date().getMonth() + 1)
+const fmtNum = (n) => { if (n == null) return '0'; if (n >= 1000000) return (n/1000000).toFixed(1)+'M'; if (n >= 1000) return (n/1000).toFixed(1)+'K'; return String(n) }
+const filteredTrends = computed(() => { const t = usageData.value?.trends; if (!t) return []; return t.filter(v => v.name && parseInt(v.name.slice(5,7)) === selectedMonth.value) })
+const chartW = 600, chartH = 200, chartPad = 44, chartInnerW = chartW - chartPad*2, chartInnerH = chartH - chartPad - 24
+const chartPoints = computed(() => { if (!filteredTrends.value.length) return []; const a = filteredTrends.value; const m = Math.max(...a.map(v=>v.totalTokens||0),1); return a.map((v,i)=>({ x: chartPad+(a.length>1?i/(a.length-1):0.5)*chartInnerW, y: chartPad+(1-(v.totalTokens||0)/m)*chartInnerH, label: (v.name||'').slice(5) })) })
+const yTicks = computed(() => { if (!filteredTrends.value.length) return []; const v = filteredTrends.value.map(v=>v.totalTokens||0); const m = Math.max(...v,1); return [0,Math.round(m/3),Math.round(m*2/3),m] })
+const yVal = (v) => { const vs = filteredTrends.value.map(t=>t.totalTokens||0); const m = Math.max(...vs,1); return chartPad+(1-v/m)*chartInnerH }
+const linePoints = computed(() => chartPoints.value.map(p=>`${p.x},${p.y}`).join(' '))
+const areaPoints = computed(() => { if (!chartPoints.value.length) return ''; const p = chartPoints.value; return `${p[0].x},${chartPad+chartInnerH} `+p.map(v=>`${v.x},${v.y}`).join(' ')+` ${p[p.length-1].x},${chartPad+chartInnerH}` })
+const fetchUsage = async () => { if (!apiKeyData.value) return; usageLoading.value = true; usageError.value = ''; try { const t = localStorage.getItem('token'); const r = await fetch(`${API_BASE}/usage/statistics`,{headers:{Authorization:`Bearer ${t}`}}); const j = await r.json(); usageData.value = j.data || null } catch { usageError.value = '加载失败'; usageData.value = null } finally { usageLoading.value = false } }
+
 // 根据角色动态生成标签页
 const tabs = computed(() => {
   const tabsList = [
@@ -496,6 +579,7 @@ const fetchKeys = async () => {
     if (res.ok) {
       const data = await res.json()
       apiKeyData.value = data.key || null
+      if (apiKeyData.value) fetchUsage()
     }
   } catch (e) { console.error(e) } finally { keysLoading.value = false }
 }

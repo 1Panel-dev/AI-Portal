@@ -17,6 +17,7 @@
           <p class="text-text-secondary text-sm mt-1">查看门户用户，删除时会先清理 1Panel 远端用户与 API Key</p>
         </div>
         <div class="flex items-center gap-3">
+          <button @click="refreshUsers" :disabled="loading" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"><RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />{{ loading ? '加载中...' : '刷新' }}</button>
           <button @click="syncUsers" :disabled="syncing" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"><RefreshCw class="w-4 h-4" />{{ syncing ? '同步中...' : '同步用户' }}</button>
           <button v-if="selectedUsers.size > 0" @click="openBatchPassword" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">{{ `批量改密 (${selectedUsers.size})` }}</button>
           <button @click="showNewUserDialog = true" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all"><UserPlus class="w-4 h-4" />新增用户</button>
@@ -29,8 +30,11 @@
         <button @click="fetchUsers(1)" class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">搜索</button>
       </div>
 
-      <div v-if="loading" class="py-20 text-center text-text-secondary">加载中...</div>
-      <div v-else class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-hidden shadow-card">
+      <div v-if="loading && users.length === 0" class="py-20 text-center text-text-secondary">加载中...</div>
+      <div v-else class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-hidden shadow-card relative">
+        <div v-if="loading" class="absolute inset-0 bg-white/60 z-10 flex items-center justify-center">
+          <span class="text-sm text-text-secondary">刷新中...</span>
+        </div>
         <div class="grid grid-cols-[36px_1.2fr_1fr_0.8fr_0.8fr_0.8fr_120px] gap-3 px-4 py-3 text-xs font-semibold text-text-secondary bg-surface-secondary border-b border-[rgba(0,0,0,0.06)]">
           <div class="flex items-center">
             <input type="checkbox" :checked="allSelected" @change="toggleAll" class="h-4 w-4 accent-accent cursor-pointer" />
@@ -61,13 +65,24 @@
         </div>
       </div>
 
-      <div class="flex items-center justify-between mt-4 text-sm text-text-secondary">
-        <div>共 {{ total }} 个用户</div>
-        <div class="flex items-center gap-2">
-          <button @click="fetchUsers(page - 1)" :disabled="page <= 1" class="px-3 py-1.5 border border-[rgba(0,0,0,0.08)] rounded-lg disabled:opacity-40 hover:bg-surface-secondary">上一页</button>
-          <span>第 {{ page }} / {{ totalPages }} 页</span>
-          <button @click="fetchUsers(page + 1)" :disabled="page >= totalPages" class="px-3 py-1.5 border border-[rgba(0,0,0,0.08)] rounded-lg disabled:opacity-40 hover:bg-surface-secondary">下一页</button>
+      <div class="flex items-center justify-between mt-6 text-sm text-text-secondary">
+        <span class="text-[13px]">共 {{ total }} 个用户</span>
+        <div class="flex items-center gap-1.5">
+          <button @click="fetchUsers(1)" :disabled="page <= 1" class="w-9 h-9 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px] font-medium">«</button>
+          <button @click="fetchUsers(page - 1)" :disabled="page <= 1" class="h-9 px-2 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">‹</button>
+          <template v-for="p in pageNumbers" :key="p">
+            <span v-if="p === '...'" class="px-1 text-text-tertiary">...</span>
+            <button v-else @click="fetchUsers(p)" class="w-9 h-9 rounded-lg text-[13px] font-medium transition-all" :class="p === page ? 'bg-accent text-white' : 'border border-[rgba(0,0,0,0.08)] hover:bg-surface-secondary'">{{ p }}</button>
+          </template>
+          <button @click="fetchUsers(page + 1)" :disabled="page >= totalPages" class="h-9 px-2 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">›</button>
+          <button @click="fetchUsers(totalPages)" :disabled="page >= totalPages" class="w-9 h-9 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px] font-medium">»</button>
         </div>
+        <select v-model.number="pageSize" @change="fetchUsers(1)" class="px-2.5 py-1.5 border border-[rgba(0,0,0,0.1)] rounded-lg text-[13px] bg-white outline-none cursor-pointer">
+          <option :value="10">10 条/页</option>
+          <option :value="20">20 条/页</option>
+          <option :value="50">50 条/页</option>
+          <option :value="100">100 条/页</option>
+        </select>
       </div>
     </main>
 
@@ -141,7 +156,7 @@ const router = useRouter()
 const users = ref([])
 const total = ref(0)
 const page = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(10)
 const keyword = ref('')
 const sortOrder = ref('desc')
 const loading = ref(false)
@@ -181,6 +196,18 @@ const showToast = (message, type = 'success') => {
   toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
 }
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
+
+const pageNumbers = computed(() => {
+  const tp = totalPages.value
+  const p = page.value
+  if (tp <= 7) return Array.from({ length: tp }, (_, i) => i + 1)
+  const out = [1]
+  if (p > 3) out.push('...')
+  for (let i = Math.max(2, p - 1); i <= Math.min(tp - 1, p + 1); i++) out.push(i)
+  if (p < tp - 2) out.push('...')
+  out.push(tp)
+  return out
+})
 const getToken = () => localStorage.getItem('admin_token')
 const toggleSort = () => {
   sortOrder.value = sortOrder.value === 'desc' ? 'asc' : 'desc'
@@ -240,6 +267,8 @@ const syncUsers = async () => {
     syncing.value = false
   }
 }
+
+const refreshUsers = () => fetchUsers(page.value)
 
 const openPasswordDialog = (user) => {
   passwordUser.value = user

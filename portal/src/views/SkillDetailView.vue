@@ -87,8 +87,8 @@
               </ol>
             </div>
 
-            <!-- 最新版下载地址:相对路径文本 + 下载按钮 -->
-            <div class="mb-8">
+            <!-- 最新版下载地址：仅在无版本历史时展示（有版本列表时，每条已自带下载） -->
+            <div v-if="!versionsLoading && versions.length === 0" class="mb-8">
               <h3 class="text-[13px] font-semibold text-[#1d1d1f] mb-2.5 flex items-center gap-1.5">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
@@ -98,6 +98,37 @@
               <div class="flex items-center gap-2">
                 <code class="text-[13px] font-mono text-[#1d1d1f] break-all min-w-0 flex-1 bg-[#f5f5f7] rounded-lg px-3 py-2">{{ downloadPath }}</code>
                 <a :href="latestDownloadUrl" target="_blank" class="shrink-0 px-3 py-2 text-[12px] font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors no-underline">下载</a>
+              </div>
+            </div>
+
+            <!-- 版本历史 -->
+            <div class="mb-8">
+              <h3 class="text-[13px] font-semibold text-[#1d1d1f] mb-3 flex items-center gap-1.5">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>
+                </svg>
+                版本历史
+              </h3>
+              <div v-if="versionsLoading" class="text-[13px] text-[#aeaeb2] py-2">加载中...</div>
+              <div v-else-if="versions.length === 0" class="text-[13px] text-[#aeaeb2] py-2">暂无版本信息</div>
+              <div v-else class="border border-[#e8e8ed] rounded-xl overflow-hidden">
+                <div
+                  v-for="(v, idx) in versions"
+                  :key="v.version"
+                  class="flex items-center gap-3 px-4 py-3 text-[13px]"
+                  :class="[idx !== versions.length - 1 ? 'border-b border-[#f0f0f2]' : '', v.isLatest ? 'bg-[#f5f9ff]' : '']"
+                >
+                  <span class="font-mono font-semibold text-[#1d1d1f] min-w-[60px]">{{ v.version }}</span>
+                  <span
+                    class="text-[11px] px-2 py-0.5 rounded-full font-medium shrink-0"
+                    :class="versionBadgeClass(v)"
+                  >{{ versionLabel(v) }}</span>
+                  <a
+                    :href="`${API_BASE}/skills/${skill.slug}/download?v=${encodeURIComponent(v.version)}`"
+                    class="shrink-0 px-2.5 py-1 text-[11px] font-medium bg-accent text-white rounded-md hover:bg-accent-hover transition-colors no-underline"
+                  >下载</a>
+                  <span class="text-[#aeaeb2] flex-1 text-right text-[12px]">{{ formatDate(v) }}</span>
+                </div>
               </div>
             </div>
 
@@ -126,6 +157,8 @@ const { getSkillBySlug } = useSkills()
 const skill = ref(null)
 const loading = ref(true)
 const error = ref(null)
+const versions = ref([])
+const versionsLoading = ref(false)
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 
@@ -137,6 +170,45 @@ const avatarColor = computed(() => {
 const downloadPath = computed(() => skill.value ? `/api/skills/${skill.value.slug}/download` : '')
 const latestDownloadUrl = computed(() => skill.value ? `${API_BASE}/skills/${skill.value.slug}/download` : '')
 
+const versionLabel = (v) => {
+  if (v.status === 'published') return '已发布'
+  if (v.status === 'approved') return '已审核'
+  if (v.status === 'rejected') return '已驳回'
+  return v.status || '未知'
+}
+
+const versionBadgeClass = (v) => {
+  if (v.status === 'published') return 'bg-emerald-50 text-emerald-700'
+  if (v.status === 'approved') return 'bg-blue-50 text-blue-600'
+  if (v.status === 'rejected') return 'bg-red-50 text-red-500'
+  return 'bg-[#f0f0f2] text-[#86868b]'
+}
+
+const formatDate = (v) => {
+  const d = v.publishedAt || v.createdAt
+  if (!d) return ''
+  try {
+    const dt = new Date(d)
+    return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`
+  } catch { return '' }
+}
+
+const loadVersions = async () => {
+  if (!skill.value) return
+  versionsLoading.value = true
+  try {
+    const res = await fetch(`${API_BASE}/skills/${encodeURIComponent(skill.value.slug)}/versions`)
+    const json = await res.json()
+    const data = Array.isArray(json?.data) ? json.data : []
+    // 过滤掉没有 version 字段的脏数据
+    versions.value = data.filter(v => v && v.version)
+  } catch (e) {
+    versions.value = []
+  } finally {
+    versionsLoading.value = false
+  }
+}
+
 const loadSkill = async () => {
   loading.value = true
   error.value = null
@@ -145,6 +217,7 @@ const loadSkill = async () => {
     const result = await getSkillBySlug(route.params.slug)
     if (result) {
       skill.value = result
+      loadVersions()
     } else {
       error.value = '技能不存在'
     }

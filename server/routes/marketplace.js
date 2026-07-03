@@ -4,7 +4,7 @@ const path = require('path');
 const multer = require('multer');
 const storage = require('../lib/storage');
 const downloadCounter = require('../lib/downloadCounter');
-const { panel, getPanelPayload, downloadPanelSkill } = require('../panel');
+const { panel, getPanelPayload, getPanelItems, downloadPanelSkill } = require('../panel');
 const { downloadLimiter, uploadLimiter, verifyUser } = require('../auth');
 
 const router = express.Router();
@@ -695,18 +695,63 @@ router.get('/api/skills/:slug/download', downloadLimiter, async (req, res) => {
     let filePath;
     let panelSkillId = null; // 非 null 表示来源是 1Panel
     if (version) {
-      // 按版本下载
-      const result = await global.pool.query(`
-        SELECT sv.file_path, s.panel_skill_id
-        FROM skill_versions sv
-        JOIN skills s ON sv.skill_id = s.id
-        WHERE s.slug = $1 AND sv.version = $2 AND s.is_active = TRUE
-      `, [slug, version]);
-      if (result.rows.length === 0) {
-        return res.status(404).json({ error: '版本不存在' });
+      // 按版本下载：先确定技能来源
+      const skillInfo = await global.pool.query(`
+        SELECT id, source, panel_skill_id FROM skills
+        WHERE slug = $1 AND is_active = TRUE
+      `, [slug]);
+      if (skillInfo.rows.length === 0) {
+        return res.status(404).json({ error: '技能不存在' });
       }
-      filePath = result.rows[0].file_path;
-      panelSkillId = result.rows[0].panel_skill_id || null;
+      const skillRow = skillInfo.rows[0];
+
+      if (skillRow.source === 'panel') {
+        // panel 来源：搜 1Panel 拿有效 ID，再调 versions 找到对应版本专属 id 下载
+        try {
+          const panelName = slug.startsWith('1panel-') ? slug.slice(7) : slug;
+          const searchRes = await panel.post('/api/v2/core/enterprise/skills-hub/search', {
+            page: 1, pageSize: 1, info: panelName, status: 'published',
+          });
+          let searchId = skillRow.panel_skill_id;
+          if (searchRes.status >= 200 && searchRes.status < 300 && !panelBizError(searchRes)) {
+            const items = getPanelItems(searchRes.data);
+            if (items.length > 0) searchId = items[0].id;
+          }
+          if (!searchId) {
+            return res.status(404).json({ error: '版本不存在' });
+          }
+
+          const verRes = await panel.post('/api/v2/core/enterprise/skills-hub/versions', {
+            id: searchId,
+          });
+          if (verRes.status >= 200 && verRes.status < 300 && !panelBizError(verRes)) {
+            const payload = getPanelPayload(verRes.data);
+            const allVersions = Array.isArray(payload) ? payload : [];
+            const match = allVersions.find(v => v && v.version === version);
+            if (match) {
+              panelSkillId = match.id;
+            }
+          }
+        } catch (e) {
+          console.error(`[download] 1Panel versions 查询失败:`, e.message);
+        }
+        if (!panelSkillId) {
+          return res.status(404).json({ error: '版本不存在' });
+        }
+      } else {
+        // local 来源：查本地 skill_versions 表
+        const result = await global.pool.query(`
+          SELECT sv.file_path, s.panel_skill_id
+          FROM skill_versions sv
+          JOIN skills s ON sv.skill_id = s.id
+          WHERE s.slug = $1 AND sv.version = $2 AND s.is_active = TRUE
+        `, [slug, version]);
+        if (result.rows.length === 0) {
+          return res.status(404).json({ error: '版本不存在' });
+        }
+        filePath = result.rows[0].file_path;
+        panelSkillId = result.rows[0].panel_skill_id || null;
+      }
     } else {
       // 下载最新版本——读取 source / panel_skill_id 用于下游分流
       const result = await global.pool.query(`
@@ -763,18 +808,85 @@ router.get('/api/skills/:slug/download', downloadLimiter, async (req, res) => {
 });
 
 // 获取技能版本历史
+// panel 来源技能调 1Panel skills-hub/versions 接口；local 来源查本地 skill_versions 表
 router.get('/api/skills/:slug/versions', async (req, res) => {
   try {
     const { slug } = req.params;
+
+    // 先查技能元信息（source + panel_skill_id）
+    const skillResult = await global.pool.query(`
+      SELECT id, source, panel_skill_id FROM skills
+      WHERE slug = $1 AND is_active = TRUE
+    `, [slug]);
+
+    if (skillResult.rows.length === 0) {
+      return res.status(404).json({ error: '技能不存在' });
+    }
+
+    const skill = skillResult.rows[0];
+
+    // panel 来源：先搜 1Panel 拿到有效 ID，再调 versions 接口
+    // 不能用本地 panel_skill_id 直接传——sync 时每个版本存了不同 ID，未必是 versions 接口要的那个
+    if (skill.source === 'panel') {
+      try {
+        // 从 slug 提取 1Panel 技能名（去掉 "1panel-" 前缀）
+        const panelName = slug.startsWith('1panel-') ? slug.slice(7) : slug;
+        const searchRes = await panel.post('/api/v2/core/enterprise/skills-hub/search', {
+          page: 1, pageSize: 1, info: panelName, status: 'published',
+        });
+
+        let searchId = skill.panel_skill_id; // 兜底
+        if (searchRes.status >= 200 && searchRes.status < 300 && !panelBizError(searchRes)) {
+          const items = getPanelItems(searchRes.data);
+          if (items.length > 0) searchId = items[0].id;
+        }
+
+        if (!searchId) {
+          return res.json({ data: [], source: 'panel' });
+        }
+
+        const response = await panel.post('/api/v2/core/enterprise/skills-hub/versions', {
+          id: searchId,
+        });
+
+        if (response.status >= 200 && response.status < 300) {
+          const bizError = panelBizError(response);
+          if (!bizError) {
+            const payload = getPanelPayload(response.data);
+            const versions = Array.isArray(payload) ? payload : [];
+            // 只返回已发布的版本，过滤掉无 version 的脏数据
+            return res.json({
+              data: versions
+                .filter(v => v && v.version && v.status === 'published')
+                .map(v => ({
+                  id: v.id,
+                  version: v.version,
+                  status: v.status,
+                  isLatest: !!v.isLatest,
+                  isLatestPublished: !!v.isLatestPublished,
+                  publishedAt: v.publishedAt || null,
+                  createdAt: v.createdAt,
+                })),
+              source: 'panel',
+            });
+          }
+        }
+      } catch (e) {
+        console.error(`[skill-versions] 1Panel 查询失败(slug=${slug}):`, e.message);
+      }
+      // 1Panel 不可达时兜底返回空列表，不抛错
+      return res.json({ data: [], source: 'panel', error: '1Panel 版本信息暂不可用' });
+    }
+
+    // local 来源：查本地 skill_versions 表
     const result = await global.pool.query(`
       SELECT sv.version, sv.file_path, sv.description, sv.created_at
       FROM skill_versions sv
-      JOIN skills s ON sv.skill_id = s.id
-      WHERE s.slug = $1
+      WHERE sv.skill_id = $1
       ORDER BY sv.created_at DESC
-    `, [slug]);
+    `, [skill.id]);
 
-    res.json(result.rows);
+    res.json({ data: result.rows, source: 'local' });
   } catch (err) {
     console.error('Error fetching versions:', err);
     res.status(500).json({ error: '获取版本列表失败' });

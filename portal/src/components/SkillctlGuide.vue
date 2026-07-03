@@ -82,11 +82,24 @@
         class="text-sm text-text hover:underline inline-flex items-center gap-1"
       >查看完整在线文档 →</router-link>
     </div>
+
+    <!-- 刷新确认弹框:用项目统一 AppDialog,不用浏览器原生 confirm -->
+    <AppDialog
+      :open="showRefreshDialog"
+      title="刷新 Token"
+      message="刷新后旧 Token 立即失效，确认刷新？"
+      type="confirm"
+      cancelText="取消"
+      confirmText="确认刷新"
+      @close="showRefreshDialog = false"
+      @confirm="confirmRefresh"
+    />
   </section>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import AppDialog from './AppDialog.vue'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 
@@ -96,6 +109,7 @@ const tokenLoading = ref(false)
 const tokenError = ref('')
 const generating = ref(false)
 const copied = ref(false)
+const showRefreshDialog = ref(false)
 
 const fetchToken = async () => {
   tokenLoading.value = true
@@ -143,9 +157,13 @@ const generateToken = async () => {
   }
 }
 
-const refreshToken = async () => {
+const refreshToken = () => {
   if (generating.value) return
-  if (!window.confirm('刷新后旧 Token 立即失效，确认刷新？')) return
+  showRefreshDialog.value = true
+}
+
+const confirmRefresh = async () => {
+  showRefreshDialog.value = false
   await generateToken()
 }
 

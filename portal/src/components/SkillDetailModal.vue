@@ -70,8 +70,8 @@
             </ol>
           </div>
 
-          <!-- 最新版下载地址:相对路径文本 + 下载按钮 -->
-          <div class="mb-7">
+          <!-- 最新版下载地址：仅在无版本历史时展示（有版本列表时，每条已自带下载） -->
+          <div v-if="!versionsLoading && versions.length === 0" class="mb-7">
             <h3 class="text-[13px] font-semibold text-text mb-2.5 flex items-center gap-1.5">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               下载地址（最新版本）
@@ -82,24 +82,43 @@
             </div>
           </div>
 
-        </div>
+          <!-- 版本历史 -->
+          <div class="mb-7">
+            <h3 class="text-[13px] font-semibold text-text mb-3 flex items-center gap-1.5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+              版本历史
+            </h3>
+            <div v-if="versionsLoading" class="text-[13px] text-text-tertiary py-2">加载中...</div>
+            <div v-else-if="versions.length === 0" class="text-[13px] text-text-tertiary py-2">暂无版本信息</div>
+            <div v-else class="border border-[rgba(0,0,0,0.06)] rounded-xl overflow-hidden">
+              <div
+                v-for="(v, idx) in versions"
+                :key="v.version"
+                class="flex items-center gap-3 px-4 py-3 text-[13px]"
+                :class="[idx !== versions.length - 1 ? 'border-b border-[rgba(0,0,0,0.04)]' : '', v.isLatest ? 'bg-[rgba(0,94,235,0.03)]' : '']"
+              >
+                <span class="font-mono font-semibold text-text min-w-[60px]">{{ v.version }}</span>
+                <span
+                  class="text-[11px] px-2 py-0.5 rounded-full font-medium shrink-0"
+                  :class="versionBadgeClass(v)"
+                >{{ versionLabel(v) }}</span>
+                <a
+                  :href="`${API_BASE}/skills/${skill.slug}/download?v=${encodeURIComponent(v.version)}`"
+                  class="shrink-0 px-2.5 py-1 text-[11px] font-medium bg-accent text-white rounded-md hover:bg-accent-hover transition-colors no-underline"
+                >下载</a>
+                <span class="text-text-tertiary flex-1 text-right text-[12px]">{{ formatDate(v) }}</span>
+              </div>
+            </div>
+          </div>
 
-        <!-- Footer -->
-        <div class="px-8 py-4 border-t border-[rgba(0,0,0,0.04)] bg-[rgba(245,245,247,0.5)] flex justify-end">
-          <button
-            @click="close"
-            class="px-6 py-2 rounded-[10px] border border-[rgba(0,0,0,0.1)] bg-white text-text text-sm font-medium cursor-pointer transition-all hover:bg-surface-secondary"
-          >
-            关闭
-          </button>
         </div>
-      </div>
+    </div>
     </div>
   </Teleport>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { avatarColors, categoryLabels } from '../data/categories.js'
 
 const props = defineProps({
@@ -116,6 +135,52 @@ const avatarColor = computed(() => {
 // 下载地址:相对路径用于展示,完整 URL 用于实际下载
 const downloadPath = computed(() => props.skill ? `/api/skills/${props.skill.slug}/download` : '')
 const latestDownloadUrl = computed(() => props.skill ? `${API_BASE}/skills/${props.skill.slug}/download` : '')
+
+const versions = ref([])
+const versionsLoading = ref(false)
+
+const versionLabel = (v) => {
+  if (v.status === 'published') return '已发布'
+  if (v.status === 'approved') return '已审核'
+  if (v.status === 'rejected') return '已驳回'
+  return v.status || '未知'
+}
+
+const versionBadgeClass = (v) => {
+  if (v.status === 'published') return 'bg-emerald-50 text-emerald-700'
+  if (v.status === 'approved') return 'bg-blue-50 text-blue-600'
+  if (v.status === 'rejected') return 'bg-red-50 text-red-500'
+  return 'bg-[rgba(0,0,0,0.04)] text-text-tertiary'
+}
+
+const formatDate = (v) => {
+  const d = v.publishedAt || v.createdAt
+  if (!d) return ''
+  try {
+    const dt = new Date(d)
+    return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`
+  } catch { return '' }
+}
+
+const loadVersions = async () => {
+  if (!props.skill) return
+  versionsLoading.value = true
+  try {
+    const res = await fetch(`${API_BASE}/skills/${encodeURIComponent(props.skill.slug)}/versions`)
+    const json = await res.json()
+    const data = Array.isArray(json?.data) ? json.data : []
+    versions.value = data.filter(v => v && v.version)
+  } catch {
+    versions.value = []
+  } finally {
+    versionsLoading.value = false
+  }
+}
+
+// 弹框打开时加载版本列表
+watch(() => props.isOpen, (open) => {
+  if (open) loadVersions()
+})
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 
