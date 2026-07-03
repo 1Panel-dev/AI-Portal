@@ -1130,6 +1130,74 @@ router.get('/api/skillctl-token', verifyUser, async (req, res) => {
   }
 });
 
+// POST /api/skillctl-token — 生成或刷新 skillctl 登录 token
+// 调 1Panel users/api/update,每调一次轮换 token(旧的失效),返回新 token 并落库。
+// update 入参固定全开:接口 Enable / IP 0.0.0.0/0 / 有效期 0(永不过期)。
+router.post('/api/skillctl-token', verifyUser, async (req, res) => {
+  try {
+    if (!req.portalUser.panel_user_id) {
+      return res.status(400).json({ error: '需要先关联 1Panel 用户' });
+    }
+
+    let updateRes;
+    try {
+      updateRes = await panel.post('/api/v2/core/enterprise/users/api/update', {
+        id: req.portalUser.panel_user_id,
+        apiInterfaceStatus: 'Enable',
+        ipWhiteList: '0.0.0.0/0',
+        apiKeyValidityTime: 0,
+      });
+    } catch (e) {
+      console.error('[skillctl-token] 1Panel 网络异常:', e.message);
+      return res.status(502).json({
+        error: '1Panel 不可达,生成 Token 失败',
+        reason: e.message,
+        code: 'PANEL_UNREACHABLE',
+      });
+    }
+
+    if (updateRes.status < 200 || updateRes.status >= 300) {
+      console.error(`[skillctl-token] 1Panel HTTP ${updateRes.status}, body=${JSON.stringify(updateRes.data).slice(0, 300)}`);
+      return res.status(502).json({
+        error: `1Panel 拒绝生成 Token (HTTP ${updateRes.status})`,
+        reason: typeof updateRes.data === 'object' ? (updateRes.data?.message || updateRes.data?.msg || JSON.stringify(updateRes.data).slice(0, 200)) : String(updateRes.data).slice(0, 200),
+        code: 'PANEL_REJECTED',
+      });
+    }
+
+    const biz = inspectPanelBiz(updateRes);
+    if (!biz.ok) {
+      console.error(`[skillctl-token] 1Panel 业务失败 code=${biz.code} "${biz.message}"`);
+      return res.status(502).json({
+        error: '1Panel 拒绝生成 Token',
+        reason: biz.message || `code=${biz.code}`,
+        code: 'PANEL_REJECTED',
+      });
+    }
+
+    const token = getPanelPayload(updateRes.data);
+    if (!token || typeof token !== 'string') {
+      console.error(`[skillctl-token] update 未返回 token, user=${req.portalUser.id}, data=${JSON.stringify(updateRes.data).slice(0, 200)}`);
+      return res.status(502).json({
+        error: '1Panel 未返回 Token',
+        reason: 'update 响应 data 为空',
+        code: 'PANEL_SKILLCTL_TOKEN_FAILED',
+      });
+    }
+
+    await global.pool.query(
+      'UPDATE portal_users SET skillctl_token = $1 WHERE id = $2',
+      [token, req.portalUser.id]
+    );
+
+    console.log(`[skillctl-token] 生成成功 user=${req.portalUser.id}(username=${req.portalUser.username}) panel_user_id=${req.portalUser.panel_user_id}`);
+    res.json({ token });
+  } catch (err) {
+    console.error('生成 skillctl token 失败:', err);
+    res.status(500).json({ error: '生成 skillctl token 失败: ' + err.message });
+  }
+});
+
 // GET /api/version — 返回当前版本号
 const pkg = require('../package.json');
 router.get('/api/version', (req, res) => {
