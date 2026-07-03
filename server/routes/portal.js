@@ -1114,6 +1114,22 @@ router.post('/api/auth/password/set', verifyUser, async (req, res) => {
   }
 });
 
+// GET /api/skillctl-token — 读库返回当前 skillctl 登录 token,不调 1Panel
+// 库里为空(未生成过)就返回空字符串,前端据此显示「生成」按钮。
+router.get('/api/skillctl-token', verifyUser, async (req, res) => {
+  try {
+    const result = await global.pool.query(
+      'SELECT skillctl_token FROM portal_users WHERE id = $1',
+      [req.portalUser.id]
+    );
+    const token = result.rowCount > 0 ? (result.rows[0].skillctl_token || '') : '';
+    res.json({ token });
+  } catch (err) {
+    console.error('获取 skillctl token 失败:', err);
+    res.status(500).json({ error: '获取 skillctl token 失败' });
+  }
+});
+
 // GET /api/version — 返回当前版本号
 const pkg = require('../package.json');
 router.get('/api/version', (req, res) => {
