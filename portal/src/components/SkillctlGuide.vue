@@ -28,16 +28,40 @@
     <!-- Token -->
     <div class="mb-5 rounded-xl border border-[rgba(0,0,0,0.06)] bg-surface-secondary px-4 py-3">
       <div class="text-xs text-text-tertiary mb-1.5">你的登录 Token</div>
-      <div class="flex items-center gap-3">
-        <code class="font-mono text-sm text-text-secondary select-all">L2npRFAFoMTSuD697118h7Nd2FTUlisk</code>
-        <button
-          type="button"
-          @click="copyToken"
-          class="ml-auto px-3 py-1.5 text-xs rounded-lg border border-[rgba(0,0,0,0.08)] hover:bg-white transition-colors cursor-pointer"
-          :class="copied ? 'text-green-600 border-green-200 bg-green-50' : 'text-text-secondary'"
-        >{{ copied ? '已复制' : '复制' }}</button>
+
+      <!-- 加载中 -->
+      <div v-if="tokenLoading" class="text-sm text-text-tertiary">加载中...</div>
+
+      <!-- 报错 -->
+      <div v-else-if="tokenError" class="flex items-center gap-3">
+        <span class="text-sm text-red-500">{{ tokenError }}</span>
+        <button type="button" @click="fetchToken" class="ml-auto px-3 py-1.5 text-xs rounded-lg border border-[rgba(0,0,0,0.08)] text-text-secondary hover:bg-white transition-colors">重试</button>
       </div>
-      <p class="text-[11px] text-text-tertiary mt-1.5">使用此 Token 通过 skillctl 登录 1Panel Skills Hub</p>
+
+      <!-- 无 token:生成 -->
+      <div v-else-if="!token" class="flex items-center gap-3">
+        <span class="text-sm text-text-tertiary">未生成</span>
+        <button type="button" @click="generateToken" :disabled="generating"
+          class="ml-auto px-3 py-1.5 text-xs rounded-lg bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50">
+          {{ generating ? '生成中...' : '生成 Token' }}
+        </button>
+      </div>
+
+      <!-- 有 token:显示 + 复制 + 刷新 -->
+      <div v-else class="flex items-center gap-3">
+        <code class="font-mono text-sm text-text-secondary select-all break-all">{{ token }}</code>
+        <button type="button" @click="copyToken"
+          class="px-3 py-1.5 text-xs rounded-lg border border-[rgba(0,0,0,0.08)] hover:bg-white transition-colors"
+          :class="copied ? 'text-green-600 border-green-200 bg-green-50' : 'text-text-secondary'">
+          {{ copied ? '已复制' : '复制' }}
+        </button>
+        <button type="button" @click="refreshToken" :disabled="generating"
+          class="px-3 py-1.5 text-xs rounded-lg border border-[rgba(0,0,0,0.08)] text-text-secondary hover:bg-white transition-colors disabled:opacity-50">
+          {{ generating ? '刷新中...' : '刷新' }}
+        </button>
+      </div>
+
+      <p class="text-[11px] text-text-tertiary mt-1.5">使用此 Token 通过 skillctl 登录 1Panel Skills Hub;刷新会使旧 Token 立即失效。</p>
     </div>
 
     <!-- 6 条主命令 -->
@@ -64,12 +88,69 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 
+const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
+
 const version = ref('')
+const token = ref('')
+const tokenLoading = ref(false)
+const tokenError = ref('')
+const generating = ref(false)
 const copied = ref(false)
 
-const copyToken = async () => {
+const fetchToken = async () => {
+  tokenLoading.value = true
+  tokenError.value = ''
   try {
-    await navigator.clipboard.writeText('L2npRFAFoMTSuD697118h7Nd2FTUlisk')
+    const t = localStorage.getItem('token')
+    const res = await fetch(`${API_BASE}/skillctl-token`, {
+      headers: { Authorization: `Bearer ${t}` },
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      tokenError.value = data.error || '获取 Token 失败'
+    } else {
+      token.value = data.token || ''
+    }
+  } catch (e) {
+    tokenError.value = '获取 Token 失败'
+  } finally {
+    tokenLoading.value = false
+  }
+}
+
+const generateToken = async () => {
+  if (generating.value) return
+  generating.value = true
+  tokenError.value = ''
+  try {
+    const t = localStorage.getItem('token')
+    const res = await fetch(`${API_BASE}/skillctl-token`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      tokenError.value = data.reason || data.error || '生成 Token 失败'
+    } else {
+      token.value = data.token || ''
+    }
+  } catch (e) {
+    tokenError.value = '生成 Token 失败'
+  } finally {
+    generating.value = false
+  }
+}
+
+const refreshToken = async () => {
+  if (generating.value) return
+  if (!window.confirm('刷新后旧 Token 立即失效，确认刷新？')) return
+  await generateToken()
+}
+
+const copyToken = async () => {
+  if (!token.value) return
+  try {
+    await navigator.clipboard.writeText(token.value)
     copied.value = true
     setTimeout(() => { copied.value = false }, 2000)
   } catch { /* ignore */ }
@@ -93,8 +174,9 @@ const commands = [
 ]
 
 onMounted(async () => {
+  fetchToken()
   try {
-    const res = await fetch('/api/version')
+    const res = await fetch(`${API_BASE}/version`)
     const data = await res.json()
     version.value = data.version || ''
   } catch {
