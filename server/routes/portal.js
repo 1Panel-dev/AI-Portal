@@ -1175,7 +1175,11 @@ router.post('/api/skillctl-token', verifyUser, async (req, res) => {
       });
     }
 
-    const token = getPanelPayload(updateRes.data);
+    const payload = getPanelPayload(updateRes.data);
+    // users/api/update 文档约定 data 是裸字符串(新 API Key);但防御性兼容对象包壳(如 {apiKey})
+    const token = typeof payload === 'string'
+      ? payload
+      : (payload && (payload.apiKey || payload.key || payload.token)) || '';
     if (!token || typeof token !== 'string') {
       console.error(`[skillctl-token] update 未返回 token, user=${req.portalUser.id}, data=${JSON.stringify(updateRes.data).slice(0, 200)}`);
       return res.status(502).json({

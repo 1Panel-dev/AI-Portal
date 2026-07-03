@@ -105,11 +105,12 @@ const fetchToken = async () => {
     const res = await fetch(`${API_BASE}/skillctl-token`, {
       headers: { Authorization: `Bearer ${t}` },
     })
-    const data = await res.json()
+    let data = null
+    try { data = await res.json() } catch { /* non-JSON body */ }
     if (!res.ok) {
-      tokenError.value = data.error || '获取 Token 失败'
+      tokenError.value = data?.reason || data?.error || '获取 Token 失败'
     } else {
-      token.value = data.token || ''
+      token.value = data?.token || ''
     }
   } catch (e) {
     tokenError.value = '获取 Token 失败'
@@ -128,11 +129,12 @@ const generateToken = async () => {
       method: 'POST',
       headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
     })
-    const data = await res.json()
+    let data = null
+    try { data = await res.json() } catch { /* non-JSON body */ }
     if (!res.ok) {
-      tokenError.value = data.reason || data.error || '生成 Token 失败'
+      tokenError.value = data?.reason || data?.error || '生成 Token 失败'
     } else {
-      token.value = data.token || ''
+      token.value = data?.token || ''
     }
   } catch (e) {
     tokenError.value = '生成 Token 失败'
