@@ -1366,16 +1366,10 @@ router.post('/api/admin/portal-users/password', verifyAdmin, async (req, res) =>
         if (userRes.rowCount === 0) { failed++; continue; }
         const localUser = userRes.rows[0];
 
-        // 同步更新远端密码
+        // 同步更新远端密码（只传需要修改的字段，避免多余字段触发 1Panel 业务错误）
         if (localUser.panel_user_id) {
           const panelRes = await panel.post('/api/v2/core/enterprise/users/update', {
             id: localUser.panel_user_id,
-            name: localUser.username || localUser.name,
-            sessionTimeout: 86400,
-            isSuperAdmin: false,
-            nodeRoles: [{ nodeId: 1, roleId: 4 }],
-            description: '',
-            createdAt: localUser.created_at ? new Date(localUser.created_at).toISOString() : new Date().toISOString(),
             password: Buffer.from(new_password, 'utf-8').toString('base64'),
           });
           const biz = inspectPanelBiz(panelRes);
