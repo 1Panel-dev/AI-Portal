@@ -1366,14 +1366,40 @@ router.post('/api/admin/portal-users/password', verifyAdmin, async (req, res) =>
         if (userRes.rowCount === 0) { failed++; continue; }
         const localUser = userRes.rows[0];
 
-        // 同步更新远端密码（只传需要修改的字段，避免多余字段触发 1Panel 业务错误）
+        // 同步更新远端密码（1Panel 的 users/update 要求 name 等字段不能为空，先 search 拿全量信息）
         if (localUser.panel_user_id) {
-          const panelRes = await panel.post('/api/v2/core/enterprise/users/update', {
-            id: localUser.panel_user_id,
-            password: Buffer.from(new_password, 'utf-8').toString('base64'),
-          });
-          const biz = inspectPanelBiz(panelRes);
-          if (panelRes.status < 200 || panelRes.status >= 300 || !biz.ok) {
+          try {
+            const userInfoRes = await panel.post('/api/v2/core/enterprise/users/search', {
+              page: 1,
+              pageSize: 10,
+              info: localUser.username || '',
+            });
+            const panelUsers = getPanelItems(userInfoRes.data);
+            const panelUser = panelUsers.find(u => String(u.id) === String(localUser.panel_user_id));
+
+            if (panelUser) {
+              const encodedPassword = Buffer.from(new_password, 'utf-8').toString('base64');
+              const panelRes = await panel.post('/api/v2/core/enterprise/users/update', {
+                id: localUser.panel_user_id,
+                name: panelUser.name || localUser.username,
+                sessionTimeout: panelUser.sessionTimeout || 86400,
+                isSuperAdmin: panelUser.isSuperAdmin || false,
+                nodeRoles: (panelUser.nodeRoles || []).map(r => ({ nodeId: r.nodeId, roleId: r.roleId })),
+                description: panelUser.description || '',
+                createdAt: panelUser.createdAt,
+                password: encodedPassword,
+              });
+              const biz = inspectPanelBiz(panelRes);
+              if (panelRes.status < 200 || panelRes.status >= 300 || !biz.ok) {
+                console.error(`[panel-password] 用户 ${userId} 远端密码同步失败: ${biz.reason || panelRes.status}`);
+                failed++; continue;
+              }
+            } else {
+              console.warn(`[panel-password] 1Panel 未找到用户 ${localUser.username} (Panel ID: ${localUser.panel_user_id})`);
+              failed++; continue;
+            }
+          } catch (e) {
+            console.error(`[panel-password] 用户 ${userId} 远端密码同步异常:`, e.message);
             failed++; continue;
           }
         }
