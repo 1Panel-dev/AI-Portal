@@ -171,19 +171,21 @@ if (SERVE_STATIC) {
     cachedBranding = null;
   };
 
-  // 显式优先匹配 index.html / 根路径,确保走占位符替换而不是 express.static 直出
-  app.get(['/', '/index.html'], sendIndex);
+  // 静态资源(assets/xxx 等): 挂载在 BASE_PATH 下，带强缓存
+  // fallthrough: false → 文件不存在直接 404，不落入后面的 SPA fallback 返回 index.html
+  app.use(BASE_PATH, express.static(STATIC_PATH, { index: false, fallthrough: false }));
 
-  // 静态资源(assets/xxx 等):正常直出,带强缓存
-  app.use(express.static(STATIC_PATH, { index: false }));
+  // 根路径和 index.html: 走占位符替换后返回
+  app.get(BASE_PATH, sendIndex);
+  app.get(BASE_PATH + 'index.html', sendIndex);
 
   // 未匹配的 /api/* 必须返 JSON 404,不能被下面的 SPA fallback 兜成 index.html
   app.use('/api', (req, res) => {
     res.status(404).json({ error: 'API endpoint not found', path: req.originalUrl });
   });
 
-  // SPA fallback:其它所有路径都返回(替换后的)index.html
-  app.get('*', sendIndex);
+  // SPA fallback: BASE_PATH 下所有未被静态资源匹配的路径都返回 index.html（客户端路由）
+  app.get(BASE_PATH + '*', sendIndex);
 }
 
 app.use((err, req, res, next) => {
