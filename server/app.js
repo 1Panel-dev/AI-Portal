@@ -75,19 +75,38 @@ const uploadsRoot = path.join(__dirname, '../data/uploads');
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 
-// 用户上传的品牌资源(logo / favicon)对外暴露
-// 走持久卷, 走 /uploads/branding/<filename>, 不需要 BASE_PATH 占位符
-const uploadsDir = uploadsRoot;
-app.use('/uploads', express.static(uploadsDir, {
-    maxAge: '1h',
-    fallthrough: true,
-  }));
+// ===== BASE_PATH 前缀统一剥离（必须在所有路由之前） =====
+// 浏览器请求带 /testaiportal/ 前缀,在这里统一剥离,
+// 后续所有路由(/api/*、/uploads/*、静态资源、SPA fallback)保持原样,无需逐层适配。
+// 兼容两种部署:nginx 反代 stripping(请求到达时无前缀,直接 next())和自托管(有前缀,剥离后 next())。
+if (BASE_PATH !== '/') {
+  const trimmed = BASE_PATH.replace(/\/+$/, '');
+  app.use(trimmed, (req, res, next) => {
+    const rest = req.url;
+    // 只处理 GET 请求(POST/PUT/DELETE 走 API,中间件只剥离前缀后 next())
+    if (req.method === 'GET' && (rest === '' || rest === '/')) {
+      // 根路径: 后面 SPA fallback 会处理,这里直接 next()
+    }
+    // 改写 req.url,让后续中间件看到剥离前缀后的路径
+    req.url = rest;
+    next();
+  });
+}
 
+// API 路由（前缀已剥离,路径保持原样）
 app.use(require('./routes/admin'));
 app.use(require('./routes/marketplace'));
 app.use(require('./routes/portal'));
 app.use(require('./routes/oauth').router);
 app.use(require('./routes/mcp'));
+
+// 用户上传的品牌资源(logo / favicon)对外暴露
+// 走持久卷, 走 /uploads/branding/<filename>
+const uploadsDir = uploadsRoot;
+app.use('/uploads', express.static(uploadsDir, {
+    maxAge: '1h',
+    fallthrough: true,
+  }));
 
 if (SERVE_STATIC) {
   // 关键:index.html 不能直接走 express.static,要先拦下来做占位符替换
@@ -171,13 +190,13 @@ if (SERVE_STATIC) {
     cachedBranding = null;
   };
 
-  // 静态资源(assets/xxx 等): 挂载在 BASE_PATH 下，带强缓存
+  // 静态资源(assets/xxx 等): 挂载在根路径(前缀已剥离),带强缓存
   // fallthrough: true (默认) → 文件找不到时交还下游，让后续中间件处理
-  app.use(BASE_PATH, express.static(STATIC_PATH, { index: false }));
+  app.use(express.static(STATIC_PATH, { index: false }));
 
-  // GET 请求兜底：带文件扩展名 → 静态资源不存在，直接 404
-  // 不带扩展名 → SPA 客户端路由，返回 index.html
-  app.get(BASE_PATH + '*', async (req, res) => {
+  // SPA fallback: GET 请求且 URL 带文件扩展名 → 静态资源不存在,直接 404
+  // 不带扩展名 → SPA 客户端路由,返回 index.html
+  app.get('*', async (req, res) => {
     try {
       if (/\.([a-zA-Z0-9]{1,20})$/.test(req.path)) {
         return res.status(404).end();
@@ -187,14 +206,6 @@ if (SERVE_STATIC) {
       console.error('SPA fallback 渲染失败:', err);
       res.status(500).send('render failed');
     }
-  });
-
-  // 根路径 → 占位符替换后返回 index.html
-  app.get(BASE_PATH, sendIndex);
-
-  // 未匹配的 /api/* 必须返 JSON 404,不能被 SPA fallback 兜成 index.html
-  app.use('/api', (req, res) => {
-    res.status(404).json({ error: 'API endpoint not found', path: req.originalUrl });
   });
 }
 
