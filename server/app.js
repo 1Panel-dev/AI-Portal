@@ -172,20 +172,30 @@ if (SERVE_STATIC) {
   };
 
   // 静态资源(assets/xxx 等): 挂载在 BASE_PATH 下，带强缓存
-  // fallthrough: false → 文件不存在直接 404，不落入后面的 SPA fallback 返回 index.html
-  app.use(BASE_PATH, express.static(STATIC_PATH, { index: false, fallthrough: false }));
+  // fallthrough: true (默认) → 文件找不到时交还下游，让后续中间件处理
+  app.use(BASE_PATH, express.static(STATIC_PATH, { index: false }));
 
-  // 根路径和 index.html: 走占位符替换后返回
+  // GET 请求兜底：带文件扩展名 → 静态资源不存在，直接 404
+  // 不带扩展名 → SPA 客户端路由，返回 index.html
+  app.get(BASE_PATH + '*', async (req, res) => {
+    try {
+      if (/\.([a-zA-Z0-9]{1,20})$/.test(req.path)) {
+        return res.status(404).end();
+      }
+      return sendIndex(req, res);
+    } catch (err) {
+      console.error('SPA fallback 渲染失败:', err);
+      res.status(500).send('render failed');
+    }
+  });
+
+  // 根路径 → 占位符替换后返回 index.html
   app.get(BASE_PATH, sendIndex);
-  app.get(BASE_PATH + 'index.html', sendIndex);
 
-  // 未匹配的 /api/* 必须返 JSON 404,不能被下面的 SPA fallback 兜成 index.html
+  // 未匹配的 /api/* 必须返 JSON 404,不能被 SPA fallback 兜成 index.html
   app.use('/api', (req, res) => {
     res.status(404).json({ error: 'API endpoint not found', path: req.originalUrl });
   });
-
-  // SPA fallback: BASE_PATH 下所有未被静态资源匹配的路径都返回 index.html（客户端路由）
-  app.get(BASE_PATH + '*', sendIndex);
 }
 
 app.use((err, req, res, next) => {
