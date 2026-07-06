@@ -935,6 +935,8 @@ router.post('/api/admin/panel-config/test', verifyAdmin, async (req, res) => {
 
 // 立即同步(手动触发,不等定时器)
 router.post('/api/admin/panel-config/sync-now', verifyAdmin, async (req, res) => {
+  const startTime = Date.now();
+  console.log('[admin] 管理员触发手动同步,userId=', req.user?.id, '|', new Date().toISOString());
   try {
     // 并发跑模型 + 技能 + 角色同步,失败不互相影响
     const [modelsResult, skillsResult, rolesResult] = await Promise.allSettled([
@@ -956,8 +958,7 @@ router.post('/api/admin/panel-config/sync-now', verifyAdmin, async (req, res) =>
       })(),
     ]);
 
-    res.json({
-      success: true,
+    const summary = {
       models: modelsResult.status === 'fulfilled'
         ? { ...modelsResult.value, ok: true }
         : { ok: false, error: modelsResult.reason?.message },
@@ -967,6 +968,15 @@ router.post('/api/admin/panel-config/sync-now', verifyAdmin, async (req, res) =>
       roles: rolesResult.status === 'fulfilled'
         ? rolesResult.value
         : { ok: false, error: rolesResult.reason?.message },
+    };
+
+    // 打印汇总日志，方便运维一眼看出哪个子任务失败
+    console.log('[admin] sync-now 结果:', JSON.stringify(summary), `| 耗时 ${Date.now() - startTime}ms`);
+
+    res.json({
+      success: true,
+      elapsedMs: Date.now() - startTime,
+      ...summary,
     });
   } catch (err) {
     console.error('Error sync-now:', err);

@@ -29,7 +29,7 @@ async function tick() {
     console.log(`📡 [modelSync] 同步完成: ${result.modelCount} 个模型 / ${result.backendCount} 个 backend`);
   } catch (err) {
     // 远端临时挂掉不应该让调度器死掉,记日志继续等下一轮
-    console.error('[modelSync] 同步失败,等待下一轮:', err.message);
+    console.error('[modelSync] 同步失败,等待下一轮:', err.message, '\n', err.stack);
   } finally {
     running = false;
   }
