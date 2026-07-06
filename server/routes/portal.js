@@ -396,10 +396,14 @@ router.get('/api/keys', verifyUser, async (req, res) => {
             let keyMask = match.apiKeyMask || row.api_key_mask;
             try {
               const revealRes = await panel.post('/api/v2/core/enterprise/ai-proxy/api-keys/reveal', { id: match.id });
-              const revealed = getPanelPayload(revealRes.data) || {};
-              if (revealed.apiKey) fullKey = revealed.apiKey;
-              if (revealed.apiKeyMask) keyMask = revealed.apiKeyMask;
-            } catch (e) { /* reveal 失败不阻断，沿用本地缓存 */ }
+              // 1Panel 习惯 HTTP 200 + body.code>=400 表达业务失败，必须校验（CLAUDE.md 规则#2）
+              const revealBiz = inspectPanelBiz(revealRes);
+              if (revealRes.status >= 200 && revealRes.status < 300 && revealBiz.ok) {
+                const revealed = getPanelPayload(revealRes.data) || {};
+                if (revealed.apiKey) fullKey = revealed.apiKey;
+                if (revealed.apiKeyMask) keyMask = revealed.apiKeyMask;
+              }
+            } catch (e) { /* reveal 网络异常不阻断，沿用本地缓存 */ }
 
             await global.pool.query(`
               UPDATE portal_api_keys
@@ -424,10 +428,12 @@ router.get('/api/keys', verifyUser, async (req, res) => {
               }
             });
           } else {
-            // 1Panel 上 key 已被删除，清理本地记录
-            console.log(`[GET /api/keys] 1Panel 端 key 已不存在(user=${req.portalUser.id}, panel_key_id=${row.panel_key_id})，清理本地记录`);
-            await global.pool.query('DELETE FROM portal_api_keys WHERE id = $1', [row.id]);
-            return res.json({ key: null });
+            // 1Panel 没返回匹配的 key：可能是 key 真被删了，也可能是
+            // 鉴权通过但临时空响应（CLAUDE.md 第6条警告 sync 必须防的坑）。
+            // 保守处理：不动本地记录，兜底返回本地缓存，避免误删有效 Key。
+            // 只有后续明确拿到 404/record-not-found 才算真删了——但 search 不区分这点，
+            // 所以这里一律兜底返回本地，由用户手动 reset/delete 处理失效 key。
+            console.warn(`[GET /api/keys] 1Panel 未匹配到 key(user=${req.portalUser.id}, panel_key_id=${row.panel_key_id})，兜底返回本地缓存`);
           }
         } catch (panelErr) {
           // 1Panel 不可达时兜底返回本地记录，不断网时误伤
@@ -445,7 +451,10 @@ router.get('/api/keys', verifyUser, async (req, res) => {
           status: row.status,
           remark: row.remark || '',
           created_at: row.created_at,
-          token_quota: null,
+          token_limit: 0,
+          token_used: 0,
+          token_remaining: 0,
+          token_unlimited: false,
         }
       });
     }
@@ -1265,10 +1274,20 @@ router.post('/api/skillctl-token', verifyUser, async (req, res) => {
 });
 
 // GET /api/usage/statistics — 当前用户的 Token 用量统计（代理 1Panel usage API）
+// 内存缓存 30s，按用户维度，避免并发/频繁刷新重复打 1Panel
+const usageCache = new Map(); // key: userId → { data, expireAt }
+const USAGE_CACHE_TTL = 30 * 1000;
+
 router.get('/api/usage/statistics', verifyUser, async (req, res) => {
   try {
     if (!req.portalUser.panel_user_id) {
       return res.json({ data: null, hint: '尚未关联 1Panel 用户' });
+    }
+
+    // 命中缓存直接返回
+    const cached = usageCache.get(req.portalUser.id);
+    if (cached && cached.expireAt > Date.now()) {
+      return res.json({ data: cached.data });
     }
 
     let usageRes;
@@ -1294,19 +1313,22 @@ router.get('/api/usage/statistics', verifyUser, async (req, res) => {
     }
 
     const payload = getPanelPayload(usageRes.data);
-    const data = payload && typeof payload === 'object' ? payload : {};
-    // 过滤掉 name 为空的脏条目（1Panel 有时返回空 name 行）
+    const dataRaw = payload && typeof payload === 'object' ? payload : {};
+    // 只返回前端需要的字段，过滤掉 name 为空的脏条目
     const clean = (arr) =>
       Array.isArray(arr) ? arr.filter(v => v && v.name) : [];
 
-    res.json({
-      data: {
-        summary: data.summary || null,
-        trends: clean(data.trends),
-        models: clean(data.models),
-        providers: clean(data.providers),
-      },
-    });
+    const data = {
+      summary: dataRaw.summary || null,
+      trends: clean(dataRaw.trends),
+      models: clean(dataRaw.models),
+      providers: clean(dataRaw.providers),
+    };
+
+    // 写入缓存
+    usageCache.set(req.portalUser.id, { data, expireAt: Date.now() + USAGE_CACHE_TTL });
+
+    res.json({ data });
   } catch (err) {
     console.error('获取用量统计失败:', err);
     res.status(500).json({ error: '获取用量统计失败' });

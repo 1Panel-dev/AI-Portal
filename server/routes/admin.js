@@ -1176,23 +1176,22 @@ router.post('/api/admin/portal-users/sync', verifyAdmin, async (req, res) => {
       );
 
       // 切实例检测：panel_host 非空且与当前 host 不同的 active 用户 → 禁用
+      // 用 RETURNING id 拿到本次刚禁用的用户集合，只清这批的 Key，
+      // 避免误删之前因其他原因被禁用的跨 host 用户的 Key
       const disableResult = await global.pool.query(
         `UPDATE portal_users SET status = 'disabled'
          WHERE panel_host IS NOT NULL
            AND panel_host IS DISTINCT FROM $1
-           AND status = 'active'`,
+           AND status = 'active'
+         RETURNING id`,
         [currentHost]
       );
-      if (disableResult.rowCount > 0) {
-        console.log(`[sync-users] 检测到 1Panel 实例切换，禁用 ${disableResult.rowCount} 个旧用户`);
+      if (disableResult.rows.length > 0) {
+        const justDisabledIds = disableResult.rows.map(r => r.id);
+        console.log(`[sync-users] 检测到 1Panel 实例切换，禁用 ${justDisabledIds.length} 个旧用户`);
         await global.pool.query(
-          `DELETE FROM portal_api_keys WHERE user_id IN (
-            SELECT id FROM portal_users
-            WHERE panel_host IS NOT NULL
-              AND panel_host IS DISTINCT FROM $1
-              AND status = 'disabled'
-          )`,
-          [currentHost]
+          `DELETE FROM portal_api_keys WHERE user_id = ANY($1::int[])`,
+          [justDisabledIds]
         );
       }
     }
@@ -1215,7 +1214,7 @@ router.post('/api/admin/portal-users/sync', verifyAdmin, async (req, res) => {
 
     // 2. 查询所有本地用户（含没有 panel_user_id 的 OAuth 用户）
     const localUsers = await global.pool.query(
-      'SELECT id, username, panel_user_id FROM portal_users'
+      'SELECT id, username, panel_user_id, panel_host FROM portal_users'
     );
     const localByUsername = new Map();
     const localPanelIds = new Set();
@@ -1233,13 +1232,15 @@ router.post('/api/admin/portal-users/sync', verifyAdmin, async (req, res) => {
       const local = localByUsername.get(nameLower);
 
       if (local) {
-        // 本地已有同名用户但缺少 panel_user_id → 补全绑定
-        if (!local.panel_user_id && pu.id) {
+        // 本地已有同名用户：
+        //   - 缺 panel_user_id → 补全绑定
+        //   - panel_host 与当前不同（切实例后被禁用的旧用户）→ 重新绑定到新实例 + 重新启用
+        if (pu.id && (!local.panel_user_id || (local.panel_host && local.panel_host !== currentHost))) {
           await global.pool.query(
-            'UPDATE portal_users SET panel_user_id = $1, panel_host = $3 WHERE id = $2',
+            'UPDATE portal_users SET panel_user_id = $1, panel_host = $3, status = \'active\' WHERE id = $2',
             [pu.id, local.id, currentHost]
           );
-          localByUsername.set(nameLower, { ...local, panel_user_id: pu.id });
+          localByUsername.set(nameLower, { ...local, panel_user_id: pu.id, panel_host: currentHost, status: 'active' });
           bound++;
         }
         continue;
@@ -1273,7 +1274,12 @@ router.post('/api/admin/portal-users/sync', verifyAdmin, async (req, res) => {
         const keyRes = await panel.post('/api/v2/core/enterprise/ai-proxy/api-keys/search', {
           page: kPage, pageSize: KEY_PAGE_SIZE, info: '',
         });
-        if (keyRes.status < 200 || keyRes.status >= 300) break;
+        // 1Panel 业务失败（HTTP 200 + body.code>=400）要识别，否则空响应会导致 keysSynced=0 却报成功
+        const keyBiz = inspectPanelBiz(keyRes);
+        if (keyRes.status < 200 || keyRes.status >= 300 || !keyBiz.ok) {
+          if (!keyBiz.ok) console.error('[sync-users] 1Panel api-keys/search 业务失败:', keyBiz.message);
+          break;
+        }
         const items = getPanelItems(keyRes.data);
         allPanelKeys.push(...items);
         if (items.length < KEY_PAGE_SIZE) break;

@@ -715,7 +715,10 @@ router.get('/api/skills/:slug/download', downloadLimiter, async (req, res) => {
           let searchId = skillRow.panel_skill_id;
           if (searchRes.status >= 200 && searchRes.status < 300 && !panelBizError(searchRes)) {
             const items = getPanelItems(searchRes.data);
-            if (items.length > 0) searchId = items[0].id;
+            // 模糊搜索 info=panelName 可能返回其他名称含 panelName 的技能，
+            // 必须精确匹配 name，否则会下载到错误技能的包
+            const exact = items.find(it => String(it.name || '') === panelName);
+            if (exact) searchId = exact.id;
           }
           if (!searchId) {
             return res.status(404).json({ error: '版本不存在' });
@@ -838,7 +841,9 @@ router.get('/api/skills/:slug/versions', async (req, res) => {
         let searchId = skill.panel_skill_id; // 兜底
         if (searchRes.status >= 200 && searchRes.status < 300 && !panelBizError(searchRes)) {
           const items = getPanelItems(searchRes.data);
-          if (items.length > 0) searchId = items[0].id;
+          // 模糊搜索可能返回其他名称含 panelName 的技能，必须精确匹配 name
+          const exact = items.find(it => String(it.name || '') === panelName);
+          if (exact) searchId = exact.id;
         }
 
         if (!searchId) {

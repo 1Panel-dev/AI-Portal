@@ -127,7 +127,13 @@
           <div v-if="activeTab === 'keys'" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
             <p v-if="keyError" class="text-sm mb-4" :class="keyErrorOk ? 'text-emerald-600' : 'text-red-500'">{{ keyError }}</p>
             <div class="flex items-center justify-between mb-6">
-              <h2 class="text-lg font-semibold text-text">API Key 管理</h2>
+              <div class="flex items-center gap-2">
+                <h2 class="text-lg font-semibold text-text">API Key 管理</h2>
+                <button @click="refreshKeys" :disabled="keysLoading" :title="keysLoading ? '加载中' : '刷新'"
+                  class="w-7 h-7 flex items-center justify-center rounded-lg text-text-tertiary hover:text-text hover:bg-surface-secondary transition-all disabled:opacity-40 cursor-pointer border-none bg-transparent">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ 'animate-spin': keysLoading }"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                </button>
+              </div>
               <div v-if="apiKeyData" class="flex items-center gap-2">
                 <button @click="openResetDialog" :disabled="resettingKey || deletingKey"
                   class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.12)] text-text-secondary rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50">
@@ -195,7 +201,7 @@
           </div>
 
           <!-- Token 用量统计 -->
-          <div v-if="apiKeyData" class="mt-6 bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
+          <div v-if="activeTab === 'keys' && apiKeyData" class="mt-6 bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
             <h2 class="text-lg font-semibold text-text mb-5 flex items-center gap-2">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#005eeb" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
               Token 用量统计
@@ -222,42 +228,85 @@
                 <div class="bg-[#f5f5f7] rounded-xl px-4 py-3 text-center"><div class="text-[22px] font-bold text-text">{{ fmtNum(usageData.summary?.cachedTokens) }}</div><div class="text-[11px] text-text-tertiary mt-1">缓存命中</div></div>
                 <div class="bg-[#f5f5f7] rounded-xl px-4 py-3 text-center"><div class="text-[22px] font-bold" :class="(usageData.summary?.failedRequests||0)>0?'text-red-500':'text-text'">{{ fmtNum(usageData.summary?.failedRequests) }}</div><div class="text-[11px] text-text-tertiary mt-1">失败请求</div></div>
               </div>
-              <!-- 每月统计折线图 -->
+              <!-- Token 堆叠柱状图 -->
               <div class="mb-6">
                 <div class="flex items-center justify-between mb-3">
-                  <h3 class="text-[13px] font-semibold text-text">每月统计</h3>
-                  <select v-model.number="selectedMonth" class="px-2.5 py-1.5 border border-[rgba(0,0,0,0.1)] rounded-lg text-[13px] bg-white outline-none cursor-pointer">
-                    <option v-for="m in 12" :key="m" :value="m">{{ m }} 月</option>
+                  <h3 class="text-[13px] font-semibold text-text">每月 Token 统计</h3>
+                  <select v-model="selectedYM" class="px-2.5 py-1.5 border border-[rgba(0,0,0,0.1)] rounded-lg text-[13px] bg-white outline-none cursor-pointer">
+                    <option v-for="o in monthOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
                   </select>
                 </div>
-                <div v-if="usageData.trends?.length > 1" class="bg-[#fafafa] rounded-xl p-4">
-                  <svg :viewBox="'0 0 '+chartW+' '+chartH" class="w-full" preserveAspectRatio="xMidYMid meet">
+                <div class="relative bg-[#fafafa] rounded-xl p-4" style="min-height: 268px;">
+                  <div v-if="filteredTrends.length" class="flex items-center gap-4 mb-2 px-2">
+                    <div v-for="s in stackSeries" :key="s.key" class="flex items-center gap-1.5 text-[11px] text-text-secondary"><span class="w-2.5 h-2.5 rounded-sm" :style="{ background: s.color }"></span>{{ s.label }}</div>
+                  </div>
+                  <svg v-if="filteredTrends.length" :viewBox="'0 0 '+chartW+' '+chartH" class="w-full" preserveAspectRatio="xMidYMid meet">
                     <line v-for="(_,i) in 4" :key="'g'+i" :x1="chartPad" :y1="chartPad+i*chartInnerH/3" :x2="chartPad+chartInnerW" :y2="chartPad+i*chartInnerH/3" stroke="rgba(0,0,0,0.06)" stroke-width="1"/>
-                    <text v-for="(v,i) in yTicks" :key="'yt'+i" :x="chartPad-6" :y="yVal(v)+4" text-anchor="end" font-size="10" fill="#aeaeb2">{{ fmtNum(v) }}</text>
-                    <polyline :points="linePoints" fill="none" stroke="#005eeb" stroke-width="2" stroke-linejoin="round"/>
-                    <polygon v-if="areaPoints" :points="areaPoints" fill="rgba(0,94,235,0.08)"/>
-                    <circle v-for="(p,i) in chartPoints" :key="'c'+i" :cx="p.x" :cy="p.y" r="3.5" fill="#fff" stroke="#005eeb" stroke-width="2"/>
-                    <text v-for="(p,i) in chartPoints" :key="'xl'+i" :x="p.x" :y="chartH-6" text-anchor="middle" font-size="10" fill="#aeaeb2">{{ p.label }}</text>
+                    <text v-for="(v,i) in tokenTicks" :key="'tt'+i" :x="chartPad-6" :y="tokenY(v)+4" text-anchor="end" font-size="10" fill="#aeaeb2">{{ fmtNum(v) }}</text>
+                    <g v-for="(b,bi) in bars" :key="'bar'+bi">
+                      <rect v-for="(s,si) in b.segs" :key="'seg'+bi+'-'+si" :x="b.x" :y="s.y" :width="b.width" :height="Math.max(s.height,0)" :fill="s.color"/>
+                      <rect :x="b.x-2" :y="chartPad" :width="b.width+4" :height="chartInnerH" fill="transparent" @mouseenter="hoverIdx = bi" @mouseleave="hoverIdx = -1"/>
+                      <text :x="b.x + b.width/2" :y="chartH-6" text-anchor="middle" font-size="10" fill="#aeaeb2">{{ b.label }}</text>
+                    </g>
+                    <line v-if="hoverIdx >= 0 && bars[hoverIdx]" :x1="bars[hoverIdx].x + bars[hoverIdx].width/2" :y1="chartPad" :x2="bars[hoverIdx].x + bars[hoverIdx].width/2" :y2="chartPad+chartInnerH" stroke="rgba(0,0,0,0.2)" stroke-width="1" stroke-dasharray="3,3"/>
                   </svg>
+                  <div v-if="hoverIdx >= 0 && filteredTrends[hoverIdx] && filteredTrends.length"
+                    class="absolute pointer-events-none bg-[#1d1d1f] text-white text-[12px] rounded-lg px-3 py-2 shadow-lg z-10 whitespace-nowrap"
+                    :style="tooltipStyle">
+                    <div class="font-medium mb-1">{{ filteredTrends[hoverIdx].name }}</div>
+                    <div class="text-[11px] text-white/70 flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-[#005eeb]"></span>输入 <span class="font-mono text-white ml-auto">{{ fmtNum(filteredTrends[hoverIdx].promptTokens) }}</span></div>
+                    <div class="text-[11px] text-white/70 flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-[#10b981]"></span>输出 <span class="font-mono text-white ml-auto">{{ fmtNum(filteredTrends[hoverIdx].completionTokens) }}</span></div>
+                    <div class="text-[11px] text-white/70 flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-[#f59e0b]"></span>缓存 <span class="font-mono text-white ml-auto">{{ fmtNum(filteredTrends[hoverIdx].cachedTokens) }}</span></div>
+                    <div class="text-[11px] text-white/70 flex items-center gap-1.5 border-t border-white/10 mt-1 pt-1"><span class="w-2 h-2 rounded-sm bg-white/60"></span>总计 <span class="font-mono text-white ml-auto">{{ fmtNum(filteredTrends[hoverIdx].totalTokens) }}</span></div>
+                  </div>
+                  <div v-if="!filteredTrends.length" class="absolute inset-0 flex items-center justify-center text-[13px] text-text-tertiary">{{ monthLabel }} 暂无数据</div>
+                </div>
+              </div>
+
+              <!-- 请求次数折线图 -->
+              <div class="mb-6">
+                <h3 class="text-[13px] font-semibold text-text mb-3">每月请求次数</h3>
+                <div class="relative bg-[#fafafa] rounded-xl p-4" style="min-height: 268px;">
+                  <svg v-if="filteredTrends.length" :viewBox="'0 0 '+chartW+' '+chartH" class="w-full" preserveAspectRatio="xMidYMid meet">
+                    <line v-for="(_,i) in 4" :key="'rg'+i" :x1="chartPad" :y1="chartPad+i*chartInnerH/3" :x2="chartPad+chartInnerW" :y2="chartPad+i*chartInnerH/3" stroke="rgba(0,0,0,0.06)" stroke-width="1"/>
+                    <text v-for="(v,i) in reqTicks" :key="'rt'+i" :x="chartPad-6" :y="reqY(v)+4" text-anchor="end" font-size="10" fill="#aeaeb2">{{ v }}</text>
+                    <polygon v-if="reqArea" :points="reqArea" fill="rgba(0,94,235,0.08)"/>
+                    <polyline :points="reqLine" fill="none" stroke="#005eeb" stroke-width="2" stroke-linejoin="round"/>
+                    <text v-for="(p,i) in reqPoints" :key="'rxl'+i" :x="p.x" :y="chartH-6" text-anchor="middle" font-size="10" fill="#aeaeb2">{{ p.label }}</text>
+                    <rect v-for="(p,i) in reqPoints" :key="'rhot'+i"
+                      :x="p.x - reqHotW/2" :y="chartPad" :width="reqHotW" :height="chartInnerH"
+                      fill="transparent" @mouseenter="reqHoverIdx = i" @mouseleave="reqHoverIdx = -1"/>
+                    <line v-if="reqHoverIdx >= 0" :x1="reqPoints[reqHoverIdx].x" :y1="chartPad" :x2="reqPoints[reqHoverIdx].x" :y2="chartPad+chartInnerH" stroke="rgba(0,0,0,0.15)" stroke-width="1" stroke-dasharray="3,3"/>
+                    <circle v-if="reqHoverIdx >= 0" :cx="reqPoints[reqHoverIdx].x" :cy="reqPoints[reqHoverIdx].y" r="5" fill="#005eeb"/>
+                  </svg>
+                  <div v-if="reqHoverIdx >= 0 && reqPoints[reqHoverIdx] && filteredTrends.length"
+                    class="absolute pointer-events-none bg-[#1d1d1f] text-white text-[12px] rounded-lg px-3 py-2 shadow-lg z-10 whitespace-nowrap"
+                    :style="reqTooltipStyle">
+                    <div class="font-medium mb-1">{{ reqPoints[reqHoverIdx].fullDate }}</div>
+                    <div class="text-[11px] text-white/70 flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-[#005eeb]"></span>请求次数 <span class="font-mono text-white ml-auto">{{ filteredTrends[reqHoverIdx].requestCount }}</span></div>
+                  </div>
+                  <div v-if="!filteredTrends.length" class="absolute inset-0 flex items-center justify-center text-[13px] text-text-tertiary">{{ monthLabel }} 暂无数据</div>
+                </div>
+              </div>
+              <!-- 模型用量横向柱状图 -->
+              <div>
+                <h3 class="text-[13px] font-semibold text-text mb-3">模型用量</h3>
+                <div v-if="usageData.models?.length" class="bg-[#fafafa] rounded-xl p-4">
+                  <div class="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                    <div v-for="(m, mi) in sortedModels" :key="m.name"
+                      class="flex items-center gap-2"
+                      @mouseenter="onModelEnter($event, m)" @mousemove="onModelMove($event)" @mouseleave="onModelLeave">
+                      <span class="text-[12px] text-text w-[120px] shrink-0 truncate text-right" :title="m.name">{{ m.name }}</span>
+                      <div class="flex-1 h-5 bg-white rounded relative overflow-hidden">
+                        <div class="absolute inset-y-0 left-0 rounded transition-colors"
+                          :class="modelHover?.name === m.name ? 'bg-accent' : 'bg-accent/70'"
+                          :style="{ width: modelPct(m) + '%' }"></div>
+                      </div>
+                      <span class="text-[12px] text-text-secondary font-mono w-[60px] shrink-0 text-right">{{ fmtNum(m.totalTokens) }}</span>
+                    </div>
+                  </div>
                 </div>
                 <div v-else class="bg-[#fafafa] rounded-xl py-8 text-center text-[13px] text-text-tertiary">暂无数据</div>
-              </div>
-              <!-- 模型 + 供应商 -->
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <h3 class="text-[13px] font-semibold text-text mb-3">模型用量</h3>
-                  <div v-if="usageData.models?.length" class="space-y-1.5">
-                    <div v-for="m in usageData.models" :key="m.name" class="flex items-center justify-between text-[13px]"><span class="text-text truncate mr-2 max-w-[60%]">{{ m.name }}</span><span class="text-text-secondary font-mono shrink-0">{{ fmtNum(m.totalTokens) }}</span></div>
-                  </div>
-                  <div v-else class="text-[13px] text-text-tertiary">暂无</div>
-                </div>
-                <div>
-                  <h3 class="text-[13px] font-semibold text-text mb-3">供应商用量</h3>
-                  <div v-if="usageData.providers?.length" class="space-y-1.5">
-                    <div v-for="p in usageData.providers" :key="p.name" class="flex items-center justify-between text-[13px]"><span class="text-text truncate mr-2 max-w-[60%]">{{ p.name }}</span><span class="text-text-secondary font-mono shrink-0">{{ fmtNum(p.totalTokens) }}</span></div>
-                  </div>
-                  <div v-else class="text-[13px] text-text-tertiary">暂无</div>
-                </div>
               </div>
             </div>
           </div>
@@ -487,6 +536,20 @@
       @confirm="dialogCallback ? dialogCallback() : null"
     />
   </main>
+
+  <!-- 模型用量浮动 tooltip（Teleport 到 body，脱离文档流，不撑开布局） -->
+  <Teleport to="body">
+    <div v-if="modelHover"
+      class="fixed z-[500] pointer-events-none bg-[#1d1d1f] text-white text-[12px] rounded-lg px-3 py-2 shadow-xl whitespace-nowrap"
+      :style="{ left: modelTipX + 'px', top: modelTipY + 'px' }">
+      <div class="font-medium max-w-[220px] truncate">{{ modelHover.name }}</div>
+      <div class="text-[11px] text-white/70 mt-0.5">总 Token: <span class="font-mono text-white">{{ fmtNum(modelHover.totalTokens) }}</span></div>
+      <div class="text-[11px] text-white/70">请求数: <span class="font-mono text-white">{{ modelHover.requestCount }}</span></div>
+      <div class="text-[11px] text-white/70">输入: <span class="font-mono text-white">{{ fmtNum(modelHover.promptTokens) }}</span></div>
+      <div class="text-[11px] text-white/70">输出: <span class="font-mono text-white">{{ fmtNum(modelHover.completionTokens) }}</span></div>
+      <div class="text-[11px] text-white/70">缓存: <span class="font-mono text-white">{{ fmtNum(modelHover.cachedTokens) }}</span></div>
+    </div>
+  </Teleport>
 </div>
 </template>
 <script setup>
@@ -530,14 +593,119 @@ const usageData = ref(null)
 const usageLoading = ref(false)
 const usageError = ref('')
 const selectedMonth = ref(new Date().getMonth() + 1)
+const selectedYear = ref(new Date().getFullYear())
+// 可选的年月列表：往前 12 个月 + 当前月
+const monthOptions = computed(() => {
+  const opts = []
+  const now = new Date()
+  for (let i = 0; i < 13; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    opts.push({ year: d.getFullYear(), month: d.getMonth() + 1, label: `${d.getFullYear()}-${d.getMonth() + 1}月`, value: `${d.getFullYear()}-${d.getMonth() + 1}` })
+  }
+  return opts
+})
+const selectedYM = ref(`${selectedYear.value}-${selectedMonth.value}`)
+watch(selectedYM, (v) => { const [y, m] = v.split('-').map(Number); selectedYear.value = y; selectedMonth.value = m })
+const monthLabel = computed(() => `${selectedYear.value}-${selectedMonth.value}月`)
 const fmtNum = (n) => { if (n == null) return '0'; if (n >= 1000000) return (n/1000000).toFixed(1)+'M'; if (n >= 1000) return (n/1000).toFixed(1)+'K'; return String(n) }
-const filteredTrends = computed(() => { const t = usageData.value?.trends; if (!t) return []; return t.filter(v => v.name && parseInt(v.name.slice(5,7)) === selectedMonth.value) })
-const chartW = 600, chartH = 200, chartPad = 44, chartInnerW = chartW - chartPad*2, chartInnerH = chartH - chartPad - 24
-const chartPoints = computed(() => { if (!filteredTrends.value.length) return []; const a = filteredTrends.value; const m = Math.max(...a.map(v=>v.totalTokens||0),1); return a.map((v,i)=>({ x: chartPad+(a.length>1?i/(a.length-1):0.5)*chartInnerW, y: chartPad+(1-(v.totalTokens||0)/m)*chartInnerH, label: (v.name||'').slice(5) })) })
-const yTicks = computed(() => { if (!filteredTrends.value.length) return []; const v = filteredTrends.value.map(v=>v.totalTokens||0); const m = Math.max(...v,1); return [0,Math.round(m/3),Math.round(m*2/3),m] })
-const yVal = (v) => { const vs = filteredTrends.value.map(t=>t.totalTokens||0); const m = Math.max(...vs,1); return chartPad+(1-v/m)*chartInnerH }
-const linePoints = computed(() => chartPoints.value.map(p=>`${p.x},${p.y}`).join(' '))
-const areaPoints = computed(() => { if (!chartPoints.value.length) return ''; const p = chartPoints.value; return `${p[0].x},${chartPad+chartInnerH} `+p.map(v=>`${v.x},${v.y}`).join(' ')+` ${p[p.length-1].x},${chartPad+chartInnerH}` })
+const filteredTrends = computed(() => { const t = usageData.value?.trends; if (!t) return []; const ym = `${selectedYear.value}-${String(selectedMonth.value).padStart(2,'0')}`; return t.filter(v => v.name && v.name.startsWith(ym)) })
+const chartW = 600, chartH = 220, chartPad = 44, chartInnerW = chartW - chartPad*2, chartInnerH = chartH - chartPad - 24
+const hoverIdx = ref(-1)
+
+// 堆叠柱状图系列（从下到上）
+const stackSeries = [
+  { key: 'cachedTokens', color: '#f59e0b', label: '缓存' },
+  { key: 'promptTokens', color: '#005eeb', label: '输入' },
+  { key: 'completionTokens', color: '#10b981', label: '输出' },
+]
+
+// 柱状图：每天一根柱子，堆叠 cached+prompt+completion
+const barWidth = computed(() => {
+  const n = filteredTrends.value.length
+  if (!n) return 0
+  return Math.max(8, Math.min(40, chartInnerW / n - 4))
+})
+const bars = computed(() => {
+  const a = filteredTrends.value
+  if (!a.length) return []
+  const m = Math.max(...a.map(v => v.totalTokens || 0), 1)
+  const bw = barWidth.value
+  const gap = a.length > 1 ? (chartInnerW - bw * a.length) / (a.length - 1) : 0
+  const bottom = chartPad + chartInnerH
+  return a.map((v, i) => {
+    const x = chartPad + i * (bw + gap)
+    const cached = v.cachedTokens || 0
+    const prompt = v.promptTokens || 0
+    const completion = v.completionTokens || 0
+    const segs = []
+    let acc = 0
+    for (const s of stackSeries) {
+      const h = (v[s.key] || 0) / m * chartInnerH
+      segs.push({ key: s.key, color: s.color, y: bottom - acc - h, height: h, value: v[s.key] || 0 })
+      acc += h
+    }
+    return { x, width: bw, segs, label: (v.name || '').slice(5), fullDate: v.name }
+  })
+})
+const tokenMax = computed(() => Math.max(...filteredTrends.value.map(v => v.totalTokens || 0), 1))
+const tokenTicks = computed(() => { const m = tokenMax.value; return [0, Math.round(m/3), Math.round(m*2/3), m] })
+const tokenY = (v) => chartPad + (1 - v / tokenMax.value) * chartInnerH
+
+// 请求次数折线图
+const reqMax = computed(() => Math.max(...filteredTrends.value.map(v => v.requestCount || 0), 1))
+const reqPoints = computed(() => {
+  const a = filteredTrends.value
+  if (!a.length) return []
+  const m = reqMax.value
+  return a.map((v, i) => ({
+    x: chartPad + (a.length > 1 ? i / (a.length - 1) : 0.5) * chartInnerW,
+    y: chartPad + (1 - (v.requestCount || 0) / m) * chartInnerH,
+    label: (v.name || '').slice(5),
+    fullDate: v.name,
+  }))
+})
+const reqLine = computed(() => reqPoints.value.map(p => `${p.x},${p.y}`).join(' '))
+const reqArea = computed(() => { if (!reqPoints.value.length) return ''; const p = reqPoints.value; return `${p[0].x},${chartPad+chartInnerH} `+p.map(v=>`${v.x},${v.y}`).join(' ')+` ${p[p.length-1].x},${chartPad+chartInnerH}` })
+const reqTicks = computed(() => { const m = reqMax.value; return [0, Math.round(m/3), Math.round(m*2/3), m] })
+const reqY = (v) => chartPad + (1 - v / reqMax.value) * chartInnerH
+
+const tooltipStyle = computed(() => {
+  if (hoverIdx.value < 0) return {}
+  const a = filteredTrends.value
+  const bw = barWidth.value
+  const gap = a.length > 1 ? (chartInnerW - bw * a.length) / (a.length - 1) : 0
+  const x = chartPad + hoverIdx.value * (bw + gap) + bw / 2
+  const leftPct = x / chartW * 100
+  const offset = leftPct > 70 ? '-160px' : '8px'
+  return { left: `calc(${leftPct}% + ${offset})`, top: '12px' }
+})
+
+// 请求次数折线图 hover
+const reqHoverIdx = ref(-1)
+const reqHotW = 36
+const reqTooltipStyle = computed(() => {
+  if (reqHoverIdx.value < 0 || !reqPoints.value[reqHoverIdx.value]) return {}
+  const p = reqPoints.value[reqHoverIdx.value]
+  const leftPct = p.x / chartW * 100
+  const offset = leftPct > 70 ? '-120px' : '8px'
+  return { left: `calc(${leftPct}% + ${offset})`, top: '12px' }
+})
+
+// 模型用量横向柱状图
+const modelHover = ref(null)
+const modelTipX = ref(0)
+const modelTipY = ref(0)
+const onModelEnter = (e, m) => { modelHover.value = m; modelTipX.value = e.clientX + 12; modelTipY.value = e.clientY + 12 }
+const onModelMove = (e) => { modelTipX.value = e.clientX + 12; modelTipY.value = e.clientY + 12 }
+const onModelLeave = () => { modelHover.value = null }
+const sortedModels = computed(() => {
+  const arr = usageData.value?.models ? [...usageData.value.models] : []
+  return arr.sort((a, b) => (b.totalTokens || 0) - (a.totalTokens || 0))
+})
+const modelPct = (m) => {
+  const max = Math.max(...(usageData.value?.models || []).map(v => v.totalTokens || 0), 1)
+  return Math.min((m.totalTokens || 0) / max * 100, 100)
+}
 const fetchUsage = async () => { if (!apiKeyData.value) return; usageLoading.value = true; usageError.value = ''; try { const t = localStorage.getItem('token'); const r = await fetch(`${API_BASE}/usage/statistics`,{headers:{Authorization:`Bearer ${t}`}}); const j = await r.json(); usageData.value = j.data || null } catch { usageError.value = '加载失败'; usageData.value = null } finally { usageLoading.value = false } }
 
 // 根据角色动态生成标签页
@@ -949,5 +1117,14 @@ onMounted(() => {
     showWelcomeBanner.value = true
   }
 })
-watch(activeTab, (v) => { if (v === 'keys') { fetchKeys(); fetchBaseUrl() } if (v === 'skills') fetchMySkills() })
+// 切到 keys tab：已有数据就不重复拉（避免每次切换都打 1Panel 慢），
+// 用户可点刷新按钮主动更新
+const refreshKeys = () => { fetchKeys(); fetchBaseUrl() }
+watch(activeTab, (v) => {
+  if (v === 'keys') {
+    if (!apiKeyData.value && !keysLoading.value) { fetchKeys(); fetchBaseUrl() }
+    if (apiKeyData.value && !usageData.value) fetchUsage()
+  }
+  if (v === 'skills') fetchMySkills()
+})
 </script>
