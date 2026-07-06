@@ -48,7 +48,7 @@ router.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ error: '密码至少6位' });
     }
 
-    const existing = await global.pool.query('SELECT id FROM portal_users WHERE username = $1', [rawUsername]);
+    const existing = await global.pool.query('SELECT id FROM portal_users WHERE username ILIKE $1', [rawUsername]);
     if (existing.rowCount > 0) {
       return res.status(409).json({ error: '用户名已存在' });
     }
@@ -103,10 +103,21 @@ router.post('/api/auth/login', async (req, res) => {
     }
 
     // 查找用户（包括普通用户和管理员）
-    const result = await global.pool.query(`
+    // 用 ILIKE 不区分大小写，但如果有大小写冲突（zhangsan + Zhangsan），要求精确匹配
+    let result = await global.pool.query(`
       SELECT * FROM portal_users
-      WHERE username = $1 AND status = 'active'
+      WHERE username ILIKE $1 AND status = 'active'
     `, [rawUsername]);
+
+    if (result.rowCount > 1) {
+      // 精确匹配优先
+      const exact = result.rows.find(r => r.username === rawUsername);
+      if (exact) {
+        result = { rows: [exact], rowCount: 1 };
+      } else {
+        return res.status(401).json({ error: '用户名不明确，请使用精确大小写登录' });
+      }
+    }
 
     if (result.rowCount === 0) {
       return res.status(401).json({ error: '用户名或密码错误' });

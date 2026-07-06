@@ -1226,10 +1226,11 @@ router.post('/api/admin/portal-users/sync', verifyAdmin, async (req, res) => {
     const localUsers = await global.pool.query(
       'SELECT id, username, panel_user_id, panel_host FROM portal_users'
     );
+    // 精确匹配，区分大小写（zhangsan 和 ZhanSan 可能是两个人）
     const localByUsername = new Map();
     const localPanelIds = new Set();
     for (const row of localUsers.rows) {
-      localByUsername.set(row.username.toLowerCase(), row);
+      localByUsername.set(row.username, row);
       if (row.panel_user_id) localPanelIds.add(row.panel_user_id);
     }
 
@@ -1238,8 +1239,10 @@ router.post('/api/admin/portal-users/sync', verifyAdmin, async (req, res) => {
     let bound = 0;
 
     for (const pu of panelUsers) {
-      const nameLower = String(pu.name || '').toLowerCase();
-      const local = localByUsername.get(nameLower);
+      // 精确匹配，区分大小写
+      const name = String(pu.name || '').trim();
+      if (!name) continue;
+      const local = localByUsername.get(name);
 
       if (local) {
         // 本地已有同名用户：
@@ -1250,7 +1253,7 @@ router.post('/api/admin/portal-users/sync', verifyAdmin, async (req, res) => {
             'UPDATE portal_users SET panel_user_id = $1, panel_host = $3, status = \'active\' WHERE id = $2',
             [pu.id, local.id, currentHost]
           );
-          localByUsername.set(nameLower, { ...local, panel_user_id: pu.id, panel_host: currentHost, status: 'active' });
+          localByUsername.set(name, { ...local, panel_user_id: pu.id, panel_host: currentHost, status: 'active' });
           bound++;
         }
         continue;
@@ -1265,7 +1268,7 @@ router.post('/api/admin/portal-users/sync', verifyAdmin, async (req, res) => {
             INSERT INTO portal_users (panel_user_id, username, name, password_hash, role, status, panel_host, created_at)
             VALUES ($1, $2, $3, $4, 'user', 'active', $5, CURRENT_TIMESTAMP)
             ON CONFLICT (username) DO NOTHING
-          `, [pu.id, nameLower, pu.name, passwordHash, currentHost]);
+          `, [pu.id, name, pu.name, passwordHash, currentHost]);
           synced++;
         } catch (e) {
           console.error(`同步用户 ${pu.name} 失败:`, e.message);
