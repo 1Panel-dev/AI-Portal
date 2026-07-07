@@ -57,7 +57,7 @@
             class="absolute right-0 top-full mt-2 w-[160px] bg-white border border-[rgba(0,0,0,0.08)] rounded-xl shadow-card-hover py-1 z-[265]">
             <!-- 管理员菜单 -->
             <template v-if="isAdmin">
-              <router-link to="/admin" @click="showDropdown = false"
+              <router-link to="/admin/stats" @click="showDropdown = false"
                 class="flex items-center gap-2 px-4 py-2.5 text-sm text-text hover:bg-black/5 no-underline transition-colors">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
                 管理后台
