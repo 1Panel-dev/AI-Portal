@@ -3,7 +3,10 @@
     <NavBar />
 
     <!-- Hero -->
-    <section class="pt-[124px] pb-12 text-center max-w-[720px] mx-auto animate-fade-up">
+    <section
+      class="pb-12 text-center max-w-[720px] mx-auto animate-fade-up"
+      :class="hasVisibleBanner ? 'pt-[248px]' : 'pt-[208px]'"
+    >
       <h1 class="text-[52px] font-bold text-text tracking-[-1.6px] leading-[1.05] mb-3 max-md:text-[40px] max-sm:text-[32px]">
         查找可安装的 AI 技能
       </h1>
@@ -77,13 +80,14 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useSkills } from '../composables/useSkills.js'
 import NavBar from '../components/NavBar.vue'
 import FilterBar from '../components/FilterBar.vue'
 import SkillGrid from '../components/SkillGrid.vue'
 import LoadMore from '../components/LoadMore.vue'
 import SkillDetailModal from '../components/SkillDetailModal.vue'
+import { bannerEnabled, bannerHtml, bannerVisible } from '../composables/useAnnouncement.js'
 
 const {
   skills, loading, stats, currentCategory, currentSource, searchQuery,
@@ -91,6 +95,7 @@ const {
 } = useSkills()
 
 const selectedSkill = ref(null)
+const hasVisibleBanner = computed(() => bannerEnabled.value && bannerVisible.value && !!bannerHtml.value)
 
 const openDetail = (skill) => { selectedSkill.value = skill }
 const onDownload = async (skillId) => { await recordDownload(skillId) }

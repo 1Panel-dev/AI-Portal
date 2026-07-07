@@ -1,7 +1,10 @@
 <template>
   <div>
     <NavBar />
-    <section class="pt-[124px] pb-12 text-center max-w-[720px] mx-auto animate-fade-up">
+    <section
+      class="pb-12 text-center max-w-[720px] mx-auto animate-fade-up"
+      :class="hasVisibleBanner ? 'pt-[248px]' : 'pt-[208px]'"
+    >
       <h1 class="text-[52px] font-bold text-text tracking-[-1.6px] leading-[1.05] mb-3 max-md:text-[40px] max-sm:text-[32px]">
         查找可调用的 AI 模型
       </h1>
@@ -132,6 +135,7 @@ import { ref, computed, onMounted } from 'vue'
 import NavBar from '../components/NavBar.vue'
 import FilterItem from '../components/FilterItem.vue'
 import { providerLabels } from '../data/categories.js'
+import { bannerEnabled, bannerHtml, bannerVisible } from '../composables/useAnnouncement.js'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const baseUrl = ref('')
@@ -186,6 +190,7 @@ const copiedTarget = ref(null)
 const loading = ref(true)
 const oauthEnabled = ref(false)
 const isLoggedIn = computed(() => !!(localStorage.getItem('token') || localStorage.getItem('admin_token')))
+const hasVisibleBanner = computed(() => bannerEnabled.value && bannerVisible.value && !!bannerHtml.value)
 const ctaLink = computed(() => {
   if (isLoggedIn.value) return '/profile?tab=api-keys'
   return oauthEnabled.value ? '/login' : '/register'
