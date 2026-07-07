@@ -1,25 +1,16 @@
 name: create-release
 
-# 仅对规范版本 tag 生成 GitHub Release：
-#   - v1.0.4        → 正式 Release
-#   - v1.0.4-rc     → pre-release
-#   - v1.0.4-beta.1 → pre-release
-# 不匹配的 tag（如 test-xxx、dev-xxx）不生成 Release，但仍会触发 build-and-push 构建镜像
+# 仅对正式版本 tag 生成 GitHub Release：
+#   - v1.0.4  → 正式 Release
+# 含后缀的 tag（v1.0.4-rc / v1.0.4-dev / v1.0.4-beta.1）不生成 Release
 on:
   push:
     tags:
-      # 只匹配 v 开头的版本号 tag，过滤掉 test/dev 等临时 tag
+      # 只匹配严格版本号 tag（不含 -rc/-dev 等后缀）
       - 'v[0-9]*.[0-9]*.[0-9]*'
-      - 'v[0-9]*.[0-9]*.[0-9]*-*'
-  # 支持为已存在的 tag 手动补建 Release
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: '已存在的 tag（如 v1.0.4-rc）'
-        required: true
 
 permissions:
-  contents: write  # 创建 Release 需要写权限
+  contents: write
 
 jobs:
   create-release:
@@ -37,25 +28,12 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ steps.target.outputs.tag }}
-          fetch-depth: 0  # softprops/action-gh-release 生成 changelog 需要
-
-      - name: 判断是否 pre-release
-        id: prerelease
-        run: |
-          TAG="${{ steps.target.outputs.tag }}"
-          # 含 -rc / -beta / -alpha 后缀的标记为 pre-release
-          if echo "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+-(rc|beta|alpha)'; then
-            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
-          fi
+          fetch-depth: 0
 
       - name: 生成 Release 说明
         id: notes
         run: |
           TAG="${{ steps.target.outputs.tag }}"
-          # 用上一个正式版本 tag 到当前 tag 的 commit 历史生成 changelog
-          # 跳过 chore/merge commit，按类型简单归类
           PREV_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -v "^${TAG}$" | head -1)
 
           {
@@ -82,15 +60,10 @@ jobs:
             echo "\`\`\`"
           } > release_notes.md
 
-          # pre-release 加提示
-          if [ "${{ steps.prerelease.outputs.is_prerelease }}" = "true" ]; then
-            sed -i '1i > ⚠️ 预发布版本，不覆盖 \`latest\` 镜像。\n' release_notes.md
-          fi
-
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.target.outputs.tag }}
           name: ${{ steps.target.outputs.tag }}
           body_path: release_notes.md
-          prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
+          prerelease: false
           draft: false
