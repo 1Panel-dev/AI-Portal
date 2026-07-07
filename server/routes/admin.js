@@ -1060,6 +1060,27 @@ function isRemoteRecordNotFound(message) {
       || msg.includes('not found');
 }
 
+// 获取用户 ID → 中文名映射（供大屏等场景使用）
+router.get('/api/admin/portal-users/map', verifyAdmin, async (req, res) => {
+  try {
+    const result = await global.pool.query(
+      `SELECT id, panel_user_id, COALESCE(NULLIF(display_name, ''), name) AS display_name
+       FROM portal_users
+       WHERE status = 'active'
+       ORDER BY id`
+    );
+    const map = {};
+    for (const row of result.rows) {
+      map[row.id] = row.display_name;
+      if (row.panel_user_id) map[`panel_${row.panel_user_id}`] = row.display_name;
+    }
+    res.json(map);
+  } catch (err) {
+    console.error('获取用户中文名映射失败:', err);
+    res.status(500).json({ error: '获取用户中文名映射失败' });
+  }
+});
+
 // 分页查询本地门户用户
 router.get('/api/admin/portal-users', verifyAdmin, async (req, res) => {
   try {
@@ -1250,8 +1271,8 @@ router.post('/api/admin/portal-users/sync', verifyAdmin, async (req, res) => {
         //   - panel_host 与当前不同（切实例后被禁用的旧用户）→ 重新绑定到新实例 + 重新启用
         if (pu.id && (!local.panel_user_id || (local.panel_host && local.panel_host !== currentHost))) {
           await global.pool.query(
-            'UPDATE portal_users SET panel_user_id = $1, panel_host = $3, status = \'active\' WHERE id = $2',
-            [pu.id, local.id, currentHost]
+            'UPDATE portal_users SET panel_user_id = $1, display_name = $4, panel_host = $3, status = \'active\' WHERE id = $2',
+            [pu.id, local.id, currentHost, pu.displayName || local.display_name || null]
           );
           localByUsername.set(name, { ...local, panel_user_id: pu.id, panel_host: currentHost, status: 'active' });
           bound++;
@@ -1265,10 +1286,10 @@ router.post('/api/admin/portal-users/sync', verifyAdmin, async (req, res) => {
         const passwordHash = await bcrypt.hash(DEFAULT_PWD, 12);
         try {
           await global.pool.query(`
-            INSERT INTO portal_users (panel_user_id, username, name, password_hash, role, status, panel_host, created_at)
-            VALUES ($1, $2, $3, $4, 'user', 'active', $5, CURRENT_TIMESTAMP)
+            INSERT INTO portal_users (panel_user_id, username, name, display_name, password_hash, role, status, panel_host, created_at)
+            VALUES ($1, $2, $3, $4, $5, 'user', 'active', $6, CURRENT_TIMESTAMP)
             ON CONFLICT (username) DO NOTHING
-          `, [pu.id, name, pu.name, passwordHash, currentHost]);
+          `, [pu.id, name, pu.name, pu.displayName || null, passwordHash, currentHost]);
           synced++;
         } catch (e) {
           console.error(`同步用户 ${pu.name} 失败:`, e.message);
@@ -1780,10 +1801,10 @@ router.post('/api/admin/portal-users', verifyAdmin, async (req, res) => {
 
     const passwordHash = await bcrypt.hash(rawPassword, 12);
     const result = await global.pool.query(`
-      INSERT INTO portal_users (panel_user_id, username, name, password_hash, session_timeout, status, role)
-      VALUES ($1, $2, $3, $4, $5, 'active', $6)
+      INSERT INTO portal_users (panel_user_id, username, name, display_name, password_hash, session_timeout, status, role)
+      VALUES ($1, $2, $3, $4, $5, $6, 'active', $7)
       RETURNING id, panel_user_id, username, name, role, status, last_login_at, created_at
-    `, [panelUserId, rawUsername, rawName, passwordHash, sessionTimeout, rawRole]);
+    `, [panelUserId, rawUsername, rawName, rawName, passwordHash, sessionTimeout, rawRole]);
 
     const user = result.rows[0];
     res.json({
