@@ -3,7 +3,10 @@
     <NavBar />
 
     <!-- Hero -->
-    <section class="pt-[124px] pb-12 text-center max-w-[720px] mx-auto animate-fade-up">
+    <section
+      class="pb-12 text-center max-w-[720px] mx-auto animate-fade-up"
+      :class="hasVisibleBanner ? 'pt-[248px]' : 'pt-[208px]'"
+    >
       <h1 class="text-[52px] font-bold text-text tracking-[-1.6px] leading-[1.05] mb-3 max-md:text-[40px] max-sm:text-[32px]">
         查找可用的 MCP 服务
       </h1>
@@ -83,12 +86,14 @@ import NavBar from '../components/NavBar.vue'
 import McpGrid from '../components/McpGrid.vue'
 import LoadMore from '../components/LoadMore.vue'
 import McpDetailModal from '../components/McpDetailModal.vue'
+import { bannerEnabled, bannerHtml, bannerVisible } from '../composables/useAnnouncement.js'
 
 const {
   servers, loading, error, searchQuery, total, hasMore, loadMore, loadServers,
 } = useMcpServers()
 
 const selectedServer = ref(null)
+const hasVisibleBanner = computed(() => bannerEnabled.value && bannerVisible.value && !!bannerHtml.value)
 
 const openDetail = (server) => { selectedServer.value = server }
 
