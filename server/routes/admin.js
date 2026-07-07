@@ -1097,9 +1097,8 @@ router.get('/api/admin/portal-users/map', verifyAdmin, async (req, res) => {
 router.get('/api/admin/usage-statistics', verifyAdmin, async (req, res) => {
   try {
     const { days } = req.query;
-    const path = '/api/v2/core/enterprise/ai-proxy/usage/statistics';
-    const body = days ? { days: parseInt(days, 10) } : {};
-    const response = await panel.post(path, body);
+    // 1Panel usage/statistics 传空 body 返回全量数据，前端按 days 自行截取
+    const response = await panel.post('/api/v2/core/enterprise/ai-proxy/usage/statistics', {});
 
     if (response.status < 200 || response.status >= 300) {
       return res.status(response.status).json({

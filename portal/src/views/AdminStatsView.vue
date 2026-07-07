@@ -188,7 +188,11 @@ const distTabs = [
 ]
 
 const summary = computed(() => data.value?.summary || {})
-const trends = computed(() => data.value?.trends || [])
+const trends = computed(() => {
+  const all = data.value?.trends || []
+  if (!selectedDays.value) return all
+  return all.slice(-selectedDays.value)
+})
 const providers = computed(() => (data.value?.providers || []).filter(p => p.name && p.name.trim()))
 const models = computed(() => (data.value?.models || []).filter(m => m.name && m.name.trim()).sort((a, b) => (b.requestCount || 0) - (a.requestCount || 0)))
 
