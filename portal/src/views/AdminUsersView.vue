@@ -200,12 +200,16 @@ const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.v
 const pageNumbers = computed(() => {
   const tp = totalPages.value
   const p = page.value
-  if (tp <= 7) return Array.from({ length: tp }, (_, i) => i + 1)
-  const out = [1]
-  if (p > 3) out.push('...')
-  for (let i = Math.max(2, p - 1); i <= Math.min(tp - 1, p + 1); i++) out.push(i)
-  if (p < tp - 2) out.push('...')
-  out.push(tp)
+  if (tp <= 5) return Array.from({ length: tp }, (_, i) => i + 1)
+  let start = Math.max(1, p - 2)
+  let end = Math.min(tp, start + 4)
+  start = Math.max(1, end - 4)
+  const out = []
+  if (start > 1) out.push(1)
+  if (start > 2) out.push('...')
+  for (let i = start; i <= end; i++) out.push(i)
+  if (end < tp - 1) out.push('...')
+  if (end < tp) out.push(tp)
   return out
 })
 const getToken = () => localStorage.getItem('admin_token')
