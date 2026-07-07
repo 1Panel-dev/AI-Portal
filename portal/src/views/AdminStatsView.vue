@@ -169,7 +169,7 @@ const router = useRouter()
 
 const loading = ref(true)
 const data = ref(null)
-const selectedDays = ref(null)
+const selectedDays = ref(30)
 const selectedUser = ref('')
 const distTab = ref('provider')
 const users = ref([])

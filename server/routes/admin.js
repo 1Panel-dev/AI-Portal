@@ -1117,7 +1117,8 @@ router.get('/api/admin/usage-statistics', verifyAdmin, async (req, res) => {
       });
     }
 
-    res.json(response.data);
+    const payload = getPanelPayload(response.data);
+    res.json(payload);
   } catch (err) {
     console.error('获取使用统计失败:', err);
     if (err.message.includes('ECONNREFUSED') || err.message.includes('ETIMEDOUT')) {
