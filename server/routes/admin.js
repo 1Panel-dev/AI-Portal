@@ -1093,6 +1093,40 @@ router.get('/api/admin/portal-users/map', verifyAdmin, async (req, res) => {
   }
 });
 
+// 获取 1Panel AI 使用统计数据（代理透传）
+router.get('/api/admin/usage-statistics', verifyAdmin, async (req, res) => {
+  try {
+    const { days } = req.query;
+    const path = '/api/v2/core/enterprise/ai-proxy/usage/statistics';
+    const body = days ? { days: parseInt(days, 10) } : {};
+    const response = await panel.post(path, body);
+
+    if (response.status < 200 || response.status >= 300) {
+      return res.status(response.status).json({
+        error: '获取统计数据失败',
+        reason: `1Panel HTTP ${response.status}`
+      });
+    }
+
+    const biz = inspectPanelBiz(response);
+    if (!biz.ok) {
+      return res.status(502).json({
+        error: '1Panel 业务错误',
+        reason: biz.message,
+        code: biz.code
+      });
+    }
+
+    res.json(response.data);
+  } catch (err) {
+    console.error('获取使用统计失败:', err);
+    if (err.message.includes('ECONNREFUSED') || err.message.includes('ETIMEDOUT')) {
+      return res.status(502).json({ error: '1Panel 不可达', reason: err.message, code: 'PANEL_UNREACHABLE' });
+    }
+    res.status(500).json({ error: '获取使用统计失败', reason: err.message });
+  }
+});
+
 // 分页查询本地门户用户
 router.get('/api/admin/portal-users', verifyAdmin, async (req, res) => {
   try {

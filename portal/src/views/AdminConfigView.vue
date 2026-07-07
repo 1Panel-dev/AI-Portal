@@ -27,6 +27,13 @@
           用户管理
         </button>
         <button
+          @click="$router.push('/admin/stats')"
+          class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
+          :class="$route.path === '/admin/stats' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+        >
+          数据统计
+        </button>
+        <button
           @click="$router.push('/admin/config')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
           :class="$route.path === '/admin/config' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"

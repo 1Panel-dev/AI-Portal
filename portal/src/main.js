@@ -29,6 +29,7 @@ const routes = [
   { path: '/admin/users', component: () => import('./views/AdminUsersView.vue'), meta: { requiresAuth: true } },
   { path: '/admin/config', component: () => import('./views/AdminConfigView.vue'), meta: { requiresAuth: true } },
   { path: '/admin/oauth', component: () => import('./views/AdminOAuthView.vue'), meta: { requiresAuth: true } },
+  { path: '/admin/stats', component: () => import('./views/AdminStatsView.vue'), meta: { requiresAuth: true } },
 ]
 
 const router = createRouter({
