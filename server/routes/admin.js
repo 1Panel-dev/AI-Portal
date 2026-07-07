@@ -11,6 +11,11 @@ const oauthRegistry = require('../oauth');
 
 const router = express.Router();
 
+// 生成短 taskId
+function genTaskId() {
+  return 'tsk_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+}
+
 function inspectPanelBiz(panelRes) {
   const data = panelRes?.data;
   if (!data || typeof data !== 'object') return { ok: true, code: null, message: '' };
@@ -1198,177 +1203,183 @@ router.delete('/api/admin/portal-users/:id', verifyAdmin, async (req, res) => {
   }
 });
 
-// 从 1Panel 同步用户
+// 从 1Panel 同步用户（异步任务模式）
 // 切 1Panel 实例时：旧 host 的 active 用户自动禁用，新 host 的用户增量导入
 router.post('/api/admin/portal-users/sync', verifyAdmin, async (req, res) => {
+  const taskId = genTaskId();
+  // 先落一条 running 任务
+  await global.pool.query(
+    `INSERT INTO portal_sync_tasks (task_id, type, status, message) VALUES ($1, 'users', 'running', $2)`,
+    [taskId, '正在同步用户...']
+  );
+
+  // 立即返回 taskId，前端轮询 /api/admin/sync-tasks/:id
+  res.json({ taskId, status: 'running', message: '任务已提交，正在后台同步...' });
+
+  // 后台执行，不阻塞响应
+  runUserSyncTask(taskId).catch(err => {
+    console.error(`[sync-users:${taskId}] 后台同步异常:`, err.message);
+  });
+});
+
+// 后台执行用户同步
+async function runUserSyncTask(taskId) {
+  const startTime = Date.now();
   try {
-    // 0. 当前 1Panel 实例标识(用 base_url 区分不同实例)
-    const rawCfg = panel.getRawConfig();
-    const currentHost = (rawCfg && rawCfg.baseUrl) || '';
-
-    // 存量升级：已有 panel_user_id 但 panel_host 为空的，回填为当前 host（不触发禁用）
-    if (currentHost) {
-      await global.pool.query(
-        `UPDATE portal_users SET panel_host = $1 WHERE panel_host IS NULL AND panel_user_id IS NOT NULL`,
-        [currentHost]
-      );
-
-      // 切实例检测：panel_host 非空且与当前 host 不同的 active 用户 → 禁用
-      // 用 RETURNING id 拿到本次刚禁用的用户集合，只清这批的 Key，
-      // 避免误删之前因其他原因被禁用的跨 host 用户的 Key
-      const disableResult = await global.pool.query(
-        `UPDATE portal_users SET status = 'disabled'
-         WHERE panel_host IS NOT NULL
-           AND panel_host IS DISTINCT FROM $1
-           AND status = 'active'
-         RETURNING id`,
-        [currentHost]
-      );
-      if (disableResult.rows.length > 0) {
-        const justDisabledIds = disableResult.rows.map(r => r.id);
-        console.log(`[sync-users] 检测到 1Panel 实例切换，禁用 ${justDisabledIds.length} 个旧用户`);
-        await global.pool.query(
-          `DELETE FROM portal_api_keys WHERE user_id = ANY($1::int[])`,
-          [justDisabledIds]
-        );
-      }
-    }
-
-    // 1. 查询 1Panel 全量用户
-    const response = await panel.post('/api/v2/core/enterprise/users/search', {
-      page: 1, pageSize: 200, info: '',
-    });
-
-    if (response.status < 200 || response.status >= 300) {
-      return res.status(502).json({ error: '1Panel 用户查询失败' });
-    }
-
-    const biz = inspectPanelBiz(response);
-    if (!biz.ok) {
-      return res.status(502).json({ error: '1Panel 业务错误', reason: biz.message });
-    }
-
-    const panelUsers = getPanelItems(response.data);
-
-    // 2. 查询所有本地用户（含没有 panel_user_id 的 OAuth 用户）
-    const localUsers = await global.pool.query(
-      'SELECT id, username, panel_user_id, panel_host FROM portal_users'
+    const result = await doSyncUsers();
+    const elapsed = Date.now() - startTime;
+    await global.pool.query(
+      `UPDATE portal_sync_tasks SET status = 'done', message = $2, result = $3, updated_at = CURRENT_TIMESTAMP WHERE task_id = $1`,
+      [taskId, `同步完成，耗时 ${elapsed}ms`, result]
     );
-    // 精确匹配，区分大小写（zhangsan 和 ZhanSan 可能是两个人）
-    const localByUsername = new Map();
-    const localPanelIds = new Set();
-    for (const row of localUsers.rows) {
-      localByUsername.set(row.username, row);
-      if (row.panel_user_id) localPanelIds.add(row.panel_user_id);
-    }
-
-    // 3. 遍历 1Panel 用户，补全或新增
-    let synced = 0;
-    let bound = 0;
-
-    for (const pu of panelUsers) {
-      // 精确匹配，区分大小写
-      const name = String(pu.name || '').trim();
-      if (!name) continue;
-      const local = localByUsername.get(name);
-
-      if (local) {
-        // 本地已有同名用户：
-        //   - 缺 panel_user_id → 补全绑定
-        //   - panel_host 与当前不同（切实例后被禁用的旧用户）→ 重新绑定到新实例 + 重新启用
-        if (pu.id && (!local.panel_user_id || (local.panel_host && local.panel_host !== currentHost))) {
-          await global.pool.query(
-            'UPDATE portal_users SET panel_user_id = $1, display_name = $4, panel_host = $3, status = \'active\' WHERE id = $2',
-            [pu.id, local.id, currentHost, extractDisplayName(pu) || local.display_name || null]
-          );
-          localByUsername.set(name, { ...local, panel_user_id: pu.id, panel_host: currentHost, status: 'active' });
-          bound++;
-        }
-        continue;
-      }
-
-      // 确实是新用户 → 插入
-      if (!localPanelIds.has(pu.id)) {
-        const DEFAULT_PWD = process.env.SYNC_USER_DEFAULT_PASSWORD || '';
-        const passwordHash = await bcrypt.hash(DEFAULT_PWD, 12);
-        try {
-          await global.pool.query(`
-            INSERT INTO portal_users (panel_user_id, username, name, display_name, password_hash, role, status, panel_host, created_at)
-            VALUES ($1, $2, $3, $4, $5, 'user', 'active', $6, CURRENT_TIMESTAMP)
-            ON CONFLICT (username) DO NOTHING
-          `, [pu.id, name, pu.name, extractDisplayName(pu), passwordHash, currentHost]);
-          synced++;
-        } catch (e) {
-          console.error(`同步用户 ${pu.name} 失败:`, e.message);
-        }
-      }
-    }
-
-    // 4. 同步 API Key：为已关联 1Panel 但本地无 key 的用户拉取 1Panel 上的 Key
-    let keysSynced = 0;
-    try {
-      // 一次翻页拿全 1Panel 所有 API Key，避免逐用户 N+1 查询
-      const allPanelKeys = [];
-      let kPage = 1;
-      const KEY_PAGE_SIZE = 100;
-      while (kPage < 50) {
-        const keyRes = await panel.post('/api/v2/core/enterprise/ai-proxy/api-keys/search', {
-          page: kPage, pageSize: KEY_PAGE_SIZE, info: '',
-        });
-        // 1Panel 业务失败（HTTP 200 + body.code>=400）要识别，否则空响应会导致 keysSynced=0 却报成功
-        const keyBiz = inspectPanelBiz(keyRes);
-        if (keyRes.status < 200 || keyRes.status >= 300 || !keyBiz.ok) {
-          if (!keyBiz.ok) console.error('[sync-users] 1Panel api-keys/search 业务失败:', keyBiz.message);
-          break;
-        }
-        const items = getPanelItems(keyRes.data);
-        allPanelKeys.push(...items);
-        if (items.length < KEY_PAGE_SIZE) break;
-        kPage++;
-      }
-
-      // 按 panelUserId 建索引（一人一 Key）
-      const keyByPanelUser = new Map();
-      for (const k of allPanelKeys) {
-        if (k.userId && !keyByPanelUser.has(k.userId)) {
-          keyByPanelUser.set(k.userId, k);
-        }
-      }
-
-      // 找出已关联 1Panel 但本地无 key 的用户
-      const needingKeys = await global.pool.query(`
-        SELECT pu.id, pu.panel_user_id
-        FROM portal_users pu
-        LEFT JOIN portal_api_keys pak ON pak.user_id = pu.id
-        WHERE pu.panel_user_id IS NOT NULL
-          AND pak.id IS NULL
-      `);
-
-      for (const user of needingKeys.rows) {
-        const panelKey = keyByPanelUser.get(user.panel_user_id);
-        if (!panelKey) continue;
-
-        try {
-          // sync 阶段只存 mask + 元数据，不做 reveal（避免 N 次 HTTP 调用拖死同步）
-          // 明文由用户访问 Key 页面时 GET /api/keys 按需 reveal
-          await global.pool.query(`
-            INSERT INTO portal_api_keys (user_id, panel_key_id, panel_user_id, api_key_mask, api_key_cipher, group_id, status, remark, token_limit, raw_data, synced_at)
-            VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
-          `, [user.id, panelKey.id, user.panel_user_id, panelKey.apiKeyMask || '', panelKey.groupId || 1, panelKey.status || 'Enable', panelKey.remark || '', panelKey.tokenLimit || 0, panelKey]);
-
-          keysSynced++;
-        } catch (e) {
-          console.error(`[sync-users] 同步用户 ${user.id} API Key 失败:`, e.message);
-        }
-      }
-    } catch (e) {
-      console.error('[sync-users] 批量同步 API Key 失败:', e.message);
-    }
-
-    res.json({ success: true, synced, bound, keysSynced, message: `同步完成，新增 ${synced} 个，补全绑定 ${bound} 个，同步 Key ${keysSynced} 个` });
   } catch (err) {
-    console.error('同步用户失败:', err);
-    res.status(500).json({ error: '同步用户失败: ' + err.message });
+    await global.pool.query(
+      `UPDATE portal_sync_tasks SET status = 'error', message = $2, updated_at = CURRENT_TIMESTAMP WHERE task_id = $1`,
+      [taskId, err.message]
+    );
+  }
+}
+
+// 核心同步逻辑（提取为独立函数，前后台共用）
+async function doSyncUsers() {
+  const currentHost = (panel.getRawConfig() && panel.getRawConfig().baseUrl) || '';
+
+  if (currentHost) {
+    await global.pool.query(
+      `UPDATE portal_users SET panel_host = $1 WHERE panel_host IS NULL AND panel_user_id IS NOT NULL`,
+      [currentHost]
+    );
+    const disableResult = await global.pool.query(
+      `UPDATE portal_users SET status = 'disabled'
+       WHERE panel_host IS NOT NULL
+         AND panel_host IS DISTINCT FROM $1
+         AND status = 'active'
+       RETURNING id`,
+      [currentHost]
+    );
+    if (disableResult.rows.length > 0) {
+      const ids = disableResult.rows.map(r => r.id);
+      await global.pool.query(`DELETE FROM portal_api_keys WHERE user_id = ANY($1::int[])`, [ids]);
+    }
+  }
+
+  const response = await panel.post('/api/v2/core/enterprise/users/search', {
+    page: 1, pageSize: 200, info: '',
+  });
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error('1Panel 用户查询失败');
+  }
+  const biz = inspectPanelBiz(response);
+  if (!biz.ok) {
+    throw new Error('1Panel 业务错误: ' + biz.message);
+  }
+  const panelUsers = getPanelItems(response.data);
+
+  const localUsers = await global.pool.query(
+    'SELECT id, username, panel_user_id, panel_host FROM portal_users'
+  );
+  const localByUsername = new Map();
+  const localPanelIds = new Set();
+  for (const row of localUsers.rows) {
+    localByUsername.set(row.username, row);
+    if (row.panel_user_id) localPanelIds.add(row.panel_user_id);
+  }
+
+  let synced = 0, bound = 0;
+  for (const pu of panelUsers) {
+    const name = String(pu.name || '').trim();
+    if (!name) continue;
+    const local = localByUsername.get(name);
+
+    if (local) {
+      if (pu.id && (!local.panel_user_id || (local.panel_host && local.panel_host !== currentHost))) {
+        await global.pool.query(
+          'UPDATE portal_users SET panel_user_id = $1, display_name = $4, panel_host = $3, status = \'active\' WHERE id = $2',
+          [pu.id, local.id, currentHost, extractDisplayName(pu) || local.display_name || null]
+        );
+        localByUsername.set(name, { ...local, panel_user_id: pu.id, panel_host: currentHost, status: 'active' });
+        bound++;
+      }
+      continue;
+    }
+
+    if (!localPanelIds.has(pu.id)) {
+      const DEFAULT_PWD = process.env.SYNC_USER_DEFAULT_PASSWORD || '';
+      const passwordHash = await bcrypt.hash(DEFAULT_PWD, 12);
+      try {
+        await global.pool.query(`
+          INSERT INTO portal_users (panel_user_id, username, name, display_name, password_hash, role, status, panel_host, created_at)
+          VALUES ($1, $2, $3, $4, $5, 'user', 'active', $6, CURRENT_TIMESTAMP)
+          ON CONFLICT (username) DO NOTHING
+        `, [pu.id, name, pu.name, extractDisplayName(pu), passwordHash, currentHost]);
+        synced++;
+      } catch (e) {
+        console.error(`同步用户 ${pu.name} 失败:`, e.message);
+      }
+    }
+  }
+
+  // 同步 API Key
+  let keysSynced = 0;
+  try {
+    const allPanelKeys = [];
+    let kPage = 1;
+    const KEY_PAGE_SIZE = 100;
+    while (kPage < 50) {
+      const keyRes = await panel.post('/api/v2/core/enterprise/ai-proxy/api-keys/search', {
+        page: kPage, pageSize: KEY_PAGE_SIZE, info: '',
+      });
+      const keyBiz = inspectPanelBiz(keyRes);
+      if (keyRes.status < 200 || keyRes.status >= 300 || !keyBiz.ok) break;
+      const items = getPanelItems(keyRes.data);
+      allPanelKeys.push(...items);
+      if (items.length < KEY_PAGE_SIZE) break;
+      kPage++;
+    }
+    const keyByPanelUser = new Map();
+    for (const k of allPanelKeys) {
+      if (k.userId && !keyByPanelUser.has(k.userId)) keyByPanelUser.set(k.userId, k);
+    }
+    const needingKeys = await global.pool.query(`
+      SELECT pu.id, pu.panel_user_id FROM portal_users pu
+      LEFT JOIN portal_api_keys pak ON pak.user_id = pu.id
+      WHERE pu.panel_user_id IS NOT NULL AND pak.id IS NULL
+    `);
+    for (const user of needingKeys.rows) {
+      const panelKey = keyByPanelUser.get(user.panel_user_id);
+      if (!panelKey) continue;
+      try {
+        await global.pool.query(`
+          INSERT INTO portal_api_keys (user_id, panel_key_id, panel_user_id, api_key_mask, api_key_cipher, group_id, status, remark, token_limit, raw_data, synced_at)
+          VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
+        `, [user.id, panelKey.id, user.panel_user_id, panelKey.apiKeyMask || '', panelKey.groupId || 1, panelKey.status || 'Enable', panelKey.remark || '', panelKey.tokenLimit || 0, panelKey]);
+        keysSynced++;
+      } catch (e) {
+        console.error(`[sync-users] 同步用户 ${user.id} API Key 失败:`, e.message);
+      }
+    }
+  } catch (e) {
+    console.error('[sync-users] 批量同步 API Key 失败:', e.message);
+  }
+
+  return { synced, bound, keysSynced, message: `同步完成，新增 ${synced} 个，补全绑定 ${bound} 个，同步 Key ${keysSynced} 个` };
+}
+
+// 查询同步任务状态
+router.get('/api/admin/sync-tasks/:taskId', verifyAdmin, async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const result = await global.pool.query(
+      'SELECT task_id, type, status, message, result, created_at, updated_at FROM portal_sync_tasks WHERE task_id = $1',
+      [taskId]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: '任务不存在' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('查询同步任务失败:', err);
+    res.status(500).json({ error: '查询同步任务失败' });
   }
 });
 

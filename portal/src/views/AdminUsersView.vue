@@ -258,18 +258,50 @@ const deleteUser = async () => {
   }
 }
 const syncUsers = async () => {
+  if (syncing.value) return
   syncing.value = true
   try {
     const res = await fetch(`${API_BASE}/admin/portal-users/sync`, { method: 'POST', headers: { Authorization: `Bearer ${getToken()}` } })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || data.reason || '同步失败')
-    showToast(data.message || `同步完成，新增 ${data.synced || 0} 个用户`, 'success')
-    await fetchUsers(1)
+    const taskId = data.taskId
+    if (!taskId) {
+      // 降级：旧接口直接返回结果
+      showToast(data.message || '同步完成', 'success')
+      await fetchUsers(1)
+      return
+    }
+    showToast('任务已提交，正在后台同步...', 'success')
+    // 轮询任务状态
+    await pollSyncTask(taskId)
   } catch (err) {
     showToast(err.message || '同步失败', 'error')
   } finally {
     syncing.value = false
   }
+}
+
+const pollSyncTask = async (taskId) => {
+  const maxAttempts = 180 // 最多 3 分钟（1s/次）
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, 1000))
+    try {
+      const r = await fetch(`${API_BASE}/admin/sync-tasks/${taskId}`, { headers: { Authorization: `Bearer ${getToken()}` } })
+      if (!r.ok) continue
+      const task = await r.json()
+      if (task.status === 'done') {
+        const result = typeof task.result === 'object' ? task.result : {}
+        showToast(result.message || '同步完成', 'success')
+        await fetchUsers(1)
+        return
+      }
+      if (task.status === 'error') {
+        showToast(task.message || '同步失败', 'error')
+        return
+      }
+    } catch (e) { /* 网络抖动，继续轮询 */ }
+  }
+  showToast('同步超时，请刷新页面查看最新数据', 'error')
 }
 
 const refreshUsers = () => fetchUsers(page.value)
