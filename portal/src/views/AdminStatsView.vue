@@ -151,27 +151,58 @@
 
           <!-- 红黑榜 -->
           <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4">
-            <div class="text-sm font-semibold text-text mb-3">🏆 用户排行</div>
+            <div class="text-sm font-semibold text-text mb-3">🔥 红榜 Top 10</div>
             <div v-if="selectedUser" class="text-xs text-accent mb-2">当前用户：{{ selectedUserName }}</div>
             <div class="space-y-1.5">
-              <div v-for="(u, i) in topUsers" :key="u.userId" class="flex items-center gap-2 py-1 border-b border-[rgba(0,0,0,0.03)] last:border-0" :class="{ 'bg-accent/5 -mx-2 px-2 rounded': selectedUser && u.userId === selectedUser }">
-                <span class="text-xs font-bold w-4 text-center" :class="i < 3 ? 'text-accent' : 'text-text-tertiary'">{{ i + 1 }}</span>
+              <div v-for="(u, i) in topUsers" :key="u.userId" class="relative flex items-center gap-2 py-1.5 border-b border-[rgba(0,0,0,0.03)] last:border-0 cursor-default group" :class="{ 'bg-accent/5 -mx-2 px-2 rounded': selectedUser && u.userId === selectedUser }">
+                <span class="text-xs font-bold w-5 text-center" :class="i < 3 ? 'text-accent' : 'text-text-tertiary'">{{ i + 1 }}</span>
                 <span class="text-xs text-text flex-1 truncate">{{ u.display_name || u.name }}</span>
                 <div class="w-16 h-1.5 bg-surface-secondary rounded overflow-hidden">
                   <div class="h-full bg-accent rounded" :style="{ width: pct(u.totalTokens, topUsers[0]?.totalTokens || 1) + '%' }"></div>
                 </div>
                 <span class="text-xs text-text-tertiary w-14 text-right">{{ fmtTokens(u.totalTokens) }}</span>
+                <!-- Hover tooltip -->
+                <div class="absolute right-0 top-full mt-1 hidden group-hover:block z-20">
+                  <div class="bg-slate-800 text-white text-xs rounded-lg px-3 py-2 shadow-lg whitespace-nowrap pointer-events-none">
+                    <div class="font-semibold mb-1">{{ u.display_name || u.name }}</div>
+                    <div class="space-y-0.5">
+                      <div class="flex justify-between gap-4"><span>请求数</span><span class="text-slate-300">{{ u.requestCount?.toLocaleString() }}</span></div>
+                      <div class="flex justify-between gap-4"><span>输入</span><span class="text-slate-300">{{ fmtTokens(u.promptTokens) }}</span></div>
+                      <div class="flex justify-between gap-4"><span>输出</span><span class="text-slate-300">{{ fmtTokens(u.completionTokens) }}</span></div>
+                      <div class="flex justify-between gap-4"><span>缓存</span><span class="text-slate-300">{{ fmtTokens(u.cachedTokens) }}</span></div>
+                      <div class="border-t border-slate-600 mt-1 pt-1 flex justify-between gap-4 font-semibold"><span>总量</span><span>{{ fmtTokens(u.totalTokens) }}</span></div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-            <div class="text-sm font-semibold text-text mt-4 mb-2">📉 Bottom 10</div>
+          </div>
+
+          <!-- 黑榜 -->
+          <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4">
+            <div class="text-sm font-semibold text-text mb-3">📉 黑榜 Bottom 10</div>
+            <div v-if="selectedUser" class="text-xs text-accent mb-2">当前用户：{{ selectedUserName }}</div>
             <div class="space-y-1.5">
-              <div v-for="(u, i) in bottomUsers" :key="u.userId" class="flex items-center gap-2 py-1 border-b border-[rgba(0,0,0,0.03)] last:border-0" :class="{ 'bg-accent/5 -mx-2 px-2 rounded': selectedUser && u.userId === selectedUser }">
-                <span class="text-xs font-bold w-4 text-center text-text-tertiary">{{ i + 1 }}</span>
+              <div v-for="(u, i) in bottomUsers" :key="u.userId" class="relative flex items-center gap-2 py-1.5 border-b border-[rgba(0,0,0,0.03)] last:border-0 cursor-default group" :class="{ 'bg-accent/5 -mx-2 px-2 rounded': selectedUser && u.userId === selectedUser }">
+                <span class="text-xs font-bold w-5 text-center text-text-tertiary">{{ i + 1 }}</span>
                 <span class="text-xs text-text flex-1 truncate">{{ u.display_name || u.name }}</span>
                 <div class="w-16 h-1.5 bg-surface-secondary rounded overflow-hidden">
                   <div class="h-full bg-slate-300 rounded" :style="{ width: pct(u.totalTokens, bottomUsers[0]?.totalTokens || 1) + '%' }"></div>
                 </div>
                 <span class="text-xs text-text-tertiary w-14 text-right">{{ fmtTokens(u.totalTokens) }}</span>
+                <!-- Hover tooltip -->
+                <div class="absolute right-0 top-full mt-1 hidden group-hover:block z-20">
+                  <div class="bg-slate-800 text-white text-xs rounded-lg px-3 py-2 shadow-lg whitespace-nowrap pointer-events-none">
+                    <div class="font-semibold mb-1">{{ u.display_name || u.name }}</div>
+                    <div class="space-y-0.5">
+                      <div class="flex justify-between gap-4"><span>请求数</span><span class="text-slate-300">{{ u.requestCount?.toLocaleString() }}</span></div>
+                      <div class="flex justify-between gap-4"><span>输入</span><span class="text-slate-300">{{ fmtTokens(u.promptTokens) }}</span></div>
+                      <div class="flex justify-between gap-4"><span>输出</span><span class="text-slate-300">{{ fmtTokens(u.completionTokens) }}</span></div>
+                      <div class="flex justify-between gap-4"><span>缓存</span><span class="text-slate-300">{{ fmtTokens(u.cachedTokens) }}</span></div>
+                      <div class="border-t border-slate-600 mt-1 pt-1 flex justify-between gap-4 font-semibold"><span>总量</span><span>{{ fmtTokens(u.totalTokens) }}</span></div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
