@@ -1060,7 +1060,14 @@ function isRemoteRecordNotFound(message) {
       || msg.includes('not found');
 }
 
-// 获取用户 ID → 中文名映射（供大屏等场景使用）
+// 从 1Panel user 对象提取中文名：description 格式为 "通过AI网关创建：张三"
+function extractDisplayName(pu) {
+  const desc = String(pu.description || '').trim();
+  const prefix = '通过AI网关创建：';
+  if (desc.startsWith(prefix)) return desc.slice(prefix.length).trim();
+  if (desc.length > 0) return desc;
+  return null;
+}
 router.get('/api/admin/portal-users/map', verifyAdmin, async (req, res) => {
   try {
     const result = await global.pool.query(
@@ -1272,7 +1279,7 @@ router.post('/api/admin/portal-users/sync', verifyAdmin, async (req, res) => {
         if (pu.id && (!local.panel_user_id || (local.panel_host && local.panel_host !== currentHost))) {
           await global.pool.query(
             'UPDATE portal_users SET panel_user_id = $1, display_name = $4, panel_host = $3, status = \'active\' WHERE id = $2',
-            [pu.id, local.id, currentHost, pu.displayName || local.display_name || null]
+            [pu.id, local.id, currentHost, extractDisplayName(pu) || local.display_name || null]
           );
           localByUsername.set(name, { ...local, panel_user_id: pu.id, panel_host: currentHost, status: 'active' });
           bound++;
@@ -1289,7 +1296,7 @@ router.post('/api/admin/portal-users/sync', verifyAdmin, async (req, res) => {
             INSERT INTO portal_users (panel_user_id, username, name, display_name, password_hash, role, status, panel_host, created_at)
             VALUES ($1, $2, $3, $4, $5, 'user', 'active', $6, CURRENT_TIMESTAMP)
             ON CONFLICT (username) DO NOTHING
-          `, [pu.id, name, pu.name, pu.displayName || null, passwordHash, currentHost]);
+          `, [pu.id, name, pu.name, extractDisplayName(pu), passwordHash, currentHost]);
           synced++;
         } catch (e) {
           console.error(`同步用户 ${pu.name} 失败:`, e.message);
