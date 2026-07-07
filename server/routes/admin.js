@@ -1096,9 +1096,10 @@ router.get('/api/admin/portal-users/map', verifyAdmin, async (req, res) => {
 // 获取 1Panel AI 使用统计数据（代理透传）
 router.get('/api/admin/usage-statistics', verifyAdmin, async (req, res) => {
   try {
-    const { days } = req.query;
-    // 1Panel usage/statistics 传空 body 返回全量数据，前端按 days 自行截取
-    const response = await panel.post('/api/v2/core/enterprise/ai-proxy/usage/statistics', {});
+    const { days, userId } = req.query;
+    // 1Panel usage/statistics 支持 userId 参数做服务端筛选
+    const body = userId ? { info: '', userId: parseInt(userId, 10), provider: '', model: '' } : {};
+    const response = await panel.post('/api/v2/core/enterprise/ai-proxy/usage/statistics', body);
 
     if (response.status < 200 || response.status >= 300) {
       return res.status(response.status).json({

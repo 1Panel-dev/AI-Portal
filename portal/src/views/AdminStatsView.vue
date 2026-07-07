@@ -268,6 +268,7 @@ async function fetchStats() {
   try {
     const params = new URLSearchParams()
     if (selectedDays.value) params.set('days', String(selectedDays.value))
+    if (selectedUser.value) params.set('userId', String(selectedUser.value))
     const [statsRes, usersRes] = await Promise.all([
       fetch(`${API_BASE}/admin/usage-statistics?${params}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
       fetch(`${API_BASE}/admin/portal-users/map`, { headers: { Authorization: `Bearer ${getToken()}` } }),
