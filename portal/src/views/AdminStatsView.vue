@@ -236,10 +236,6 @@ const selectedUserName = computed(() => {
 
 const rankedUsers = computed(() => {
   const list = data.value?.users || []
-  if (selectedUser.value) {
-    const uid = selectedUser.value
-    return list.filter(u => u.userId === uid)
-  }
   return list
 })
 const topUsers = computed(() => rankedUsers.value.slice(0, 10))
