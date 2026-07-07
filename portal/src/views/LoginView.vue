@@ -206,7 +206,7 @@ const login = async () => {
 
     // 根据角色跳转到不同页面
     if (data.user.role === 'admin') {
-      router.push('/admin')
+      router.push('/admin/stats')
     } else {
       router.push('/profile')
     }

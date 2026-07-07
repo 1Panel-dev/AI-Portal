@@ -78,7 +78,7 @@ const login = async () => {
 
     // 保存 token
     localStorage.setItem('admin_token', data.token)
-    router.push('/admin')
+    router.push('/admin/stats')
   } catch (err) {
     error.value = err.message
   } finally {

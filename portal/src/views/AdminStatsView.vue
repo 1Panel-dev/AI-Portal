@@ -41,13 +41,16 @@
           <span class="text-xs text-text-secondary">时间</span>
           <button v-for="r in timeRanges" :key="r.value" @click="selectedDays = r.value" class="px-3 py-1 text-xs rounded-md border transition-all" :class="selectedDays === r.value ? 'bg-accent text-white border-accent' : 'border-[rgba(0,0,0,0.08)] hover:border-accent text-text-secondary'">{{ r.label }}</button>
           <div class="h-5 w-px bg-[rgba(0,0,0,0.06)]"></div>
+          <span class="text-xs text-text-secondary">用户名</span>
+          <input v-model="usernameFilter" @keyup.enter="searchUser" placeholder="搜索用户名..." class="px-2 py-1 text-xs border border-[rgba(0,0,0,0.08)] rounded-md bg-white outline-none w-32 focus:border-accent" />
+          <div class="h-5 w-px bg-[rgba(0,0,0,0.06)]"></div>
           <span class="text-xs text-text-secondary">用户</span>
           <select v-model="selectedUser" class="px-2 py-1 text-xs border border-[rgba(0,0,0,0.08)] rounded-md bg-white outline-none cursor-pointer">
             <option value="">全部用户</option>
             <option v-for="u in userList" :key="u.id" :value="u.id">{{ u.display_name || u.name }}</option>
           </select>
           <div class="flex-1"></div>
-          <button v-if="selectedUser || selectedDays" @click="clearFilters" class="text-xs text-accent hover:underline">清除筛选</button>
+          <button v-if="selectedUser || selectedDays || usernameFilter" @click="clearFilters" class="text-xs text-accent hover:underline">清除筛选</button>
         </div>
 
         <!-- 统计卡片 -->
@@ -76,16 +79,28 @@
           <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4 col-span-2">
             <div class="text-sm font-semibold text-text mb-3">📈 请求 &amp; Tokens 趋势</div>
             <div class="flex items-end gap-1 h-40">
-              <div v-for="(t, i) in trends" :key="i" class="flex-1 flex flex-col items-center gap-0.5">
+              <div v-for="(t, i) in trends" :key="i" class="flex-1 flex flex-col items-center gap-0.5 relative group">
                 <div class="w-full flex gap-px items-end justify-center" style="height:120px">
                   <div class="w-1.5 bg-accent rounded-t" :style="{ height: barHeight(t.totalTokens, maxTrendToken) + 'px' }"></div>
                 </div>
                 <div class="text-[10px] text-text-tertiary truncate w-full text-center">{{ t.name.slice(5) }}</div>
+                <!-- Hover tooltip -->
+                <div class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-20">
+                  <div class="bg-slate-800 text-white text-xs rounded-lg px-3 py-2 shadow-lg whitespace-nowrap pointer-events-none">
+                    <div class="font-semibold mb-1">{{ t.name }}</div>
+                    <div class="space-y-0.5">
+                      <div class="flex justify-between gap-4"><span>输入</span><span class="text-slate-300">{{ fmtTokens(t.promptTokens) }}</span></div>
+                      <div class="flex justify-between gap-4"><span>输出</span><span class="text-slate-300">{{ fmtTokens(t.completionTokens) }}</span></div>
+                      <div class="flex justify-between gap-4"><span>缓存</span><span class="text-slate-300">{{ fmtTokens(t.cachedTokens) }}</span></div>
+                      <div class="border-t border-slate-600 mt-1 pt-1 flex justify-between gap-4 font-semibold"><span>总量</span><span>{{ fmtTokens(t.totalTokens) }}</span></div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <div class="flex items-center gap-4 mt-2 text-xs text-text-secondary">
               <span class="inline-flex items-center gap-1"><span class="w-2 h-2 bg-accent rounded-sm inline-block"></span>Total Tokens</span>
-              <span class="inline-flex items-center gap-1"><span class="w-2 h-2 bg-amber-500 rounded-sm inline-block"></span>请求数（点击图例切换）</span>
+              <span class="inline-flex items-center gap-1"><span class="w-2 h-2 bg-amber-500 rounded-sm inline-block"></span>请求数</span>
             </div>
           </div>
 
@@ -183,6 +198,7 @@ const selectedDays = ref(30)
 const selectedUser = ref('')
 const distTab = ref('provider')
 const users = ref([])
+const usernameFilter = ref('')
 
 const timeRanges = [
   { label: '7天', value: 7 },
@@ -277,6 +293,14 @@ async function fetchStats() {
 function clearFilters() {
   selectedDays.value = null
   selectedUser.value = ''
+  usernameFilter.value = ''
+}
+
+function searchUser() {
+  const kw = usernameFilter.value.trim().toLowerCase()
+  if (!kw) { selectedUser.value = ''; return }
+  const found = users.value.find(u => (u.display_name || u.name).toLowerCase().includes(kw))
+  selectedUser.value = found ? found.id : ''
 }
 
 watch([selectedDays, selectedUser], () => {
