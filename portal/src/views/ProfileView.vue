@@ -583,9 +583,17 @@ let tokenChart = null
 let reqChart = null
 
 function initTokenChart() {
-  if (!tokenChartRef.value || !filteredTrends.value.length) return
+  if (!tokenChartRef.value) return
+  // 无数据时清掉旧图表，避免残留显示
+  if (!filteredTrends.value.length) {
+    if (tokenChart) { tokenChart.dispose(); tokenChart = null }
+    return
+  }
+  const el = tokenChartRef.value
+  const existing = echarts.getInstanceByDom(el)
+  if (existing) existing.dispose()
   if (tokenChart) { tokenChart.dispose(); tokenChart = null }
-  tokenChart = echarts.init(tokenChartRef.value)
+  tokenChart = echarts.init(el)
   const dates = filteredTrends.value.map(t => t.name)
   tokenChart.setOption({
     tooltip: {
@@ -637,13 +645,21 @@ function initTokenChart() {
       { name: '输入', type: 'bar', stack: 'total', data: filteredTrends.value.map(t => t.promptTokens || 0), itemStyle: { color: '#005eeb' }, barMaxWidth: 16 },
       { name: '输出', type: 'bar', stack: 'total', data: filteredTrends.value.map(t => t.completionTokens || 0), itemStyle: { color: '#10b981' }, barMaxWidth: 16 },
     ]
-  })
+  }, { notMerge: true })
 }
 
 function initReqChart() {
-  if (!reqChartRef.value || !filteredTrends.value.length) return
+  if (!reqChartRef.value) return
+  // 无数据时清掉旧图表，避免残留显示
+  if (!filteredTrends.value.length) {
+    if (reqChart) { reqChart.dispose(); reqChart = null }
+    return
+  }
+  const el = reqChartRef.value
+  const existing = echarts.getInstanceByDom(el)
+  if (existing) existing.dispose()
   if (reqChart) { reqChart.dispose(); reqChart = null }
-  reqChart = echarts.init(reqChartRef.value)
+  reqChart = echarts.init(el)
   const dates = filteredTrends.value.map(t => t.name)
   const values = filteredTrends.value.map(t => t.requestCount || 0)
   reqChart.setOption({
@@ -685,7 +701,7 @@ function initReqChart() {
       itemStyle: { color: '#005eeb', borderRadius: [2, 2, 0, 0] },
       barMaxWidth: 16
     }]
-  })
+  }, { notMerge: true })
 }
 
 watch([filteredTrends, selectedYM], () => {
