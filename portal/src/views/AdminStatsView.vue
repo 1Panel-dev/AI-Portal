@@ -216,8 +216,7 @@ const summary = computed(() => data.value?.summary || {})
 const trends = computed(() => {
   const all = data.value?.trends || []
   if (selectedMonth.value) {
-    const prefix = selectedMonth.value + '-'
-    return all.filter(t => String(t.name || '').startsWith(prefix))
+    return all.filter(t => String(t.name || '').startsWith(selectedMonth.value))
   }
   return all
 })
