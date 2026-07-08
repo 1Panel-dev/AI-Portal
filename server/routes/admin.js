@@ -31,6 +31,10 @@ function isPanelRecordNotFound(err) {
   return String(err?.message || '').toLowerCase().includes('record not found');
 }
 
+function isNetworkError(message) {
+  return /ECONN|ETIMEDOUT|ENOTFOUND|timeout/i.test(String(message || ''));
+}
+
 function normalizeSkillText(value) {
   return String(value || '').toLowerCase().replace(/\.zip$/i, '').trim();
 }
@@ -1097,7 +1101,8 @@ router.get('/api/admin/portal-users/map', verifyAdmin, async (req, res) => {
 router.get('/api/admin/usage-statistics', verifyAdmin, async (req, res) => {
   try {
     const { days, userId } = req.query;
-    // 1Panel usage/statistics 支持 userId 参数做服务端筛选
+    // 1Panel usage/statistics 只支持 userId 服务端筛选，不支持时间过滤
+    // 月份/天数筛选一律在前端对返回的 trends 数据做本地过滤
     const body = userId ? { info: '', userId: parseInt(userId, 10), provider: '', model: '' } : {};
     const response = await panel.post('/api/v2/core/enterprise/ai-proxy/usage/statistics', body);
 
@@ -1308,7 +1313,23 @@ async function doSyncUsers() {
   if (!biz.ok) {
     throw new Error('1Panel 业务错误: ' + biz.message);
   }
-  const panelUsers = getPanelItems(response.data);
+  let panelUsers = getPanelItems(response.data);
+  // 翻全页（CLAUDE.md 规则 #3）：上一页返回满 200 才继续翻
+  let userPage = 1;
+  let lastBatchSize = panelUsers.length;
+  while (lastBatchSize >= 200 && userPage < 50) {
+    userPage++;
+    const nextRes = await panel.post('/api/v2/core/enterprise/users/search', {
+      page: userPage, pageSize: 200, info: '',
+    });
+    if (nextRes.status < 200 || nextRes.status >= 300) break;
+    const nextBiz = inspectPanelBiz(nextRes);
+    if (!nextBiz.ok) break;
+    const items = getPanelItems(nextRes.data);
+    lastBatchSize = items.length;
+    if (items.length === 0) break;
+    panelUsers.push(...items);
+  }
 
   const localUsers = await global.pool.query(
     'SELECT id, username, panel_user_id, panel_host FROM portal_users'
@@ -1316,7 +1337,7 @@ async function doSyncUsers() {
   const localByUsername = new Map();
   const localPanelIds = new Set();
   for (const row of localUsers.rows) {
-    localByUsername.set(row.username, row);
+    localByUsername.set(row.username.toLowerCase(), row);
     if (row.panel_user_id) localPanelIds.add(row.panel_user_id);
   }
 
@@ -1324,7 +1345,7 @@ async function doSyncUsers() {
   for (const pu of panelUsers) {
     const name = String(pu.name || '').trim();
     if (!name) continue;
-    const local = localByUsername.get(name);
+    const local = localByUsername.get(name.toLowerCase());
 
     if (local) {
       if (pu.id && (!local.panel_user_id || (local.panel_host && local.panel_host !== currentHost))) {
@@ -1332,7 +1353,7 @@ async function doSyncUsers() {
           'UPDATE portal_users SET panel_user_id = $1, display_name = $4, panel_host = $3, status = \'active\' WHERE id = $2',
           [pu.id, local.id, currentHost, extractDisplayName(pu) || local.display_name || null]
         );
-        localByUsername.set(name, { ...local, panel_user_id: pu.id, panel_host: currentHost, status: 'active' });
+        localByUsername.set(name.toLowerCase(), { ...local, panel_user_id: pu.id, panel_host: currentHost, status: 'active' });
         bound++;
       }
       continue;
@@ -1510,6 +1531,22 @@ router.get('/api/admin/panel-users', verifyAdmin, async (req, res) => {
     }
 
     let users = getPanelItems(response.data);
+    // 翻全页（CLAUDE.md 规则 #3）：上一页返回满 200 才继续翻
+    let panelPage = 1;
+    let panelLastBatch = users.length;
+    while (panelLastBatch >= 200 && panelPage < 50) {
+      panelPage++;
+      const nextRes = await panel.post('/api/v2/core/enterprise/users/search', {
+        page: panelPage, pageSize: 200, info: '',
+      });
+      if (nextRes.status < 200 || nextRes.status >= 300) break;
+      const nextBiz = inspectPanelBiz(nextRes);
+      if (!nextBiz.ok) break;
+      const items = getPanelItems(nextRes.data);
+      panelLastBatch = items.length;
+      if (items.length === 0) break;
+      users.push(...items);
+    }
 
     if (roleId) {
       const rid = parseInt(roleId, 10);
@@ -1549,6 +1586,23 @@ router.post('/api/admin/panel-users/batch-password', verifyAdmin, async (req, re
     }
 
     let allUsers = getPanelItems(response.data);
+    // 翻全页（CLAUDE.md 规则 #3）：上一页返回满 200 才继续翻
+    let batchPage = 1;
+    let batchLastBatch = allUsers.length;
+    while (batchLastBatch >= 200 && batchPage < 50) {
+      batchPage++;
+      const nextRes = await panel.post('/api/v2/core/enterprise/users/search', {
+        page: batchPage, pageSize: 200, info: '',
+      });
+      if (nextRes.status < 200 || nextRes.status >= 300) break;
+      const nextBiz = inspectPanelBiz(nextRes);
+      if (!nextBiz.ok) break;
+      const items = getPanelItems(nextRes.data);
+      batchLastBatch = items.length;
+      if (items.length === 0) break;
+      allUsers.push(...items);
+    }
+
     let targets;
     if (userIds && userIds.length) {
       targets = allUsers.filter(u => userIds.includes(u.id));
@@ -1583,8 +1637,9 @@ router.post('/api/admin/panel-users/batch-password', verifyAdmin, async (req, re
           createdAt: user.createdAt,
           password: encodedPassword,
         });
-        const ok = updateRes.status >= 200 && updateRes.status < 300;
-        return { id: user.id, name: user.name, success: ok, status: updateRes.status };
+        const biz = inspectPanelBiz(updateRes);
+        const ok = updateRes.status >= 200 && updateRes.status < 300 && biz.ok;
+        return { id: user.id, name: user.name, success: ok, status: updateRes.status, error: biz.ok ? '' : biz.message };
       } catch (err) {
         return { id: user.id, name: user.name, success: false, error: err.message };
       }

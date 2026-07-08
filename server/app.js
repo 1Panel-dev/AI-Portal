@@ -89,6 +89,11 @@ app.use(require('./routes/portal'));
 app.use(require('./routes/oauth').router);
 app.use(require('./routes/mcp'));
 
+// 未匹配的 /api/* 必须返 JSON 404,不能被 SPA fallback 兜成 index.html
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'API endpoint not found', path: req.originalUrl });
+});
+
 if (SERVE_STATIC) {
   // 关键:index.html 不能直接走 express.static,要先拦下来做占位符替换
   // 替换三类占位符:__BASE_PATH__(路由前缀)、__SITE_NAME__(站名,进 <title>)、
@@ -171,15 +176,17 @@ if (SERVE_STATIC) {
     cachedBranding = null;
   };
 
-  // 静态资源(assets/xxx 等): 直出,带强缓存
-  // nginx 已做好路径 stripping,这里按根路径挂载即可
+  // 显式优先匹配 index.html / 根路径，确保走占位符替换
+  app.get(['/', '/index.html'], sendIndex);
+
+  // 静态资源(assets/xxx 等): 直出，带强缓存
   app.use(express.static(STATIC_PATH, { index: false }));
 
-  // SPA fallback: GET 请求且 URL 带文件扩展名 → 静态资源不存在,直接 404
-  // 不带扩展名 → SPA 客户端路由,返回 index.html
+  // SPA fallback: GET 请求且 URL 带文件扩展名 → 静态资源不存在，直接 404
+  // 不带扩展名 → SPA 客户端路由，返回 index.html
   app.get('*', async (req, res) => {
     try {
-      if (/\.([a-zA-Z0-9]{1,20})$/.test(req.path)) {
+      if (req.path !== '/' && /\.([a-zA-Z0-9]{1,20})(?:\?.*)?$/.test(req.path)) {
         return res.status(404).end();
       }
       return sendIndex(req, res);

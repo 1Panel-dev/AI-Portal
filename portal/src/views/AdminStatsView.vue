@@ -38,7 +38,10 @@
           <span class="text-xs font-semibold text-text-secondary uppercase tracking-wide">筛选</span>
           <div class="h-5 w-px bg-[rgba(0,0,0,0.06)]"></div>
           <span class="text-xs text-text-secondary">时间</span>
-          <button v-for="r in timeRanges" :key="r.value" @click="selectedDays = r.value" class="px-3 py-1 text-xs rounded-md border transition-all" :class="selectedDays === r.value ? 'bg-accent text-white border-accent' : 'border-[rgba(0,0,0,0.08)] hover:border-accent text-text-secondary'">{{ r.label }}</button>
+          <select v-model="selectedMonth" class="px-2 py-1 text-xs border border-[rgba(0,0,0,0.08)] rounded-md bg-white outline-none h-7 focus:border-accent">
+            <option value="">全部月份</option>
+            <option v-for="m in monthOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
+          </select>
           <div class="h-5 w-px bg-[rgba(0,0,0,0.06)]"></div>
           <span class="text-xs text-text-secondary">用户</span>
           <div class="relative user-picker">
@@ -71,7 +74,7 @@
             </div>
           </div>
           <div class="flex-1"></div>
-          <button v-if="selectedUser || selectedDays || usernameFilter" @click="clearFilters" class="text-xs text-accent hover:underline">清除筛选</button>
+          <button v-if="selectedUser || usernameFilter || selectedMonth" @click="clearFilters" class="text-xs text-accent hover:underline">清除筛选</button>
         </div>
 
         <!-- 顶部数据区 -->
@@ -172,7 +175,6 @@ const topLoading = ref(false)
 const data = ref(null)
 const globalData = ref(null)
 const panelConfigured = ref(true)
-const selectedDays = ref(30)
 const selectedUser = ref('')
 const distTab = ref('provider')
 const usersMap = ref({})             // 原始 map: { "1": "张三", "panel_123": "张三", ... }
@@ -187,24 +189,36 @@ let redChart = null
 let blackChart = null
 let distChart = null
 
-const timeRanges = [
-  { label: '7天', value: 7 },
-  { label: '30天', value: 30 },
-  { label: '90天', value: 90 },
-  { label: '全部', value: null },
-]
-
 const distTabs = [
   { key: 'provider', label: 'Provider' },
   { key: 'model', label: '模型' },
   { key: 'tokens', label: 'Tokens' },
 ]
 
+// 月份下拉选项：近 12 个月 + 全部
+const monthOptions = (() => {
+  const now = new Date()
+  const opts = []
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    const label = `${d.getFullYear()}年${d.getMonth() + 1}月`
+    opts.push({ value: val, label })
+  }
+  return opts
+})()
+// 默认选中当月
+const currentMonthValue = monthOptions[0]?.value || ''
+const selectedMonth = ref(currentMonthValue)
+
 const summary = computed(() => data.value?.summary || {})
 const trends = computed(() => {
   const all = data.value?.trends || []
-  if (!selectedDays.value) return all
-  return all.slice(-selectedDays.value)
+  if (selectedMonth.value) {
+    const prefix = selectedMonth.value + '-'
+    return all.filter(t => String(t.name || '').startsWith(prefix))
+  }
+  return all
 })
 const providers = computed(() => (globalData.value?.providers || []).filter(p => p.name && p.name.trim()))
 const models = computed(() => (globalData.value?.models || []).filter(m => m.name && m.name.trim()).sort((a, b) => (b.requestCount || 0) - (a.requestCount || 0)))
@@ -540,7 +554,8 @@ async function fetchStats(isUserSwitch = false) {
   topLoading.value = true
   try {
     const params = new URLSearchParams()
-    if (selectedDays.value) params.set('days', String(selectedDays.value))
+    // 1Panel usage/statistics 不支持时间参数，只透传 userId
+    // 月份筛选在前端对返回的 trends 数据做本地过滤
     if (selectedUser.value) params.set('userId', String(selectedUser.value))
     const [statsRes, usersRes] = await Promise.all([
       fetch(`${API_BASE}/admin/usage-statistics?${params}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
@@ -578,7 +593,7 @@ async function fetchStats(isUserSwitch = false) {
 }
 
 function clearFilters() {
-  selectedDays.value = null
+  selectedMonth.value = ''
   selectedUser.value = ''
   usernameFilter.value = ''
   userDropdownOpen.value = false
@@ -615,7 +630,7 @@ function onGlobalClick(e) {
   if (!e.target.closest('.user-picker')) userDropdownOpen.value = false
 }
 
-watch([selectedDays, selectedUser], () => {
+watch([selectedUser, selectedMonth], () => {
   fetchStats(true)
 })
 

@@ -22,10 +22,9 @@ function parseModelMap(modelMap) {
   }
 
   // 1Panel 个别 backend 的 modelMap 包含非法 Unicode 转义，先做安全清洗
+  // 只保留 \u 后紧跟恰好 4 位十六进制的合法转义，其余全部剥离 \u 前缀
   if (typeof modelMap === 'string' && modelMap.includes('\\u')) {
-    const cleaned = modelMap.replace(/\\u([0-9a-fA-F]{0,4})/g, (_, hex) => {
-      return hex.length === 4 ? `\\u${hex}` : hex;
-    });
+    const cleaned = modelMap.replace(/\\u(?!([0-9a-fA-F]{4}))/g, '');
     if (cleaned !== modelMap) {
       console.warn(`[parseModelMap] 清洗非法 Unicode 转义，modelMap 前 120 字符: ${JSON.stringify(modelMap.slice(0, 120))}`);
       modelMap = cleaned;
