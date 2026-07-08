@@ -208,6 +208,7 @@
             </h2>
             <div v-if="usageLoading" class="py-8 text-center text-text-secondary text-sm">加载中...</div>
             <div v-else-if="usageError" class="py-4 text-center text-red-500 text-sm">{{ usageError }}</div>
+            <div v-else-if="!usageData || (!usageData.summary && !usageData.trends?.length && !usageData.models?.length)" class="py-16 text-center text-text-tertiary text-sm">暂无统计数据</div>
             <div v-else>
               <!-- Token 配额 -->
               <div v-if="apiKeyData.token_limit || apiKeyData.token_unlimited" class="mb-6 bg-[#f5f9ff] rounded-xl px-5 py-4">
