@@ -232,9 +232,14 @@
               <div class="mb-6">
                 <div class="flex items-center justify-between mb-3">
                   <h3 class="text-[13px] font-semibold text-text">每月 Token 统计</h3>
-                  <select v-model="selectedYM" class="px-2.5 py-1.5 border border-[rgba(0,0,0,0.1)] rounded-lg text-[13px] bg-white outline-none cursor-pointer">
-                    <option v-for="o in monthOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
-                  </select>
+                  <div class="relative month-picker">
+                    <button @click="monthOpen = !monthOpen" class="flex items-center gap-1 px-2 py-1 text-xs border border-[rgba(0,0,0,0.1)] rounded-lg bg-white hover:border-accent transition-colors">
+                      {{ monthLabel }}<span class="text-text-tertiary ml-0.5">▾</span>
+                    </button>
+                    <div v-if="monthOpen" class="absolute right-0 top-full mt-1 bg-white border border-[rgba(0,0,0,0.08)] rounded-lg shadow-lg z-30 max-h-[182px] overflow-y-auto">
+                      <div v-for="o in monthOptions" :key="o.value" @click="selectedYM = o.value; monthOpen = false" class="px-3 py-1.5 text-xs cursor-pointer hover:bg-accent hover:text-white transition-colors whitespace-nowrap" :class="{ 'bg-accent/10 text-accent font-medium': selectedYM === o.value }">{{ o.label }}</div>
+                    </div>
+                  </div>
                 </div>
                 <div class="relative bg-[#fafafa] rounded-xl p-4" style="min-height: 268px;">
                   <div ref="tokenChartRef" style="height:260px"></div>
@@ -573,6 +578,7 @@ const monthOptions = computed(() => {
   return opts
 })
 const selectedYM = ref(`${selectedYear.value}-${selectedMonth.value}`)
+const monthOpen = ref(false)
 watch(selectedYM, (v) => { const [y, m] = v.split('-').map(Number); selectedYear.value = y; selectedMonth.value = m })
 const monthLabel = computed(() => `${selectedYear.value}-${selectedMonth.value}月`)
 const fmtNum = (n) => { if (n == null) return '0'; if (n >= 1000000) return (n/1000000).toFixed(1)+'M'; if (n >= 1000) return (n/1000).toFixed(1)+'K'; return String(n) }
@@ -716,11 +722,16 @@ const onResize = () => {
   tokenChart?.resize()
   reqChart?.resize()
 }
+const onDocClick = (e) => {
+  if (!e.target.closest('.month-picker')) monthOpen.value = false
+}
 onMounted(() => {
   window.addEventListener('resize', onResize)
+  document.addEventListener('click', onDocClick)
 })
 onUnmounted(() => {
   window.removeEventListener('resize', onResize)
+  document.removeEventListener('click', onDocClick)
   if (tokenChart) { tokenChart.dispose(); tokenChart = null }
   if (reqChart) { reqChart.dispose(); reqChart = null }
 })
