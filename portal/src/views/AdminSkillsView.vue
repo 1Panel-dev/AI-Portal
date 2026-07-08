@@ -6,6 +6,13 @@
       <!-- Admin Nav -->
       <div class="flex items-center gap-4 mb-6">
         <button
+          @click="$router.push('/admin/stats')"
+          class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
+          :class="$route.path === '/admin/stats' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
+        >
+          数据统计
+        </button>
+        <button
           @click="$router.push('/admin')"
           class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
           :class="$route.path === '/admin' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"

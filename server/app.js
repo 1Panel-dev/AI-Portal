@@ -52,7 +52,6 @@ console.log(`🛣️  BASE_PATH = ${BASE_PATH}`);
 // 与 1Panel 生态部署一致:容器内 3000 端口,前面通常有 nginx 终止 TLS
 app.set('trust proxy', 1);
 
-
 if (!SERVE_STATIC) {
   app.use(cors({
     origin: (origin, callback) => {
@@ -83,11 +82,17 @@ app.use('/uploads', express.static(uploadsDir, {
     fallthrough: true,
   }));
 
+// API 路由
 app.use(require('./routes/admin'));
 app.use(require('./routes/marketplace'));
 app.use(require('./routes/portal'));
 app.use(require('./routes/oauth').router);
 app.use(require('./routes/mcp'));
+
+// 未匹配的 /api/* 必须返 JSON 404,不能被 SPA fallback 兜成 index.html
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'API endpoint not found', path: req.originalUrl });
+});
 
 if (SERVE_STATIC) {
   // 关键:index.html 不能直接走 express.static,要先拦下来做占位符替换
@@ -171,19 +176,25 @@ if (SERVE_STATIC) {
     cachedBranding = null;
   };
 
-  // 显式优先匹配 index.html / 根路径,确保走占位符替换而不是 express.static 直出
+  // 显式优先匹配 index.html / 根路径，确保走占位符替换
   app.get(['/', '/index.html'], sendIndex);
 
-  // 静态资源(assets/xxx 等):正常直出,带强缓存
+  // 静态资源(assets/xxx 等): 直出，带强缓存
   app.use(express.static(STATIC_PATH, { index: false }));
 
-  // 未匹配的 /api/* 必须返 JSON 404,不能被下面的 SPA fallback 兜成 index.html
-  app.use('/api', (req, res) => {
-    res.status(404).json({ error: 'API endpoint not found', path: req.originalUrl });
+  // SPA fallback: GET 请求且 URL 带文件扩展名 → 静态资源不存在，直接 404
+  // 不带扩展名 → SPA 客户端路由，返回 index.html
+  app.get('*', async (req, res) => {
+    try {
+      if (req.path !== '/' && /\.([a-zA-Z0-9]{1,20})(?:\?.*)?$/.test(req.path)) {
+        return res.status(404).end();
+      }
+      return sendIndex(req, res);
+    } catch (err) {
+      console.error('SPA fallback 渲染失败:', err);
+      res.status(500).send('render failed');
+    }
   });
-
-  // SPA fallback:其它所有路径都返回(替换后的)index.html
-  app.get('*', sendIndex);
 }
 
 app.use((err, req, res, next) => {

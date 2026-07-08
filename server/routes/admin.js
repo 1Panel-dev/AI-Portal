@@ -11,6 +11,11 @@ const oauthRegistry = require('../oauth');
 
 const router = express.Router();
 
+// 生成短 taskId
+function genTaskId() {
+  return 'tsk_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+}
+
 function inspectPanelBiz(panelRes) {
   const data = panelRes?.data;
   if (!data || typeof data !== 'object') return { ok: true, code: null, message: '' };
@@ -24,6 +29,10 @@ function inspectPanelBiz(panelRes) {
 
 function isPanelRecordNotFound(err) {
   return String(err?.message || '').toLowerCase().includes('record not found');
+}
+
+function isNetworkError(message) {
+  return /ECONN|ETIMEDOUT|ENOTFOUND|timeout/i.test(String(message || ''));
 }
 
 function normalizeSkillText(value) {
@@ -935,6 +944,8 @@ router.post('/api/admin/panel-config/test', verifyAdmin, async (req, res) => {
 
 // 立即同步(手动触发,不等定时器)
 router.post('/api/admin/panel-config/sync-now', verifyAdmin, async (req, res) => {
+  const startTime = Date.now();
+  console.log('[admin] 管理员触发手动同步,userId=', req.user?.id, '|', new Date().toISOString());
   try {
     // 并发跑模型 + 技能 + 角色同步,失败不互相影响
     const [modelsResult, skillsResult, rolesResult] = await Promise.allSettled([
@@ -956,8 +967,7 @@ router.post('/api/admin/panel-config/sync-now', verifyAdmin, async (req, res) =>
       })(),
     ]);
 
-    res.json({
-      success: true,
+    const summary = {
       models: modelsResult.status === 'fulfilled'
         ? { ...modelsResult.value, ok: true }
         : { ok: false, error: modelsResult.reason?.message },
@@ -967,6 +977,15 @@ router.post('/api/admin/panel-config/sync-now', verifyAdmin, async (req, res) =>
       roles: rolesResult.status === 'fulfilled'
         ? rolesResult.value
         : { ok: false, error: rolesResult.reason?.message },
+    };
+
+    // 打印汇总日志，方便运维一眼看出哪个子任务失败
+    console.log('[admin] sync-now 结果:', JSON.stringify(summary), `| 耗时 ${Date.now() - startTime}ms`);
+
+    res.json({
+      success: true,
+      elapsedMs: Date.now() - startTime,
+      ...summary,
     });
   } catch (err) {
     console.error('Error sync-now:', err);
@@ -1049,6 +1068,70 @@ function isRemoteRecordNotFound(message) {
       || msg.includes('不存在')
       || msg.includes('not found');
 }
+
+// 从 1Panel user 对象提取中文名：description 格式为 "通过AI网关创建：张三"
+function extractDisplayName(pu) {
+  const desc = String(pu.description || '').trim();
+  const prefix = '通过AI网关创建：';
+  if (desc.startsWith(prefix)) return desc.slice(prefix.length).trim();
+  if (desc.length > 0) return desc;
+  return null;
+}
+router.get('/api/admin/portal-users/map', verifyAdmin, async (req, res) => {
+  try {
+    const result = await global.pool.query(
+      `SELECT id, panel_user_id, COALESCE(NULLIF(display_name, ''), name) AS display_name
+       FROM portal_users
+       WHERE status = 'active'
+       ORDER BY id`
+    );
+    const map = {};
+    for (const row of result.rows) {
+      map[row.id] = row.display_name;
+      if (row.panel_user_id) map[`panel_${row.panel_user_id}`] = row.display_name;
+    }
+    res.json(map);
+  } catch (err) {
+    console.error('获取用户中文名映射失败:', err);
+    res.status(500).json({ error: '获取用户中文名映射失败' });
+  }
+});
+
+// 获取 1Panel AI 使用统计数据（代理透传）
+router.get('/api/admin/usage-statistics', verifyAdmin, async (req, res) => {
+  try {
+    const { days, userId } = req.query;
+    // 1Panel usage/statistics 只支持 userId 服务端筛选，不支持时间过滤
+    // 月份/天数筛选一律在前端对返回的 trends 数据做本地过滤
+    const body = userId ? { info: '', userId: parseInt(userId, 10), provider: '', model: '' } : {};
+    const response = await panel.post('/api/v2/core/enterprise/ai-proxy/usage/statistics', body);
+
+    if (response.status < 200 || response.status >= 300) {
+      return res.status(response.status).json({
+        error: '获取统计数据失败',
+        reason: `1Panel HTTP ${response.status}`
+      });
+    }
+
+    const biz = inspectPanelBiz(response);
+    if (!biz.ok) {
+      return res.status(502).json({
+        error: '1Panel 业务错误',
+        reason: biz.message,
+        code: biz.code
+      });
+    }
+
+    const payload = getPanelPayload(response.data);
+    res.json(payload);
+  } catch (err) {
+    console.error('获取使用统计失败:', err);
+    if (err.message.includes('ECONNREFUSED') || err.message.includes('ETIMEDOUT')) {
+      return res.status(502).json({ error: '1Panel 不可达', reason: err.message, code: 'PANEL_UNREACHABLE' });
+    }
+    res.status(500).json({ error: '获取使用统计失败', reason: err.message });
+  }
+});
 
 // 分页查询本地门户用户
 router.get('/api/admin/portal-users', verifyAdmin, async (req, res) => {
@@ -1160,174 +1243,199 @@ router.delete('/api/admin/portal-users/:id', verifyAdmin, async (req, res) => {
   }
 });
 
-// 从 1Panel 同步用户
+// 从 1Panel 同步用户（异步任务模式）
 // 切 1Panel 实例时：旧 host 的 active 用户自动禁用，新 host 的用户增量导入
 router.post('/api/admin/portal-users/sync', verifyAdmin, async (req, res) => {
+  const taskId = genTaskId();
+  // 先落一条 running 任务
+  await global.pool.query(
+    `INSERT INTO portal_sync_tasks (task_id, type, status, message) VALUES ($1, 'users', 'running', $2)`,
+    [taskId, '正在同步用户...']
+  );
+
+  // 立即返回 taskId，前端轮询 /api/admin/sync-tasks/:id
+  res.json({ taskId, status: 'running', message: '任务已提交，正在后台同步...' });
+
+  // 后台执行，不阻塞响应
+  runUserSyncTask(taskId).catch(err => {
+    console.error(`[sync-users:${taskId}] 后台同步异常:`, err.message);
+  });
+});
+
+// 后台执行用户同步
+async function runUserSyncTask(taskId) {
+  const startTime = Date.now();
   try {
-    // 0. 当前 1Panel 实例标识(用 base_url 区分不同实例)
-    const rawCfg = panel.getRawConfig();
-    const currentHost = (rawCfg && rawCfg.baseUrl) || '';
-
-    // 存量升级：已有 panel_user_id 但 panel_host 为空的，回填为当前 host（不触发禁用）
-    if (currentHost) {
-      await global.pool.query(
-        `UPDATE portal_users SET panel_host = $1 WHERE panel_host IS NULL AND panel_user_id IS NOT NULL`,
-        [currentHost]
-      );
-
-      // 切实例检测：panel_host 非空且与当前 host 不同的 active 用户 → 禁用
-      // 用 RETURNING id 拿到本次刚禁用的用户集合，只清这批的 Key，
-      // 避免误删之前因其他原因被禁用的跨 host 用户的 Key
-      const disableResult = await global.pool.query(
-        `UPDATE portal_users SET status = 'disabled'
-         WHERE panel_host IS NOT NULL
-           AND panel_host IS DISTINCT FROM $1
-           AND status = 'active'
-         RETURNING id`,
-        [currentHost]
-      );
-      if (disableResult.rows.length > 0) {
-        const justDisabledIds = disableResult.rows.map(r => r.id);
-        console.log(`[sync-users] 检测到 1Panel 实例切换，禁用 ${justDisabledIds.length} 个旧用户`);
-        await global.pool.query(
-          `DELETE FROM portal_api_keys WHERE user_id = ANY($1::int[])`,
-          [justDisabledIds]
-        );
-      }
-    }
-
-    // 1. 查询 1Panel 全量用户
-    const response = await panel.post('/api/v2/core/enterprise/users/search', {
-      page: 1, pageSize: 200, info: '',
-    });
-
-    if (response.status < 200 || response.status >= 300) {
-      return res.status(502).json({ error: '1Panel 用户查询失败' });
-    }
-
-    const biz = inspectPanelBiz(response);
-    if (!biz.ok) {
-      return res.status(502).json({ error: '1Panel 业务错误', reason: biz.message });
-    }
-
-    const panelUsers = getPanelItems(response.data);
-
-    // 2. 查询所有本地用户（含没有 panel_user_id 的 OAuth 用户）
-    const localUsers = await global.pool.query(
-      'SELECT id, username, panel_user_id, panel_host FROM portal_users'
+    const result = await doSyncUsers();
+    const elapsed = Date.now() - startTime;
+    await global.pool.query(
+      `UPDATE portal_sync_tasks SET status = 'done', message = $2, result = $3, updated_at = CURRENT_TIMESTAMP WHERE task_id = $1`,
+      [taskId, `同步完成，耗时 ${elapsed}ms`, result]
     );
-    const localByUsername = new Map();
-    const localPanelIds = new Set();
-    for (const row of localUsers.rows) {
-      localByUsername.set(row.username.toLowerCase(), row);
-      if (row.panel_user_id) localPanelIds.add(row.panel_user_id);
-    }
-
-    // 3. 遍历 1Panel 用户，补全或新增
-    let synced = 0;
-    let bound = 0;
-
-    for (const pu of panelUsers) {
-      const nameLower = String(pu.name || '').toLowerCase();
-      const local = localByUsername.get(nameLower);
-
-      if (local) {
-        // 本地已有同名用户：
-        //   - 缺 panel_user_id → 补全绑定
-        //   - panel_host 与当前不同（切实例后被禁用的旧用户）→ 重新绑定到新实例 + 重新启用
-        if (pu.id && (!local.panel_user_id || (local.panel_host && local.panel_host !== currentHost))) {
-          await global.pool.query(
-            'UPDATE portal_users SET panel_user_id = $1, panel_host = $3, status = \'active\' WHERE id = $2',
-            [pu.id, local.id, currentHost]
-          );
-          localByUsername.set(nameLower, { ...local, panel_user_id: pu.id, panel_host: currentHost, status: 'active' });
-          bound++;
-        }
-        continue;
-      }
-
-      // 确实是新用户 → 插入
-      if (!localPanelIds.has(pu.id)) {
-        const DEFAULT_PWD = process.env.SYNC_USER_DEFAULT_PASSWORD || '';
-        const passwordHash = await bcrypt.hash(DEFAULT_PWD, 12);
-        try {
-          await global.pool.query(`
-            INSERT INTO portal_users (panel_user_id, username, name, password_hash, role, status, panel_host, created_at)
-            VALUES ($1, $2, $3, $4, 'user', 'active', $5, CURRENT_TIMESTAMP)
-            ON CONFLICT (username) DO NOTHING
-          `, [pu.id, nameLower, pu.name, passwordHash, currentHost]);
-          synced++;
-        } catch (e) {
-          console.error(`同步用户 ${pu.name} 失败:`, e.message);
-        }
-      }
-    }
-
-    // 4. 同步 API Key：为已关联 1Panel 但本地无 key 的用户拉取 1Panel 上的 Key
-    let keysSynced = 0;
-    try {
-      // 一次翻页拿全 1Panel 所有 API Key，避免逐用户 N+1 查询
-      const allPanelKeys = [];
-      let kPage = 1;
-      const KEY_PAGE_SIZE = 100;
-      while (kPage < 50) {
-        const keyRes = await panel.post('/api/v2/core/enterprise/ai-proxy/api-keys/search', {
-          page: kPage, pageSize: KEY_PAGE_SIZE, info: '',
-        });
-        // 1Panel 业务失败（HTTP 200 + body.code>=400）要识别，否则空响应会导致 keysSynced=0 却报成功
-        const keyBiz = inspectPanelBiz(keyRes);
-        if (keyRes.status < 200 || keyRes.status >= 300 || !keyBiz.ok) {
-          if (!keyBiz.ok) console.error('[sync-users] 1Panel api-keys/search 业务失败:', keyBiz.message);
-          break;
-        }
-        const items = getPanelItems(keyRes.data);
-        allPanelKeys.push(...items);
-        if (items.length < KEY_PAGE_SIZE) break;
-        kPage++;
-      }
-
-      // 按 panelUserId 建索引（一人一 Key）
-      const keyByPanelUser = new Map();
-      for (const k of allPanelKeys) {
-        if (k.userId && !keyByPanelUser.has(k.userId)) {
-          keyByPanelUser.set(k.userId, k);
-        }
-      }
-
-      // 找出已关联 1Panel 但本地无 key 的用户
-      const needingKeys = await global.pool.query(`
-        SELECT pu.id, pu.panel_user_id
-        FROM portal_users pu
-        LEFT JOIN portal_api_keys pak ON pak.user_id = pu.id
-        WHERE pu.panel_user_id IS NOT NULL
-          AND pak.id IS NULL
-      `);
-
-      for (const user of needingKeys.rows) {
-        const panelKey = keyByPanelUser.get(user.panel_user_id);
-        if (!panelKey) continue;
-
-        try {
-          // sync 阶段只存 mask + 元数据，不做 reveal（避免 N 次 HTTP 调用拖死同步）
-          // 明文由用户访问 Key 页面时 GET /api/keys 按需 reveal
-          await global.pool.query(`
-            INSERT INTO portal_api_keys (user_id, panel_key_id, panel_user_id, api_key_mask, api_key_cipher, group_id, status, remark, token_limit, raw_data, synced_at)
-            VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
-          `, [user.id, panelKey.id, user.panel_user_id, panelKey.apiKeyMask || '', panelKey.groupId || 1, panelKey.status || 'Enable', panelKey.remark || '', panelKey.tokenLimit || 0, panelKey]);
-
-          keysSynced++;
-        } catch (e) {
-          console.error(`[sync-users] 同步用户 ${user.id} API Key 失败:`, e.message);
-        }
-      }
-    } catch (e) {
-      console.error('[sync-users] 批量同步 API Key 失败:', e.message);
-    }
-
-    res.json({ success: true, synced, bound, keysSynced, message: `同步完成，新增 ${synced} 个，补全绑定 ${bound} 个，同步 Key ${keysSynced} 个` });
   } catch (err) {
-    console.error('同步用户失败:', err);
-    res.status(500).json({ error: '同步用户失败: ' + err.message });
+    await global.pool.query(
+      `UPDATE portal_sync_tasks SET status = 'error', message = $2, updated_at = CURRENT_TIMESTAMP WHERE task_id = $1`,
+      [taskId, err.message]
+    );
+  }
+}
+
+// 核心同步逻辑（提取为独立函数，前后台共用）
+async function doSyncUsers() {
+  const currentHost = (panel.getRawConfig() && panel.getRawConfig().baseUrl) || '';
+
+  if (currentHost) {
+    await global.pool.query(
+      `UPDATE portal_users SET panel_host = $1 WHERE panel_host IS NULL AND panel_user_id IS NOT NULL`,
+      [currentHost]
+    );
+    const disableResult = await global.pool.query(
+      `UPDATE portal_users SET status = 'disabled'
+       WHERE panel_host IS NOT NULL
+         AND panel_host IS DISTINCT FROM $1
+         AND status = 'active'
+       RETURNING id`,
+      [currentHost]
+    );
+    if (disableResult.rows.length > 0) {
+      const ids = disableResult.rows.map(r => r.id);
+      await global.pool.query(`DELETE FROM portal_api_keys WHERE user_id = ANY($1::int[])`, [ids]);
+    }
+  }
+
+  const response = await panel.post('/api/v2/core/enterprise/users/search', {
+    page: 1, pageSize: 200, info: '',
+  });
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error('1Panel 用户查询失败');
+  }
+  const biz = inspectPanelBiz(response);
+  if (!biz.ok) {
+    throw new Error('1Panel 业务错误: ' + biz.message);
+  }
+  let panelUsers = getPanelItems(response.data);
+  // 翻全页（CLAUDE.md 规则 #3）：上一页返回满 200 才继续翻
+  let userPage = 1;
+  let lastBatchSize = panelUsers.length;
+  while (lastBatchSize >= 200 && userPage < 50) {
+    userPage++;
+    const nextRes = await panel.post('/api/v2/core/enterprise/users/search', {
+      page: userPage, pageSize: 200, info: '',
+    });
+    if (nextRes.status < 200 || nextRes.status >= 300) break;
+    const nextBiz = inspectPanelBiz(nextRes);
+    if (!nextBiz.ok) break;
+    const items = getPanelItems(nextRes.data);
+    lastBatchSize = items.length;
+    if (items.length === 0) break;
+    panelUsers.push(...items);
+  }
+
+  const localUsers = await global.pool.query(
+    'SELECT id, username, panel_user_id, panel_host FROM portal_users'
+  );
+  const localByUsername = new Map();
+  const localPanelIds = new Set();
+  for (const row of localUsers.rows) {
+    localByUsername.set(row.username.toLowerCase(), row);
+    if (row.panel_user_id) localPanelIds.add(row.panel_user_id);
+  }
+
+  let synced = 0, bound = 0;
+  for (const pu of panelUsers) {
+    const name = String(pu.name || '').trim();
+    if (!name) continue;
+    const local = localByUsername.get(name.toLowerCase());
+
+    if (local) {
+      if (pu.id && (!local.panel_user_id || (local.panel_host && local.panel_host !== currentHost))) {
+        await global.pool.query(
+          'UPDATE portal_users SET panel_user_id = $1, display_name = $4, panel_host = $3, status = \'active\' WHERE id = $2',
+          [pu.id, local.id, currentHost, extractDisplayName(pu) || local.display_name || null]
+        );
+        localByUsername.set(name.toLowerCase(), { ...local, panel_user_id: pu.id, panel_host: currentHost, status: 'active' });
+        bound++;
+      }
+      continue;
+    }
+
+    if (!localPanelIds.has(pu.id)) {
+      const DEFAULT_PWD = process.env.SYNC_USER_DEFAULT_PASSWORD || '';
+      const passwordHash = await bcrypt.hash(DEFAULT_PWD, 12);
+      try {
+        await global.pool.query(`
+          INSERT INTO portal_users (panel_user_id, username, name, display_name, password_hash, role, status, panel_host, created_at)
+          VALUES ($1, $2, $3, $4, $5, 'user', 'active', $6, CURRENT_TIMESTAMP)
+          ON CONFLICT (username) DO NOTHING
+        `, [pu.id, name, pu.name, extractDisplayName(pu), passwordHash, currentHost]);
+        synced++;
+      } catch (e) {
+        console.error(`同步用户 ${pu.name} 失败:`, e.message);
+      }
+    }
+  }
+
+  // 同步 API Key
+  let keysSynced = 0;
+  try {
+    const allPanelKeys = [];
+    let kPage = 1;
+    const KEY_PAGE_SIZE = 100;
+    while (kPage < 50) {
+      const keyRes = await panel.post('/api/v2/core/enterprise/ai-proxy/api-keys/search', {
+        page: kPage, pageSize: KEY_PAGE_SIZE, info: '',
+      });
+      const keyBiz = inspectPanelBiz(keyRes);
+      if (keyRes.status < 200 || keyRes.status >= 300 || !keyBiz.ok) break;
+      const items = getPanelItems(keyRes.data);
+      allPanelKeys.push(...items);
+      if (items.length < KEY_PAGE_SIZE) break;
+      kPage++;
+    }
+    const keyByPanelUser = new Map();
+    for (const k of allPanelKeys) {
+      if (k.userId && !keyByPanelUser.has(k.userId)) keyByPanelUser.set(k.userId, k);
+    }
+    const needingKeys = await global.pool.query(`
+      SELECT pu.id, pu.panel_user_id FROM portal_users pu
+      LEFT JOIN portal_api_keys pak ON pak.user_id = pu.id
+      WHERE pu.panel_user_id IS NOT NULL AND pak.id IS NULL
+    `);
+    for (const user of needingKeys.rows) {
+      const panelKey = keyByPanelUser.get(user.panel_user_id);
+      if (!panelKey) continue;
+      try {
+        await global.pool.query(`
+          INSERT INTO portal_api_keys (user_id, panel_key_id, panel_user_id, api_key_mask, api_key_cipher, group_id, status, remark, token_limit, raw_data, synced_at)
+          VALUES ($1, $2, $3, $4, '', $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
+        `, [user.id, panelKey.id, user.panel_user_id, panelKey.apiKeyMask || '', panelKey.groupId || 1, panelKey.status || 'Enable', panelKey.remark || '', panelKey.tokenLimit || 0, panelKey]);
+        keysSynced++;
+      } catch (e) {
+        console.error(`[sync-users] 同步用户 ${user.id} API Key 失败:`, e.message);
+      }
+    }
+  } catch (e) {
+    console.error('[sync-users] 批量同步 API Key 失败:', e.message);
+  }
+
+  return { synced, bound, keysSynced, message: `同步完成，新增 ${synced} 个，补全绑定 ${bound} 个，同步 Key ${keysSynced} 个` };
+}
+
+// 查询同步任务状态
+router.get('/api/admin/sync-tasks/:taskId', verifyAdmin, async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const result = await global.pool.query(
+      'SELECT task_id, type, status, message, result, created_at, updated_at FROM portal_sync_tasks WHERE task_id = $1',
+      [taskId]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: '任务不存在' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('查询同步任务失败:', err);
+    res.status(500).json({ error: '查询同步任务失败' });
   }
 });
 
@@ -1353,20 +1461,40 @@ router.post('/api/admin/portal-users/password', verifyAdmin, async (req, res) =>
         if (userRes.rowCount === 0) { failed++; continue; }
         const localUser = userRes.rows[0];
 
-        // 同步更新远端密码
+        // 同步更新远端密码（1Panel 的 users/update 要求 name 等字段不能为空，先 search 拿全量信息）
         if (localUser.panel_user_id) {
-          const panelRes = await panel.post('/api/v2/core/enterprise/users/update', {
-            id: localUser.panel_user_id,
-            name: localUser.username || localUser.name,
-            sessionTimeout: 86400,
-            isSuperAdmin: false,
-            nodeRoles: [{ nodeId: 1, roleId: 4 }],
-            description: '',
-            createdAt: localUser.created_at ? new Date(localUser.created_at).toISOString() : new Date().toISOString(),
-            password: Buffer.from(new_password, 'utf-8').toString('base64'),
-          });
-          const biz = inspectPanelBiz(panelRes);
-          if (panelRes.status < 200 || panelRes.status >= 300 || !biz.ok) {
+          try {
+            const userInfoRes = await panel.post('/api/v2/core/enterprise/users/search', {
+              page: 1,
+              pageSize: 10,
+              info: localUser.username || '',
+            });
+            const panelUsers = getPanelItems(userInfoRes.data);
+            const panelUser = panelUsers.find(u => String(u.id) === String(localUser.panel_user_id));
+
+            if (panelUser) {
+              const encodedPassword = Buffer.from(new_password, 'utf-8').toString('base64');
+              const panelRes = await panel.post('/api/v2/core/enterprise/users/update', {
+                id: localUser.panel_user_id,
+                name: panelUser.name || localUser.username,
+                sessionTimeout: panelUser.sessionTimeout || 86400,
+                isSuperAdmin: panelUser.isSuperAdmin || false,
+                nodeRoles: (panelUser.nodeRoles || []).map(r => ({ nodeId: r.nodeId, roleId: r.roleId })),
+                description: panelUser.description || '',
+                createdAt: panelUser.createdAt,
+                password: encodedPassword,
+              });
+              const biz = inspectPanelBiz(panelRes);
+              if (panelRes.status < 200 || panelRes.status >= 300 || !biz.ok) {
+                console.error(`[panel-password] 用户 ${userId} 远端密码同步失败: ${biz.reason || panelRes.status}`);
+                failed++; continue;
+              }
+            } else {
+              console.warn(`[panel-password] 1Panel 未找到用户 ${localUser.username} (Panel ID: ${localUser.panel_user_id})`);
+              failed++; continue;
+            }
+          } catch (e) {
+            console.error(`[panel-password] 用户 ${userId} 远端密码同步异常:`, e.message);
             failed++; continue;
           }
         }
@@ -1403,6 +1531,22 @@ router.get('/api/admin/panel-users', verifyAdmin, async (req, res) => {
     }
 
     let users = getPanelItems(response.data);
+    // 翻全页（CLAUDE.md 规则 #3）：上一页返回满 200 才继续翻
+    let panelPage = 1;
+    let panelLastBatch = users.length;
+    while (panelLastBatch >= 200 && panelPage < 50) {
+      panelPage++;
+      const nextRes = await panel.post('/api/v2/core/enterprise/users/search', {
+        page: panelPage, pageSize: 200, info: '',
+      });
+      if (nextRes.status < 200 || nextRes.status >= 300) break;
+      const nextBiz = inspectPanelBiz(nextRes);
+      if (!nextBiz.ok) break;
+      const items = getPanelItems(nextRes.data);
+      panelLastBatch = items.length;
+      if (items.length === 0) break;
+      users.push(...items);
+    }
 
     if (roleId) {
       const rid = parseInt(roleId, 10);
@@ -1442,6 +1586,23 @@ router.post('/api/admin/panel-users/batch-password', verifyAdmin, async (req, re
     }
 
     let allUsers = getPanelItems(response.data);
+    // 翻全页（CLAUDE.md 规则 #3）：上一页返回满 200 才继续翻
+    let batchPage = 1;
+    let batchLastBatch = allUsers.length;
+    while (batchLastBatch >= 200 && batchPage < 50) {
+      batchPage++;
+      const nextRes = await panel.post('/api/v2/core/enterprise/users/search', {
+        page: batchPage, pageSize: 200, info: '',
+      });
+      if (nextRes.status < 200 || nextRes.status >= 300) break;
+      const nextBiz = inspectPanelBiz(nextRes);
+      if (!nextBiz.ok) break;
+      const items = getPanelItems(nextRes.data);
+      batchLastBatch = items.length;
+      if (items.length === 0) break;
+      allUsers.push(...items);
+    }
+
     let targets;
     if (userIds && userIds.length) {
       targets = allUsers.filter(u => userIds.includes(u.id));
@@ -1476,8 +1637,9 @@ router.post('/api/admin/panel-users/batch-password', verifyAdmin, async (req, re
           createdAt: user.createdAt,
           password: encodedPassword,
         });
-        const ok = updateRes.status >= 200 && updateRes.status < 300;
-        return { id: user.id, name: user.name, success: ok, status: updateRes.status };
+        const biz = inspectPanelBiz(updateRes);
+        const ok = updateRes.status >= 200 && updateRes.status < 300 && biz.ok;
+        return { id: user.id, name: user.name, success: ok, status: updateRes.status, error: biz.ok ? '' : biz.message };
       } catch (err) {
         return { id: user.id, name: user.name, success: false, error: err.message };
       }
@@ -1747,10 +1909,10 @@ router.post('/api/admin/portal-users', verifyAdmin, async (req, res) => {
 
     const passwordHash = await bcrypt.hash(rawPassword, 12);
     const result = await global.pool.query(`
-      INSERT INTO portal_users (panel_user_id, username, name, password_hash, session_timeout, status, role)
-      VALUES ($1, $2, $3, $4, $5, 'active', $6)
+      INSERT INTO portal_users (panel_user_id, username, name, display_name, password_hash, session_timeout, status, role)
+      VALUES ($1, $2, $3, $4, $5, $6, 'active', $7)
       RETURNING id, panel_user_id, username, name, role, status, last_login_at, created_at
-    `, [panelUserId, rawUsername, rawName, passwordHash, sessionTimeout, rawRole]);
+    `, [panelUserId, rawUsername, rawName, rawName, passwordHash, sessionTimeout, rawRole]);
 
     const user = result.rows[0];
     res.json({

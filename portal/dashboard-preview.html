@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI-Portal 数据统计大屏</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f5f5f7;
+    color: #1D2129;
+    min-height: 100vh;
+  }
+  .container { max-width: 1440px; margin: 0 auto; padding: 20px 24px; }
+
+  /* ===== 顶栏 ===== */
+  .header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    gap: 16px;
+  }
+  .header h1 { font-size: 20px; font-weight: 700; }
+  .header .meta {
+    font-size: 12px;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    white-space: nowrap;
+  }
+  .header .meta .live-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #10b981;
+    animation: pulse-dot 2s infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ===== 筛选栏 ===== */
+  .filter-bar {
+    background: #fff;
+    border: 1px solid rgba(0,0,0,0.06);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  }
+  .filter-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .filter-sep {
+    width: 1px; height: 20px;
+    background: rgba(0,0,0,0.06);
+  }
+  .filter-btn {
+    padding: 4px 11px;
+    border-radius: 6px;
+    font-size: 13px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #475569;
+    cursor: pointer;
+    transition: all .12s;
+  }
+  .filter-btn:hover { background: rgba(0,94,235,0.04); color: rgba(0,94,235,1); }
+  .filter-btn.active {
+    background: rgba(0,94,235,0.08);
+    color: rgba(0,94,235,1);
+    font-weight: 600;
+    border-color: rgba(0,94,235,0.2);
+  }
+  .filter-select {
+    padding: 4px 26px 4px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    border: 1px solid rgba(0,0,0,0.08);
+    background: #f5f5f7 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 7px center;
+    appearance: none;
+    color: #1D2129;
+    cursor: pointer;
+    outline: none;
+    font-family: inherit;
+  }
+  .filter-select:focus { border-color: rgba(0,94,235,0.4); background-color: #fff; }
+  .filter-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px 2px 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    background: rgba(0,94,235,0.07);
+    color: rgba(0,94,235,1);
+    font-weight: 500;
+    line-height: 20px;
+  }
+  .filter-tag .x {
+    cursor: pointer;
+    font-weight: 700;
+    opacity: 0.5;
+    font-size: 13px;
+    line-height: 1;
+  }
+  .filter-tag .x:hover { opacity: 1; }
+  .filter-spacer { flex: 1; }
+
+  /* ===== 统计卡片行 ===== */
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .stat-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px 18px;
+    border: 1px solid rgba(0,0,0,0.05);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: box-shadow .15s;
+  }
+  .stat-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .stat-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .stat-icon.blue   { background: rgba(0,94,235,0.07); }
+  .stat-icon.green  { background: rgba(16,185,129,0.07); }
+  .stat-icon.amber  { background: rgba(245,158,11,0.07); }
+  .stat-icon.rose   { background: rgba(244,63,94,0.07); }
+  .stat-body { flex: 1; min-width: 0; }
+  .stat-label { font-size: 12px; color: #94a3b8; font-weight: 500; }
+  .stat-value { font-size: 21px; font-weight: 700; color: #1D2129; line-height: 1.3; letter-spacing: -0.01em; }
+  .stat-trend {
+    font-size: 11px; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 2px;
+    padding: 1px 6px; border-radius: 4px;
+  }
+  .stat-trend.up   { color: #10b981; background: rgba(16,185,129,0.08); }
+  .stat-trend.down { color: #ef4444; background: rgba(239,68,68,0.08); }
+
+  /* ===== 主内容区 ===== */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  /* ===== 大卡片 ===== */
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.05);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 14px 18px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1D2129;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .card-body { padding: 10px 14px 14px; }
+  .chart-card canvas { max-height: 340px; }
+
+  /* ===== Tab 切换 ===== */
+  .tab-bar {
+    display: flex;
+    gap: 2px;
+    background: #f5f5f7;
+    border-radius: 7px;
+    padding: 2px;
+  }
+  .tab-btn {
+    padding: 3px 11px;
+    border-radius: 5px;
+    font-size: 12px;
+    border: none;
+    background: transparent;
+    color: #475569;
+    cursor: pointer;
+    font-weight: 500;
+    font-family: inherit;
+    transition: all .12s;
+  }
+  .tab-btn.active { background: #fff; color: #1D2129; box-shadow: 0 1px 2px rgba(0,0,0,0.06); font-weight: 600; }
+  .tab-btn:hover:not(.active) { color: rgba(0,94,235,1); }
+
+  /* ===== 红黑榜 ===== */
+  .rank-card {}
+  .rank-section {}
+  .rank-section + .rank-section {
+    border-top: 1px solid rgba(0,0,0,0.05);
+  }
+  .rank-header {
+    padding: 12px 18px 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .rank-badge {
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .rank-badge.red   { background: rgba(239,68,68,0.08); color: #ef4444; }
+  .rank-badge.black { background: rgba(100,116,139,0.08); color: #475569; }
+  .rank-header-text { font-size: 12px; color: #94a3b8; font-weight: 500; }
+  .rank-list { padding: 0 18px 12px; }
+  .rank-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.03);
+  }
+  .rank-item:last-child { border-bottom: none; }
+  .rank-item.highlighted { background: rgba(0,94,235,0.03); margin: 0 -18px; padding: 5px 18px; border-radius: 6px; }
+  .rank-pos {
+    width: 20px; text-align: center;
+    font-size: 11px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .rank-pos.top    { color: rgba(0,94,235,1); }
+  .rank-pos.bottom { color: #94a3b8; }
+  .rank-info { flex: 1; min-width: 0; }
+  .rank-name {
+    font-size: 13px; font-weight: 500; color: #1D2129;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .rank-bar-track {
+    height: 5px; border-radius: 3px;
+    background: #f1f5f9;
+    margin-top: 3px;
+    overflow: hidden;
+  }
+  .rank-bar-fill {
+    height: 100%; border-radius: 3px;
+    background: linear-gradient(90deg, rgba(0,94,235,0.9), rgba(0,94,235,0.4));
+  }
+  .rank-bar-fill.muted {
+    background: linear-gradient(90deg, #cbd5e1, #e2e8f0);
+  }
+  .rank-metric {
+    font-size: 12px; color: #64748b;
+    min-width: 50px; text-align: right; flex-shrink: 0;
+  }
+
+  /* ===== 响应式 ===== */
+  @media (max-width: 1100px) {
+    .main-grid { grid-template-columns: 1fr; }
+    .stat-row { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .stat-row { grid-template-columns: 1fr; }
+    .container { padding: 14px; }
+    .filter-bar { gap: 8px; }
+    .filter-sep { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- 顶栏 -->
+  <div class="header">
+    <div>
+      <h1>📊 AI 使用统计大屏</h1>
+    </div>
+    <div class="meta">
+      <span class="live-dot"></span>
+      <span>统计周期：06-26 ~ 07-07（12 天）</span>
+      <span>·</span>
+      <span id="updateTime">刚刚更新</span>
+    </div>
+  </div>
+
+  <!-- 筛选栏 -->
+  <div class="filter-bar">
+    <span class="filter-label">筛选</span>
+    <div class="filter-sep"></div>
+    <span style="font-size:12px;color:#94a3b8;white-space:nowrap">时间</span>
+    <button class="filter-btn" data-range="7">近7天</button>
+    <button class="filter-btn active" data-range="all">全部</button>
+    <div class="filter-sep"></div>
+    <span style="font-size:12px;color:#94a3b8;white-space:nowrap">用户</span>
+    <select id="userFilter" class="filter-select">
+      <option value="">全部用户</option>
+    </select>
+    <div class="filter-sep"></div>
+    <span style="font-size:12px;color:#94a3b8;white-space:nowrap">指标</span>
+    <div class="tab-bar">
+      <button class="tab-btn active" data-metric="totalTokens">Total Tokens</button>
+      <button class="tab-btn" data-metric="requestCount">请求数</button>
+    </div>
+    <div class="filter-spacer"></div>
+    <div id="activeFilters"></div>
+  </div>
+
+  <!-- 统计卡片 -->
+  <div class="stat-row">
+    <div class="stat-card">
+      <div class="stat-icon blue">📡</div>
+      <div class="stat-body">
+        <div class="stat-label">总请求数</div>
+        <div class="stat-value" id="sReq">—</div>
+      </div>
+      <span class="stat-trend up" id="tReq" style="display:none">▲</span>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon green">🔢</div>
+      <div class="stat-body">
+        <div class="stat-label">总 Tokens</div>
+        <div class="stat-value" id="sTok">—</div>
+      </div>
+      <span class="stat-trend up" id="tTok" style="display:none">▲</span>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon amber">👥</div>
+      <div class="stat-body">
+        <div class="stat-label">活跃用户</div>
+        <div class="stat-value" id="sUsr">—</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon rose">⚠️</div>
+      <div class="stat-body">
+        <div class="stat-label">失败请求</div>
+        <div class="stat-value" id="sFail">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主内容 -->
+  <div class="main-grid">
+    <!-- 左：趋势图 -->
+    <div class="card chart-card">
+      <div class="card-header">
+        <div class="card-title">📈 请求 &amp; Tokens 趋势</div>
+        <div id="trendMetricLabel" style="font-size:12px;color:#94a3b8">按 Total Tokens</div>
+      </div>
+      <div class="card-body">
+        <canvas id="trendChart"></canvas>
+      </div>
+    </div>
+
+    <!-- 右：Provider / 模型 / Tokens -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">📋 分布</div>
+        <div class="tab-bar">
+          <button class="tab-btn active" data-tab="provider">Provider</button>
+          <button class="tab-btn" data-tab="model">模型</button>
+          <button class="tab-btn" data-tab="tokens">Tokens</button>
+        </div>
+      </div>
+      <div class="card-body" style="min-height:340px">
+        <canvas id="distChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- 红黑榜 -->
+  <div class="card rank-card">
+    <div class="rank-header">
+      <span class="rank-badge red">🔥</span>
+      <span style="font-size:13px;font-weight:600;color:#1D2129">红榜 Top 10</span>
+      <span class="rank-header-text">按 Total Tokens 降序</span>
+      <span style="flex:1"></span>
+      <span id="rankBadge" class="rank-badge" style="display:none;background:rgba(0,94,235,0.07);color:rgba(0,94,235,1)"></span>
+    </div>
+    <div class="rank-list" id="redList"></div>
+    <div class="rank-header" style="margin-top:4px">
+      <span class="rank-badge black">📉</span>
+      <span style="font-size:13px;font-weight:600;color:#1D2129">黑榜 Bottom 10</span>
+      <span class="rank-header-text">按 Total Tokens 升序</span>
+    </div>
+    <div class="rank-list" id="blackList"></div>
+  </div>
+
+  <p style="text-align:center;color:#cbd5e1;font-size:11px;margin-top:18px">
+    数据来源：1Panel AI Proxy Usage Statistics API
+  </p>
+</div>
+
+<script>
+// ====== 数据 ======
+const RAW = {
+  summary: {
+    requestCount: 16114, promptTokens: 974697894, completionTokens: 7608309,
+    totalTokens: 982306203, cachedTokens: 912808960,
+    activeUsers: 88, activeModels: 27, failedRequests: 581, averageTokens: 60959
+  },
+  trends: [
+    {name:"2026-06-26",requestCount:14,totalTokens:1348},
+    {name:"2026-06-27",requestCount:0,totalTokens:0},
+    {name:"2026-06-28",requestCount:0,totalTokens:0},
+    {name:"2026-06-29",requestCount:106,totalTokens:5503658},
+    {name:"2026-06-30",requestCount:279,totalTokens:16931202},
+    {name:"2026-07-01",requestCount:257,totalTokens:17084825},
+    {name:"2026-07-02",requestCount:1165,totalTokens:86220724},
+    {name:"2026-07-03",requestCount:3182,totalTokens:262038673},
+    {name:"2026-07-04",requestCount:1607,totalTokens:124156730},
+    {name:"2026-07-05",requestCount:543,totalTokens:63986194},
+    {name:"2026-07-06",requestCount:6197,totalTokens:337220295},
+    {name:"2026-07-07",requestCount:2764,totalTokens:69162554}
+  ],
+  providers: [
+    {name:"deepseek",requestCount:12654,totalTokens:678312631},
+    {name:"custom",requestCount:3239,totalTokens:303993572},
+    {name:"未分类",requestCount:221,totalTokens:0}
+  ],
+  models: [
+    {name:"f2c-deepseek-v4-flash",requestCount:15191,totalTokens:935193899},
+    {name:"deepseek-v4-flash",requestCount:565,totalTokens:29854878},
+    {name:"deepseek-v4-flash-free",requestCount:286,totalTokens:17257426},
+    {name:"gpt-5.4-mini",requestCount:12,totalTokens:0},
+    {name:"claude-haiku-4-5",requestCount:5,totalTokens:0},
+    {name:"DQ-DeepSeek",requestCount:10,totalTokens:0},
+    {name:"Qwen3.6-27B",requestCount:1,totalTokens:0},
+    {name:"deepseek-v4-pro",requestCount:1,totalTokens:0},
+    {name:"model-name",requestCount:5,totalTokens:0},
+    {name:"deepseek",requestCount:3,totalTokens:0}
+  ],
+  users: [
+    {userId:39,name:"wecom_e8f6b62a",requestCount:1095,totalTokens:197816709},
+    {userId:91,name:"ChengFeiYue",requestCount:784,totalTokens:157285700},
+    {userId:75,name:"JiangLinFeng",requestCount:5990,totalTokens:109738796},
+    {userId:37,name:"FanYuMin",requestCount:998,totalTokens:57926671},
+    {userId:97,name:"ZhaoWenPing",requestCount:424,totalTokens:42132283},
+    {userId:55,name:"ChenJianXing",requestCount:347,totalTokens:32560996},
+    {userId:53,name:"SongChangChang",requestCount:430,totalTokens:29575487},
+    {userId:77,name:"WangZiHui",requestCount:306,totalTokens:26641682},
+    {userId:103,name:"ZhaiYuQing",requestCount:353,totalTokens:25880771},
+    {userId:104,name:"FanYuTao",requestCount:213,totalTokens:21564886},
+    {userId:64,name:"WangTongYang",requestCount:230,totalTokens:20474335},
+    {userId:15,name:"AIProxyUserFallback",requestCount:311,totalTokens:19375621},
+    {userId:90,name:"LiuYuXuan",requestCount:186,totalTokens:17133869},
+    {userId:102,name:"LiZhenQiao",requestCount:1133,totalTokens:15862476},
+    {userId:111,name:"FengHaiYang",requestCount:164,totalTokens:15803962},
+    {userId:106,name:"JiangTengYan",requestCount:170,totalTokens:15317975},
+    {userId:95,name:"MaWei",requestCount:175,totalTokens:14855678},
+    {userId:98,name:"DongYou",requestCount:142,totalTokens:11337226},
+    {userId:79,name:"SunJuShi",requestCount:158,totalTokens:10322648},
+    {userId:57,name:"WuQingLei",requestCount:159,totalTokens:10154208},
+    {userId:122,name:"MiaoQianQian",requestCount:114,totalTokens:10116218},
+    {userId:74,name:"320682...",requestCount:55,totalTokens:9312555},
+    {userId:115,name:"YuXiu",requestCount:130,totalTokens:8305978},
+    {userId:78,name:"HuJunJie",requestCount:129,totalTokens:8271299},
+    {userId:121,name:"ZhanNa",requestCount:157,totalTokens:8256599},
+    {userId:28,name:"GaoShengSong",requestCount:91,totalTokens:7980382},
+    {userId:83,name:"ChiXiaoQiang",requestCount:102,totalTokens:7342871},
+    {userId:59,name:"XuGuiLin",requestCount:103,totalTokens:6587773},
+    {userId:131,name:"NieLuZhu",requestCount:58,totalTokens:4599045},
+    {userId:87,name:"WanZiLiang",requestCount:66,totalTokens:4538382},
+    {userId:119,name:"LinJiaXi",requestCount:75,totalTokens:4287762},
+    {userId:43,name:"130582...",requestCount:160,totalTokens:3834170},
+    {userId:117,name:"WangQiuYang",requestCount:51,totalTokens:3670802},
+    {userId:120,name:"TianJiaLi",requestCount:67,totalTokens:2876554},
+    {userId:133,name:"YangGuiHong",requestCount:57,totalTokens:2750135},
+    {userId:108,name:"YuQun",requestCount:68,totalTokens:2505360},
+    {userId:109,name:"WangLiangYan",requestCount:42,totalTokens:2473937},
+    {userId:107,name:"ZhangShiQin",requestCount:52,totalTokens:2473315},
+    {userId:8,name:"AIProxy-8",requestCount:56,totalTokens:2266326},
+    {userId:127,name:"RuanHao",requestCount:50,totalTokens:2200552},
+    {userId:128,name:"LiShuo",requestCount:36,totalTokens:2194605},
+    {userId:130,name:"LuJiaWei",requestCount:33,totalTokens:2047299},
+    {userId:146,name:"MaYan",requestCount:34,totalTokens:2042025},
+    {userId:136,name:"GaoXue",requestCount:38,totalTokens:2036623},
+    {userId:151,name:"GengJiaQi",requestCount:29,totalTokens:1754520},
+    {userId:20,name:"RuanZhiMin",requestCount:20,totalTokens:1695440},
+    {userId:21,name:"ShiHuiBin",requestCount:34,totalTokens:1684905},
+    {userId:101,name:"YinTing",requestCount:33,totalTokens:1569317},
+    {userId:148,name:"LvDiDi",requestCount:27,totalTokens:1539120},
+    {userId:114,name:"GuoTianYu",requestCount:28,totalTokens:1518153},
+    {userId:56,name:"LinWenJing",requestCount:30,totalTokens:1328079},
+    {userId:76,name:"WangJunWei",requestCount:46,totalTokens:1318115},
+    {userId:92,name:"SuMeng",requestCount:34,totalTokens:1023293},
+    {userId:145,name:"XiongZiYi",requestCount:11,totalTokens:885449},
+    {userId:9,name:"AIProxy-9",requestCount:15,totalTokens:792427},
+    {userId:26,name:"ShenKaiJie",requestCount:14,totalTokens:476403},
+    {userId:93,name:"FangRuiLin",requestCount:9,totalTokens:452946},
+    {userId:52,name:"illusorylimit",requestCount:10,totalTokens:363699},
+    {userId:18,name:"zhaoleibo",requestCount:10,totalTokens:329717},
+    {userId:62,name:"ChenXin",requestCount:9,totalTokens:238344},
+    {userId:132,name:"ErYang",requestCount:2,totalTokens:126207},
+    {userId:54,name:"LiPan",requestCount:26,totalTokens:125477},
+    {userId:85,name:"ZhangYangYang",requestCount:10,totalTokens:97861},
+    {userId:60,name:"ZhangShuBin",requestCount:5,totalTokens:67123},
+    {userId:44,name:"ZhangLiJun",requestCount:2,totalTokens:44229},
+    {userId:72,name:"LiuRuiBin",requestCount:7,totalTokens:43982},
+    {userId:81,name:"DuXiaoQing",requestCount:1,totalTokens:43750},
+    {userId:17,name:"XuSong",requestCount:1,totalTokens:36287},
+    {userId:73,name:"ShiMengQiao",requestCount:7,totalTokens:5595},
+    {userId:33,name:"LiuQinGui",requestCount:20,totalTokens:4581},
+    {userId:156,name:"YaoYi",requestCount:7,totalTokens:3116},
+    {userId:177,name:"ZhouWenTao",requestCount:5,totalTokens:1574},
+    {userId:1,name:"admin",requestCount:14,totalTokens:1348},
+    {userId:139,name:"HaoZhanKui",requestCount:6,totalTokens:1140},
+    {userId:6,name:"AIProxy-6",requestCount:2,totalTokens:366},
+    {userId:45,name:"WuShaoChuan",requestCount:8,totalTokens:200},
+    {userId:181,name:"YangXiaoXia",requestCount:1,totalTokens:190},
+    {userId:178,name:"YangXinYi",requestCount:1,totalTokens:169},
+    {userId:32,name:"LiJiaXin",requestCount:1,totalTokens:162},
+    {userId:29,name:"WangZhen",requestCount:3,totalTokens:130},
+    {userId:175,name:"MaHaoYu",requestCount:1,totalTokens:123},
+    {userId:11,name:"AIProxy-11",requestCount:1,totalTokens:120},
+    {userId:89,name:"TianFeng",requestCount:2,totalTokens:0},
+    {userId:99,name:"WangWeiJun",requestCount:4,totalTokens:0},
+    {userId:118,name:"LiGaoYang",requestCount:2,totalTokens:0},
+    {userId:126,name:"WuZhiSheng",requestCount:5,totalTokens:0},
+    {userId:134,name:"JiangHaoBo",requestCount:17,totalTokens:0},
+    {userId:171,name:"XuJunChao",requestCount:2,totalTokens:0}
+  ]
+};
+
+// ====== 中文名映射（从后端 /api/admin/portal-users/map 动态获取） ======
+let nameMap = {};
+
+// ====== 状态 ======
+const state = { days: null, userId: '', metric: 'totalTokens', tab: 'provider' };
+const charts = {};
+const ACCENT = 'rgba(0,94,235,1)';
+const ACCENT_A = 'rgba(0,94,235,0.12)';
+const GRID = 'rgba(0,0,0,0.05)';
+Chart.defaults.font.family = '-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif';
+Chart.defaults.font.size = 12;
+Chart.defaults.plugins.legend.labels.usePointStyle = true;
+Chart.defaults.plugins.legend.labels.pointStyleWidth = 10;
+
+// ====== 工具 ======
+const fmt = n => n >= 1e9 ? (n/1e9).toFixed(1)+'B' : n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(1)+'K' : String(n);
+const fmtF = n => n.toLocaleString();
+const trends = () => state.days ? RAW.trends.slice(-state.days) : RAW.trends;
+const filteredUsers = () => state.userId ? RAW.users.filter(u => String(u.userId) === String(state.userId)) : RAW.users;
+const metricOf = u => state.metric === 'requestCount' ? (u.requestCount || 0) : (u.totalTokens || 0);
+const metricLabel = state.metric === 'requestCount' ? '请求数' : 'Total Tokens';
+
+function topBottom(users) {
+  const sorted = [...users].sort((a, b) => metricOf(b) - metricOf(a));
+  return { top: sorted.slice(0, 10), bottom: sorted.slice(-10).reverse() };
+}
+
+// ====== 统计卡片 ======
+function updateStats() {
+  const ts = trends();
+  const us = filteredUsers();
+  const req = ts.reduce((s, t) => s + t.requestCount, 0);
+  const tok = ts.reduce((s, t) => s + t.totalTokens, 0);
+  const users = state.userId ? us : RAW.users;
+
+  // 有环比：取最近两天非零数据
+  const nonZero = ts.filter(t => t.requestCount > 0);
+  const reqTrend = nonZero.length >= 2 ? nonZero[nonZero.length-1].requestCount - nonZero[nonZero.length-2].requestCount : 0;
+
+  setStat('sReq', fmtF(req), 'tReq', reqTrend);
+  setStat('sTok', fmt(tok), 'tTok', null);
+  document.getElementById('sUsr').textContent = state.userId ? '1' : fmtF(RAW.summary.activeUsers);
+  document.getElementById('sFail').textContent = state.userId ? '—' : fmtF(RAW.summary.failedRequests);
+}
+
+function setStat(valId, val, trendId, diff) {
+  document.getElementById(valId).textContent = val;
+  const el = document.getElementById(trendId);
+  if (diff === null || diff === undefined) { el.style.display = 'none'; return; }
+  if (diff === 0) { el.textContent = '—'; el.className = 'stat-trend'; el.style.display = ''; return; }
+  const up = diff > 0;
+  el.className = 'stat-trend ' + (up ? 'up' : 'down');
+  el.textContent = (up ? '▲' : '▼') + Math.abs(diff).toLocaleString();
+  el.style.display = '';
+}
+
+// ====== 筛选栏 ======
+function initFilters() {
+  // 时间按钮
+  document.querySelectorAll('[data-range]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-range]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.days = btn.dataset.range === 'all' ? null : parseInt(btn.dataset.range);
+      apply();
+    });
+  });
+  // 指标切换
+  document.querySelectorAll('[data-metric]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-metric]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.metric = btn.dataset.metric;
+      document.getElementById('trendMetricLabel').textContent = '按 ' + metricLabel;
+      apply();
+    });
+  });
+  // Tab 切换
+  document.querySelectorAll('[data-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-tab]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.tab = btn.dataset.tab;
+      renderDistChart();
+    });
+  });
+  // 用户下拉
+  const sel = document.getElementById('userFilter');
+  // 尝试从后端获取中文名映射
+  RAW.users.forEach(u => {
+    const o = document.createElement('option');
+    o.value = u.userId;
+    o.textContent = nameMap[u.userId] || u.displayName || u.name;
+    sel.appendChild(o);
+  });
+  sel.addEventListener('change', () => {
+    state.userId = sel.value;
+    apply();
+  });
+}
+
+function renderTags() {
+  const el = document.getElementById('activeFilters');
+  let h = '';
+  if (state.days) h += `<span class="filter-tag">近${state.days}天 <span class="x" data-clear="days">×</span></span>`;
+  if (state.userId) {
+    const u = RAW.users.find(x => String(x.userId) === String(state.userId));
+    const display = u ? (nameMap[u.userId] || u.displayName || u.name) : state.userId;
+    h += `<span class="filter-tag">${display} <span class="x" data-clear="user">×</span></span>`;
+  }
+  el.innerHTML = h;
+  el.querySelectorAll('.x').forEach(r => {
+    r.addEventListener('click', () => {
+      const k = r.dataset.clear;
+      if (k === 'days') {
+        state.days = null;
+        document.querySelectorAll('[data-range]').forEach(b => b.classList.remove('active'));
+        document.querySelector('[data-range="all"]').classList.add('active');
+      } else {
+        state.userId = '';
+        document.getElementById('userFilter').value = '';
+      }
+      apply();
+    });
+  });
+  const badge = document.getElementById('rankBadge');
+  if (state.userId) {
+    const u = RAW.users.find(x => String(x.userId) === String(state.userId));
+    const display = u ? (nameMap[u.userId] || u.displayName || u.name) : state.userId;
+    badge.style.display = '';
+    badge.textContent = u ? `查看：${display}` : '';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ====== 趋势图 ======
+function initTrendChart() {
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  const ts = trends();
+  const isToken = state.metric === 'totalTokens';
+  charts.trend = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: ts.map(t => t.name.slice(5)),
+      datasets: [
+        {
+          label: '请求数',
+          data: ts.map(t => t.requestCount),
+          borderColor: ACCENT,
+          backgroundColor: ACCENT_A,
+          fill: true,
+          tension: 0.35,
+          pointRadius: 3,
+          pointBackgroundColor: ACCENT,
+          pointHoverRadius: 6,
+          borderWidth: 2,
+          yAxisID: 'y',
+          order: isToken ? 2 : 1
+        },
+        {
+          label: metricLabel,
+          data: ts.map(t => isToken ? +(t.totalTokens/1e6).toFixed(1) : t.requestCount),
+          borderColor: '#f59e0b',
+          backgroundColor: 'rgba(245,158,11,0.08)',
+          fill: true,
+          tension: 0.35,
+          pointRadius: 3,
+          pointBackgroundColor: '#f59e0b',
+          pointHoverRadius: 6,
+          borderWidth: 2,
+          yAxisID: 'y1',
+          order: isToken ? 1 : 2
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', align: 'end', labels: { boxWidth: 8, padding: 16 } },
+        tooltip: {
+          backgroundColor: 'rgba(30,41,59,0.95)',
+          titleFont: { size: 12 },
+          bodyFont: { size: 12 },
+          padding: 10,
+          cornerRadius: 8,
+          callbacks: {
+            label: ctx => {
+              if (ctx.datasetIndex === 0) return ` 请求数：${ctx.raw.toLocaleString()}`;
+              return isToken ? ` Tokens：${ctx.raw}M` : ` 请求数：${ctx.raw.toLocaleString()}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#94a3b8' } },
+        y: { position: 'left', grid: { color: GRID }, ticks: { font: { size: 11 }, color: '#94a3b8' }, title: { display: true, text: '请求数', color: '#94a3b8', font: { size: 11 } } },
+        y1: { position: 'right', grid: { display: false }, ticks: { font: { size: 11 }, color: '#94a3b8' }, title: { display: true, text: isToken ? 'Tokens (M)' : '请求数', color: '#94a3b8', font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+function updateTrendChart() {
+  const ts = trends();
+  const isToken = state.metric === 'totalTokens';
+  const c = charts.trend;
+  c.data.labels = ts.map(t => t.name.slice(5));
+  c.data.datasets[0].data = ts.map(t => t.requestCount);
+  c.data.datasets[0].order = isToken ? 2 : 1;
+  c.data.datasets[1].data = ts.map(t => isToken ? +(t.totalTokens/1e6).toFixed(1) : t.requestCount);
+  c.data.datasets[1].order = isToken ? 1 : 2;
+  c.options.scales.y1.title.text = isToken ? 'Tokens (M)' : '请求数';
+  c.update('none');
+}
+
+// ====== 分布图 ======
+function renderDistChart() {
+  if (charts.dist) charts.dist.destroy();
+  const ctx = document.getElementById('distChart').getContext('2d');
+  let labels, data, bgColors;
+
+  if (state.tab === 'provider') {
+    const items = RAW.providers;
+    labels = items.map(p => p.name || '未分类');
+    data = items.map(p => p.requestCount);
+    bgColors = ['rgba(0,94,235,0.85)', 'rgba(16,185,129,0.75)', 'rgba(148,163,184,0.4)'];
+  } else if (state.tab === 'model') {
+    const items = RAW.models.slice(0, 10);
+    labels = items.map(m => m.name.length > 18 ? m.name.slice(0,16) + '…' : m.name);
+    data = items.map(m => m.requestCount);
+    bgColors = items.map((_, i) => `rgba(0,94,235,${Math.max(0.85 - i*0.06, 0.25)})`);
+  } else {
+    labels = ['Prompt', 'Completion', 'Cached'];
+    data = [RAW.summary.promptTokens, RAW.summary.completionTokens, RAW.summary.cachedTokens];
+    bgColors = ['rgba(0,94,235,0.8)', 'rgba(245,158,11,0.75)', 'rgba(16,185,129,0.7)'];
+  }
+
+  const isDoughnut = state.tab === 'tokens';
+  charts.dist = new Chart(ctx, {
+    type: isDoughnut ? 'doughnut' : 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: state.tab === 'tokens' ? 'Tokens' : '请求数',
+        data,
+        backgroundColor: isDoughnut ? bgColors : (state.tab === 'provider' ? bgColors : bgColors),
+        borderRadius: isDoughnut ? 0 : 5,
+        barThickness: isDoughnut ? undefined : 22,
+        borderWidth: 0,
+        spacing: isDoughnut ? 3 : undefined
+      }]
+    },
+    options: {
+      responsive: true,
+      indexAxis: state.tab === 'provider' ? 'y' : 'x',
+      cutout: isDoughnut ? '62%' : undefined,
+      plugins: {
+        legend: isDoughnut ? { position: 'bottom', labels: { padding: 14, usePointStyle: true } } : { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(30,41,59,0.95)',
+          cornerRadius: 8,
+          padding: 10,
+          callbacks: isDoughnut ? {
+            label: ctx => {
+              const v = ctx.raw;
+              const pct = (v / RAW.summary.totalTokens * 100).toFixed(1);
+              return ` ${ctx.label}：${(v/1e6).toFixed(1)}M（${pct}%）`;
+            }
+          } : {
+            label: ctx => ` ${ctx.dataset.label}：${ctx.raw.toLocaleString()}`
+          }
+        }
+      },
+      scales: isDoughnut ? {} : {
+        x: { grid: { display: false }, ticks: { font: { size: isDoughnut ? 11 : 10 }, color: '#94a3b8', maxRotation: 45 } },
+        y: { grid: { color: GRID }, ticks: { font: { size: 11 }, color: '#94a3b8' } }
+      }
+    }
+  });
+}
+
+// ====== 红黑榜 ======
+function renderRanks() {
+  const { top, bottom } = topBottom(filteredUsers());
+  const maxV = Math.max(metricOf(top[0] || {totalTokens:1}), 1);
+
+  function itemHTML(u, i, isTop) {
+    const v = metricOf(u);
+    const vStr = state.metric === 'requestCount' ? v.toLocaleString() : (v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v);
+    const pct = Math.max(3, (v / maxV) * 100);
+    const hl = state.userId && String(u.userId) === String(state.userId);
+    const display = nameMap[u.userId] || u.displayName || u.name;
+    return `<div class="rank-item${hl ? ' highlighted' : ''}">
+      <div class="rank-pos ${isTop ? 'top' : 'bottom'}">${i+1}</div>
+      <div class="rank-info">
+        <div class="rank-name" title="${display}">${display}</div>
+        <div class="rank-bar-track"><div class="rank-bar-fill${isTop ? '' : ' muted'}" style="width:${pct}%"></div></div>
+      </div>
+      <div class="rank-metric">${vStr}</div>
+    </div>`;
+  }
+
+  document.getElementById('redList').innerHTML = top.map((u, i) => itemHTML(u, i, true)).join('');
+  document.getElementById('blackList').innerHTML = bottom.map((u, i) => itemHTML(u, i, false)).join('');
+}
+
+// ====== 统一更新 ======
+function apply() {
+  renderTags();
+  updateStats();
+  updateTrendChart();
+  renderDistChart();
+  renderRanks();
+}
+
+// ====== 启动 ======
+initFilters();
+initTrendChart();
+renderDistChart();
+renderRanks();
+updateStats();
+</script>
+</body>
+</html>

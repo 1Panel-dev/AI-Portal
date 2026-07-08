@@ -4,10 +4,16 @@
 
     <main class="max-w-[1000px] mx-auto px-6 py-10 pt-[132px]">
       <div class="flex items-center gap-4 mb-6">
+        <button @click="$router.push('/admin/stats')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/stats' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">数据统计</button>
+
         <button @click="$router.push('/admin')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">审核管理</button>
+
         <button @click="$router.push('/admin/skills')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/skills' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">技能管理</button>
+
         <button @click="$router.push('/admin/users')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/users' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">用户管理</button>
+
         <button @click="$router.push('/admin/config')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/config' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">系统配置</button>
+
         <button @click="$router.push('/admin/oauth')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/oauth' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">第三方登录</button>
       </div>
 
@@ -200,12 +206,16 @@ const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.v
 const pageNumbers = computed(() => {
   const tp = totalPages.value
   const p = page.value
-  if (tp <= 7) return Array.from({ length: tp }, (_, i) => i + 1)
-  const out = [1]
-  if (p > 3) out.push('...')
-  for (let i = Math.max(2, p - 1); i <= Math.min(tp - 1, p + 1); i++) out.push(i)
-  if (p < tp - 2) out.push('...')
-  out.push(tp)
+  if (tp <= 5) return Array.from({ length: tp }, (_, i) => i + 1)
+  let start = Math.max(1, p - 2)
+  let end = Math.min(tp, start + 4)
+  start = Math.max(1, end - 4)
+  const out = []
+  if (start > 1) out.push(1)
+  if (start > 2) out.push('...')
+  for (let i = start; i <= end; i++) out.push(i)
+  if (end < tp - 1) out.push('...')
+  if (end < tp) out.push(tp)
   return out
 })
 const getToken = () => localStorage.getItem('admin_token')
@@ -254,18 +264,50 @@ const deleteUser = async () => {
   }
 }
 const syncUsers = async () => {
+  if (syncing.value) return
   syncing.value = true
   try {
     const res = await fetch(`${API_BASE}/admin/portal-users/sync`, { method: 'POST', headers: { Authorization: `Bearer ${getToken()}` } })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || data.reason || '同步失败')
-    showToast(data.message || `同步完成，新增 ${data.synced || 0} 个用户`, 'success')
-    await fetchUsers(1)
+    const taskId = data.taskId
+    if (!taskId) {
+      // 降级：旧接口直接返回结果
+      showToast(data.message || '同步完成', 'success')
+      await fetchUsers(1)
+      return
+    }
+    showToast('任务已提交，正在后台同步...', 'success')
+    // 轮询任务状态
+    await pollSyncTask(taskId)
   } catch (err) {
     showToast(err.message || '同步失败', 'error')
   } finally {
     syncing.value = false
   }
+}
+
+const pollSyncTask = async (taskId) => {
+  const maxAttempts = 180 // 最多 3 分钟（1s/次）
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, 1000))
+    try {
+      const r = await fetch(`${API_BASE}/admin/sync-tasks/${taskId}`, { headers: { Authorization: `Bearer ${getToken()}` } })
+      if (!r.ok) continue
+      const task = await r.json()
+      if (task.status === 'done') {
+        const result = typeof task.result === 'object' ? task.result : {}
+        showToast(result.message || '同步完成', 'success')
+        await fetchUsers(1)
+        return
+      }
+      if (task.status === 'error') {
+        showToast(task.message || '同步失败', 'error')
+        return
+      }
+    } catch (e) { /* 网络抖动，继续轮询 */ }
+  }
+  showToast('同步超时，请刷新页面查看最新数据', 'error')
 }
 
 const refreshUsers = () => fetchUsers(page.value)

@@ -232,33 +232,17 @@
               <div class="mb-6">
                 <div class="flex items-center justify-between mb-3">
                   <h3 class="text-[13px] font-semibold text-text">每月 Token 统计</h3>
-                  <select v-model="selectedYM" class="px-2.5 py-1.5 border border-[rgba(0,0,0,0.1)] rounded-lg text-[13px] bg-white outline-none cursor-pointer">
-                    <option v-for="o in monthOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
-                  </select>
+                  <div class="relative month-picker">
+                    <button @click="monthOpen = !monthOpen" class="flex items-center gap-1 px-2 py-1 text-xs border border-[rgba(0,0,0,0.1)] rounded-lg bg-white hover:border-accent transition-colors">
+                      {{ monthLabel }}<span class="text-text-tertiary ml-0.5">▾</span>
+                    </button>
+                    <div v-if="monthOpen" class="absolute right-0 top-full mt-1 bg-white border border-[rgba(0,0,0,0.08)] rounded-lg shadow-lg z-30 max-h-[182px] overflow-y-auto">
+                      <div v-for="o in monthOptions" :key="o.value" @click="selectedYM = o.value; monthOpen = false" class="px-3 py-1.5 text-xs cursor-pointer hover:bg-accent hover:text-white transition-colors whitespace-nowrap" :class="{ 'bg-accent/10 text-accent font-medium': selectedYM === o.value }">{{ o.label }}</div>
+                    </div>
+                  </div>
                 </div>
                 <div class="relative bg-[#fafafa] rounded-xl p-4" style="min-height: 268px;">
-                  <div v-if="filteredTrends.length" class="flex items-center gap-4 mb-2 px-2">
-                    <div v-for="s in stackSeries" :key="s.key" class="flex items-center gap-1.5 text-[11px] text-text-secondary"><span class="w-2.5 h-2.5 rounded-sm" :style="{ background: s.color }"></span>{{ s.label }}</div>
-                  </div>
-                  <svg v-if="filteredTrends.length" :viewBox="'0 0 '+chartW+' '+chartH" class="w-full" preserveAspectRatio="xMidYMid meet">
-                    <line v-for="(_,i) in 4" :key="'g'+i" :x1="chartPad" :y1="chartPad+i*chartInnerH/3" :x2="chartPad+chartInnerW" :y2="chartPad+i*chartInnerH/3" stroke="rgba(0,0,0,0.06)" stroke-width="1"/>
-                    <text v-for="(v,i) in tokenTicks" :key="'tt'+i" :x="chartPad-6" :y="tokenY(v)+4" text-anchor="end" font-size="10" fill="#aeaeb2">{{ fmtNum(v) }}</text>
-                    <g v-for="(b,bi) in bars" :key="'bar'+bi">
-                      <rect v-for="(s,si) in b.segs" :key="'seg'+bi+'-'+si" :x="b.x" :y="s.y" :width="b.width" :height="Math.max(s.height,0)" :fill="s.color"/>
-                      <rect :x="b.x-2" :y="chartPad" :width="b.width+4" :height="chartInnerH" fill="transparent" @mouseenter="hoverIdx = bi" @mouseleave="hoverIdx = -1"/>
-                      <text :x="b.x + b.width/2" :y="chartH-6" text-anchor="middle" font-size="10" fill="#aeaeb2">{{ b.label }}</text>
-                    </g>
-                    <line v-if="hoverIdx >= 0 && bars[hoverIdx]" :x1="bars[hoverIdx].x + bars[hoverIdx].width/2" :y1="chartPad" :x2="bars[hoverIdx].x + bars[hoverIdx].width/2" :y2="chartPad+chartInnerH" stroke="rgba(0,0,0,0.2)" stroke-width="1" stroke-dasharray="3,3"/>
-                  </svg>
-                  <div v-if="hoverIdx >= 0 && filteredTrends[hoverIdx] && filteredTrends.length"
-                    class="absolute pointer-events-none bg-[#1d1d1f] text-white text-[12px] rounded-lg px-3 py-2 shadow-lg z-10 whitespace-nowrap"
-                    :style="tooltipStyle">
-                    <div class="font-medium mb-1">{{ filteredTrends[hoverIdx].name }}</div>
-                    <div class="text-[11px] text-white/70 flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-[#005eeb]"></span>输入 <span class="font-mono text-white ml-auto">{{ fmtNum(filteredTrends[hoverIdx].promptTokens) }}</span></div>
-                    <div class="text-[11px] text-white/70 flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-[#10b981]"></span>输出 <span class="font-mono text-white ml-auto">{{ fmtNum(filteredTrends[hoverIdx].completionTokens) }}</span></div>
-                    <div class="text-[11px] text-white/70 flex items-center gap-1.5"><span class="w-2 h-2 rounded-sm bg-[#f59e0b]"></span>缓存 <span class="font-mono text-white ml-auto">{{ fmtNum(filteredTrends[hoverIdx].cachedTokens) }}</span></div>
-                    <div class="text-[11px] text-white/70 flex items-center gap-1.5 border-t border-white/10 mt-1 pt-1"><span class="w-2 h-2 rounded-sm bg-white/60"></span>总计 <span class="font-mono text-white ml-auto">{{ fmtNum(filteredTrends[hoverIdx].totalTokens) }}</span></div>
-                  </div>
+                  <div ref="tokenChartRef" style="height:260px"></div>
                   <div v-if="!filteredTrends.length" class="absolute inset-0 flex items-center justify-center text-[13px] text-text-tertiary">{{ monthLabel }} 暂无数据</div>
                 </div>
               </div>
@@ -267,24 +251,7 @@
               <div class="mb-6">
                 <h3 class="text-[13px] font-semibold text-text mb-3">每月请求次数</h3>
                 <div class="relative bg-[#fafafa] rounded-xl p-4" style="min-height: 268px;">
-                  <svg v-if="filteredTrends.length" :viewBox="'0 0 '+chartW+' '+chartH" class="w-full" preserveAspectRatio="xMidYMid meet">
-                    <line v-for="(_,i) in 4" :key="'rg'+i" :x1="chartPad" :y1="chartPad+i*chartInnerH/3" :x2="chartPad+chartInnerW" :y2="chartPad+i*chartInnerH/3" stroke="rgba(0,0,0,0.06)" stroke-width="1"/>
-                    <text v-for="(v,i) in reqTicks" :key="'rt'+i" :x="chartPad-6" :y="reqY(v)+4" text-anchor="end" font-size="10" fill="#aeaeb2">{{ v }}</text>
-                    <polygon v-if="reqArea" :points="reqArea" fill="rgba(0,94,235,0.08)"/>
-                    <polyline :points="reqLine" fill="none" stroke="#005eeb" stroke-width="2" stroke-linejoin="round"/>
-                    <text v-for="(p,i) in reqPoints" :key="'rxl'+i" :x="p.x" :y="chartH-6" text-anchor="middle" font-size="10" fill="#aeaeb2">{{ p.label }}</text>
-                    <rect v-for="(p,i) in reqPoints" :key="'rhot'+i"
-                      :x="p.x - reqHotW/2" :y="chartPad" :width="reqHotW" :height="chartInnerH"
-                      fill="transparent" @mouseenter="reqHoverIdx = i" @mouseleave="reqHoverIdx = -1"/>
-                    <line v-if="reqHoverIdx >= 0" :x1="reqPoints[reqHoverIdx].x" :y1="chartPad" :x2="reqPoints[reqHoverIdx].x" :y2="chartPad+chartInnerH" stroke="rgba(0,0,0,0.15)" stroke-width="1" stroke-dasharray="3,3"/>
-                    <circle v-if="reqHoverIdx >= 0" :cx="reqPoints[reqHoverIdx].x" :cy="reqPoints[reqHoverIdx].y" r="5" fill="#005eeb"/>
-                  </svg>
-                  <div v-if="reqHoverIdx >= 0 && reqPoints[reqHoverIdx] && filteredTrends.length"
-                    class="absolute pointer-events-none bg-[#1d1d1f] text-white text-[12px] rounded-lg px-3 py-2 shadow-lg z-10 whitespace-nowrap"
-                    :style="reqTooltipStyle">
-                    <div class="font-medium mb-1">{{ reqPoints[reqHoverIdx].fullDate }}</div>
-                    <div class="text-[11px] text-white/70 flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-[#005eeb]"></span>请求次数 <span class="font-mono text-white ml-auto">{{ filteredTrends[reqHoverIdx].requestCount }}</span></div>
-                  </div>
+                  <div ref="reqChartRef" style="height:260px"></div>
                   <div v-if="!filteredTrends.length" class="absolute inset-0 flex items-center justify-center text-[13px] text-text-tertiary">{{ monthLabel }} 暂无数据</div>
                 </div>
               </div>
@@ -553,12 +520,18 @@
 </div>
 </template>
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
 import SkillDetailModal from '../components/SkillDetailModal.vue'
 import AppDialog from '../components/AppDialog.vue'
 import SkillctlGuide from '../components/SkillctlGuide.vue'
+import * as echarts from 'echarts/core'
+import { BarChart, LineChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
+
+echarts.use([BarChart, LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const router = useRouter()
 const route = useRoute()
@@ -605,90 +578,162 @@ const monthOptions = computed(() => {
   return opts
 })
 const selectedYM = ref(`${selectedYear.value}-${selectedMonth.value}`)
+const monthOpen = ref(false)
 watch(selectedYM, (v) => { const [y, m] = v.split('-').map(Number); selectedYear.value = y; selectedMonth.value = m })
 const monthLabel = computed(() => `${selectedYear.value}-${selectedMonth.value}月`)
 const fmtNum = (n) => { if (n == null) return '0'; if (n >= 1000000) return (n/1000000).toFixed(1)+'M'; if (n >= 1000) return (n/1000).toFixed(1)+'K'; return String(n) }
 const filteredTrends = computed(() => { const t = usageData.value?.trends; if (!t) return []; const ym = `${selectedYear.value}-${String(selectedMonth.value).padStart(2,'0')}`; return t.filter(v => v.name && v.name.startsWith(ym)) })
-const chartW = 600, chartH = 220, chartPad = 44, chartInnerW = chartW - chartPad*2, chartInnerH = chartH - chartPad - 24
-const hoverIdx = ref(-1)
+const tokenChartRef = ref(null)
+const reqChartRef = ref(null)
+let tokenChart = null
+let reqChart = null
 
-// 堆叠柱状图系列（从下到上）
-const stackSeries = [
-  { key: 'cachedTokens', color: '#f59e0b', label: '缓存' },
-  { key: 'promptTokens', color: '#005eeb', label: '输入' },
-  { key: 'completionTokens', color: '#10b981', label: '输出' },
-]
+function initTokenChart() {
+  if (!tokenChartRef.value) return
+  // 无数据时清掉旧图表，避免残留显示
+  if (!filteredTrends.value.length) {
+    if (tokenChart) { tokenChart.dispose(); tokenChart = null }
+    return
+  }
+  const el = tokenChartRef.value
+  const existing = echarts.getInstanceByDom(el)
+  if (existing) existing.dispose()
+  if (tokenChart) { tokenChart.dispose(); tokenChart = null }
+  tokenChart = echarts.init(el)
+  const dates = filteredTrends.value.map(t => t.name)
+  tokenChart.setOption({
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(0,0,0,0.04)' } },
+      backgroundColor: 'rgba(255,255,255,0.96)',
+      borderColor: 'rgba(0,0,0,0.1)',
+      borderWidth: 1,
+      padding: [8, 12],
+      textStyle: { color: '#1D2129', fontSize: 11 },
+      formatter: (params) => {
+        const d = params[0]?.axisValue || ''
+        let html = `<div style="font-weight:600;margin-bottom:4px;color:#1D2129">${d}</div>`
+        const map = { cachedTokens: '缓存', promptTokens: '输入', completionTokens: '输出' }
+        const colors = { cachedTokens: '#f59e0b', promptTokens: '#005eeb', completionTokens: '#10b981' }
+        let total = 0
+        params.forEach(p => {
+          if (p.seriesName === '总计') return
+          const v = p.value || 0
+          total += v
+          html += `<div style="display:flex;justify-content:space-between;gap:16px;line-height:1.8"><span style="color:${colors[p.seriesName] || '#475569'}">● ${map[p.seriesName] || p.seriesName}</span><span style="color:#1D2129;font-weight:500">${fmtNum(v)}</span></div>`
+        })
+        html += `<div style="border-top:1px solid rgba(0,0,0,0.08);margin-top:4px;padding-top:4px;font-weight:600;color:#1D2129">总计: ${fmtNum(total)}</div>`
+        return html
+      }
+    },
+    legend: {
+      data: ['缓存', '输入', '输出'],
+      textStyle: { color: '#475569', fontSize: 10 },
+      itemWidth: 10, itemHeight: 10, top: 0, right: 0
+    },
+    grid: { left: 0, right: 0, top: 28, bottom: 0, containLabel: false },
+    xAxis: {
+      type: 'category',
+      data: dates,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: '#94a3b8', fontSize: 10, margin: 4 }
+    },
+    yAxis: {
+      type: 'value',
+      splitLine: { show: false },
+      axisLabel: { show: false },
+      axisLine: { show: false },
+      axisTick: { show: false }
+    },
+    series: [
+      { name: '缓存', type: 'bar', stack: 'total', data: filteredTrends.value.map(t => t.cachedTokens || 0), itemStyle: { color: '#f59e0b' }, barMaxWidth: 16 },
+      { name: '输入', type: 'bar', stack: 'total', data: filteredTrends.value.map(t => t.promptTokens || 0), itemStyle: { color: '#005eeb' }, barMaxWidth: 16 },
+      { name: '输出', type: 'bar', stack: 'total', data: filteredTrends.value.map(t => t.completionTokens || 0), itemStyle: { color: '#10b981' }, barMaxWidth: 16 },
+    ]
+  }, { notMerge: true })
+}
 
-// 柱状图：每天一根柱子，堆叠 cached+prompt+completion
-const barWidth = computed(() => {
-  const n = filteredTrends.value.length
-  if (!n) return 0
-  return Math.max(8, Math.min(40, chartInnerW / n - 4))
-})
-const bars = computed(() => {
-  const a = filteredTrends.value
-  if (!a.length) return []
-  const m = Math.max(...a.map(v => v.totalTokens || 0), 1)
-  const bw = barWidth.value
-  const gap = a.length > 1 ? (chartInnerW - bw * a.length) / (a.length - 1) : 0
-  const bottom = chartPad + chartInnerH
-  return a.map((v, i) => {
-    const x = chartPad + i * (bw + gap)
-    const cached = v.cachedTokens || 0
-    const prompt = v.promptTokens || 0
-    const completion = v.completionTokens || 0
-    const segs = []
-    let acc = 0
-    for (const s of stackSeries) {
-      const h = (v[s.key] || 0) / m * chartInnerH
-      segs.push({ key: s.key, color: s.color, y: bottom - acc - h, height: h, value: v[s.key] || 0 })
-      acc += h
-    }
-    return { x, width: bw, segs, label: (v.name || '').slice(5), fullDate: v.name }
+function initReqChart() {
+  if (!reqChartRef.value) return
+  // 无数据时清掉旧图表，避免残留显示
+  if (!filteredTrends.value.length) {
+    if (reqChart) { reqChart.dispose(); reqChart = null }
+    return
+  }
+  const el = reqChartRef.value
+  const existing = echarts.getInstanceByDom(el)
+  if (existing) existing.dispose()
+  if (reqChart) { reqChart.dispose(); reqChart = null }
+  reqChart = echarts.init(el)
+  const dates = filteredTrends.value.map(t => t.name)
+  const values = filteredTrends.value.map(t => t.requestCount || 0)
+  reqChart.setOption({
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(0,0,0,0.04)' } },
+      backgroundColor: 'rgba(255,255,255,0.96)',
+      borderColor: 'rgba(0,0,0,0.1)',
+      borderWidth: 1,
+      padding: [8, 12],
+      textStyle: { color: '#1D2129', fontSize: 11 },
+      formatter: (params) => {
+        const d = params[0]?.axisValue || ''
+        const v = params[0]?.value || 0
+        return `<div style="font-weight:600;margin-bottom:4px;color:#1D2129">${d}</div>
+          <div style="display:flex;justify-content:space-between;gap:16px;line-height:1.8"><span style="color:#005eeb">● 请求次数</span><span style="color:#1D2129;font-weight:500">${fmtNum(v)}</span></div>`
+      }
+    },
+    legend: { show: false },
+    grid: { left: 0, right: 0, top: 28, bottom: 0, containLabel: false },
+    xAxis: {
+      type: 'category',
+      data: dates,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: '#94a3b8', fontSize: 10, margin: 4 }
+    },
+    yAxis: {
+      type: 'value',
+      splitLine: { show: false },
+      axisLabel: { show: false },
+      axisLine: { show: false },
+      axisTick: { show: false }
+    },
+    series: [{
+      name: '请求次数',
+      type: 'bar',
+      data: values,
+      itemStyle: { color: '#005eeb', borderRadius: [2, 2, 0, 0] },
+      barMaxWidth: 16
+    }]
+  }, { notMerge: true })
+}
+
+watch([filteredTrends, selectedYM], () => {
+  nextTick(() => {
+    initTokenChart()
+    initReqChart()
   })
 })
-const tokenMax = computed(() => Math.max(...filteredTrends.value.map(v => v.totalTokens || 0), 1))
-const tokenTicks = computed(() => { const m = tokenMax.value; return [0, Math.round(m/3), Math.round(m*2/3), m] })
-const tokenY = (v) => chartPad + (1 - v / tokenMax.value) * chartInnerH
 
-// 请求次数折线图
-const reqMax = computed(() => Math.max(...filteredTrends.value.map(v => v.requestCount || 0), 1))
-const reqPoints = computed(() => {
-  const a = filteredTrends.value
-  if (!a.length) return []
-  const m = reqMax.value
-  return a.map((v, i) => ({
-    x: chartPad + (a.length > 1 ? i / (a.length - 1) : 0.5) * chartInnerW,
-    y: chartPad + (1 - (v.requestCount || 0) / m) * chartInnerH,
-    label: (v.name || '').slice(5),
-    fullDate: v.name,
-  }))
+// 窗口尺寸变化时重绘图表
+const onResize = () => {
+  tokenChart?.resize()
+  reqChart?.resize()
+}
+const onDocClick = (e) => {
+  if (!e.target.closest('.month-picker')) monthOpen.value = false
+}
+onMounted(() => {
+  window.addEventListener('resize', onResize)
+  document.addEventListener('click', onDocClick)
 })
-const reqLine = computed(() => reqPoints.value.map(p => `${p.x},${p.y}`).join(' '))
-const reqArea = computed(() => { if (!reqPoints.value.length) return ''; const p = reqPoints.value; return `${p[0].x},${chartPad+chartInnerH} `+p.map(v=>`${v.x},${v.y}`).join(' ')+` ${p[p.length-1].x},${chartPad+chartInnerH}` })
-const reqTicks = computed(() => { const m = reqMax.value; return [0, Math.round(m/3), Math.round(m*2/3), m] })
-const reqY = (v) => chartPad + (1 - v / reqMax.value) * chartInnerH
-
-const tooltipStyle = computed(() => {
-  if (hoverIdx.value < 0) return {}
-  const a = filteredTrends.value
-  const bw = barWidth.value
-  const gap = a.length > 1 ? (chartInnerW - bw * a.length) / (a.length - 1) : 0
-  const x = chartPad + hoverIdx.value * (bw + gap) + bw / 2
-  const leftPct = x / chartW * 100
-  const offset = leftPct > 70 ? '-160px' : '8px'
-  return { left: `calc(${leftPct}% + ${offset})`, top: '12px' }
-})
-
-// 请求次数折线图 hover
-const reqHoverIdx = ref(-1)
-const reqHotW = 36
-const reqTooltipStyle = computed(() => {
-  if (reqHoverIdx.value < 0 || !reqPoints.value[reqHoverIdx.value]) return {}
-  const p = reqPoints.value[reqHoverIdx.value]
-  const leftPct = p.x / chartW * 100
-  const offset = leftPct > 70 ? '-120px' : '8px'
-  return { left: `calc(${leftPct}% + ${offset})`, top: '12px' }
+onUnmounted(() => {
+  window.removeEventListener('resize', onResize)
+  document.removeEventListener('click', onDocClick)
+  if (tokenChart) { tokenChart.dispose(); tokenChart = null }
+  if (reqChart) { reqChart.dispose(); reqChart = null }
 })
 
 // 模型用量横向柱状图
@@ -1124,6 +1169,8 @@ watch(activeTab, (v) => {
   if (v === 'keys') {
     if (!apiKeyData.value && !keysLoading.value) { fetchKeys(); fetchBaseUrl() }
     if (apiKeyData.value && !usageData.value) fetchUsage()
+    // 切回 keys tab 时 DOM 重建，ECharts 需重新 init
+    nextTick(() => { initTokenChart(); initReqChart() })
   }
   if (v === 'skills') fetchMySkills()
 })

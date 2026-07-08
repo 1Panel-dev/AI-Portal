@@ -21,11 +21,32 @@ function parseModelMap(modelMap) {
     return Object.keys(modelMap).filter(Boolean);
   }
 
+  // 1Panel 个别 backend 的 modelMap 包含非法 Unicode 转义，先做安全清洗
+  // 两轮清洗：
+  //   1) \uXXXX (4 位合法 hex)：仅剔除孤立的 surrogate 对 (D800-DFFF → JSON 非法)
+  //   2) \u 后不足 4 位 hex 或非 hex → 剥离 \u 前缀，保留后面字符
+  if (typeof modelMap === 'string' && modelMap.includes('\\u')) {
+    let cleaned = modelMap;
+    // 第一轮：处理 \u + 恰好 4 位 hex 的情况
+    cleaned = cleaned.replace(/\\u([0-9a-fA-F]{4})/g, (match, hex) => {
+      const cp = parseInt(hex, 16);
+      // 孤立的 surrogate 码点（D800-DFFF）在 JSON 中非法，剥掉 \u 前缀
+      if (cp >= 0xD800 && cp <= 0xDFFF) return hex;
+      return match;
+    });
+    // 第二轮：处理剩余非法 \u（不足 4 位 hex / 非 hex），只剥 \u 前缀保留后续字符
+    cleaned = cleaned.replace(/\\u([0-9a-fA-F]{0,3})(?=$|[^0-9a-fA-F])/g, (_, hex) => hex || '');
+    if (cleaned !== modelMap) {
+      console.warn(`[parseModelMap] 清洗非法 Unicode 转义，modelMap 前 120 字符: ${JSON.stringify(modelMap.slice(0, 120))}`);
+      modelMap = cleaned;
+    }
+  }
   try {
     const parsed = JSON.parse(modelMap);
     if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
     if (parsed && typeof parsed === 'object') return Object.keys(parsed).filter(Boolean);
-  } catch {
+  } catch (err) {
+    console.warn(`[parseModelMap] JSON.parse 失败，modelMap 前 120 字符: ${JSON.stringify(String(modelMap).slice(0, 120))}，原因: ${err.message}，回退逗号分割`);
     return String(modelMap).split(',').map(item => item.trim()).filter(Boolean);
   }
 
@@ -141,6 +162,7 @@ async function syncModelsFromPanel() {
   }
 
   const backends = allBackends;
+  console.log(`[syncModels] 1Panel 返回 ${backends.length} 个 backend,开始解析 modelMap`);
 
   // 空响应 ≠ 真的没有 backends:再加一道防线,避免「鉴权通过但临时返回空」也触发软删
   // 仅当确实拿到 backends(>0) 时才执行 UPSERT + 软删;否则直接返回 0 不动 DB
@@ -153,9 +175,13 @@ async function syncModelsFromPanel() {
   // 旧实现是嵌套 for + 逐行 await，N 个模型 = N 次串行 RTT
   // 新实现：一次 INSERT ... VALUES (...), (...), (...) 批量写入
   const rows = [];
+  let modelMapWarnCount = 0;
   for (const backend of backends) {
     const groupName = backend.accountName || backend.provider || `Backend ${backend.id}`;
     const modelNames = parseModelMap(backend.modelMap);
+    if (modelNames.length === 0 && backend.modelMap) {
+      modelMapWarnCount++;
+    }
     for (const modelName of modelNames) {
       rows.push([
         backend.id || null,
@@ -168,6 +194,10 @@ async function syncModelsFromPanel() {
         backend.enabled !== false,
       ]);
     }
+  }
+
+  if (modelMapWarnCount > 0) {
+    console.warn(`[syncModels] ${modelMapWarnCount} 个 backend 的 modelMap 解析为空（JSON 解析失败已回退逗号分割）`);
   }
 
   let successCount = 0;
@@ -199,6 +229,7 @@ async function syncModelsFromPanel() {
       flatParams
     );
     successCount = rows.length;
+    console.log(`[syncModels] UPSERT 完成,写入/更新 ${successCount} 条模型记录`);
   }
 
   // 软删除：远端本轮 backends 中不存在的 (group_name, model_name) 组合,置 is_active = false
@@ -278,6 +309,7 @@ async function syncSkillsFromPanel() {
 
   // 二次过滤:确保都是 published(防御性)
   const published = allItems.filter(it => it.status === 'published');
+  console.log(`[syncSkills] 1Panel 返回 ${allItems.length} 个技能(published=${published.length})`);
 
   let upsertCount = 0;
   if (published.length > 0) {
