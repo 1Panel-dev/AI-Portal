@@ -208,7 +208,7 @@
             </h2>
             <div v-if="usageLoading" class="py-8 text-center text-text-secondary text-sm">加载中...</div>
             <div v-else-if="usageError" class="py-4 text-center text-red-500 text-sm">{{ usageError }}</div>
-            <div v-else-if="!usageData || (!usageData.summary && !usageData.trends?.length && !usageData.models?.length)" class="py-16 text-center text-text-tertiary text-sm">暂无统计数据</div>
+            <div v-else-if="!usageData || isEmptyUsageData" class="py-16 text-center text-text-tertiary text-sm">暂无统计数据</div>
             <div v-else>
               <!-- Token 配额 -->
               <div v-if="apiKeyData.token_limit || apiKeyData.token_unlimited" class="mb-6 bg-[#f5f9ff] rounded-xl px-5 py-4">
@@ -583,7 +583,23 @@ const monthOpen = ref(false)
 watch(selectedYM, (v) => { const [y, m] = v.split('-').map(Number); selectedYear.value = y; selectedMonth.value = m })
 const monthLabel = computed(() => `${selectedYear.value}-${selectedMonth.value}月`)
 const fmtNum = (n) => { if (n == null) return '0'; if (n >= 1000000) return (n/1000000).toFixed(1)+'M'; if (n >= 1000) return (n/1000).toFixed(1)+'K'; return String(n) }
-const filteredTrends = computed(() => { const t = usageData.value?.trends; if (!t) return []; const ym = `${selectedYear.value}-${String(selectedMonth.value).padStart(2,'0')}`; return t.filter(v => v.name && v.name.startsWith(ym)) })
+const filteredTrends = computed(() => {
+  const t = usageData.value?.trends
+  if (!t) return []
+  const ym = `${selectedYear.value}-${String(selectedMonth.value).padStart(2, '0')}`
+  // 按月份过滤 + 排除全零数据（接口可能返回无数据的日期）
+  return t.filter(v => v.name && v.name.startsWith(ym) && ((v.requestCount || 0) + (v.totalTokens || 0) > 0))
+})
+const isEmptyUsageData = computed(() => {
+  const d = usageData.value
+  if (!d) return true
+  const s = d.summary
+  // summary 为空对象或全零 → 没有真实数据
+  if (!s || (!s.requestCount && !s.totalTokens && !s.cachedTokens && !s.failedRequests)) {
+    return !filteredTrends.value.length && !(d.models?.length || d.providers?.length)
+  }
+  return false
+})
 const tokenChartRef = ref(null)
 const reqChartRef = ref(null)
 let tokenChart = null
