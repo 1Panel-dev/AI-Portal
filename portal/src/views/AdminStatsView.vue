@@ -83,26 +83,27 @@
           <div v-if="data" class="grid grid-cols-4 gap-4 mb-4">
             <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4">
               <div class="text-xs text-text-secondary mb-1">总请求数</div>
-              <div class="text-xl font-bold text-text">{{ fmt(data.summary?.requestCount) }}</div>
+              <div class="text-xl font-bold text-text">{{ fmt(displaySummary.requestCount) }}</div>
             </div>
             <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4">
               <div class="text-xs text-text-secondary mb-1">总 Tokens</div>
-              <div class="text-xl font-bold text-text">{{ fmtTokens(data.summary?.totalTokens) }}</div>
+              <div class="text-xl font-bold text-text">{{ fmtTokens(displaySummary.totalTokens) }}</div>
             </div>
             <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4">
               <div class="text-xs text-text-secondary mb-1">活跃用户</div>
-              <div class="text-xl font-bold text-text">{{ data.summary?.activeUsers }}</div>
+              <div class="text-xl font-bold text-text">{{ selectedMonth ? 0 : (data.summary?.activeUsers ?? 0) }}</div>
             </div>
             <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4">
               <div class="text-xs text-text-secondary mb-1">失败请求</div>
-              <div class="text-xl font-bold text-red-500">{{ data.summary?.failedRequests }}</div>
+              <div class="text-xl font-bold text-red-500">{{ selectedMonth ? 0 : (data.summary?.failedRequests ?? 0) }}</div>
             </div>
           </div>
 
           <!-- 趋势图 ECharts -->
           <div v-if="data" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4 col-span-2">
             <div class="text-sm font-semibold text-text mb-3">📈 请求 &amp; Tokens 趋势</div>
-            <div ref="trendChartRef" class="w-full" style="height:220px"></div>
+            <div v-if="trends.length" ref="trendChartRef" class="w-full" style="height:220px"></div>
+            <div v-else class="h-[220px] flex items-center justify-center text-sm text-text-tertiary">暂无数据</div>
           </div>
 
           <!-- 顶部 loading 遮罩 -->
@@ -220,6 +221,17 @@ const trends = computed(() => {
   }
   return all
 })
+// 选月份时从 trends 本地重算汇总，接口只返回全局汇总
+const monthSummary = computed(() => {
+  if (!selectedMonth.value) return null
+  const t = trends.value
+  if (!t.length) return { requestCount: 0, totalTokens: 0 }
+  return {
+    requestCount: t.reduce((s, v) => s + (v.requestCount || 0), 0),
+    totalTokens: t.reduce((s, v) => s + (v.totalTokens || 0), 0),
+  }
+})
+const displaySummary = computed(() => monthSummary.value || summary.value)
 const providers = computed(() => (globalData.value?.providers || []).filter(p => p.name && p.name.trim()))
 const models = computed(() => (globalData.value?.models || []).filter(m => m.name && m.name.trim()).sort((a, b) => (b.requestCount || 0) - (a.requestCount || 0)))
 
@@ -289,14 +301,14 @@ const fmtTokens = (n) => {
 const pct = (v, max) => Math.max(2, (v / max) * 100)
 
 function initTrendChart() {
-  if (!trendChartRef.value || !data.value?.trends?.length) return
+  if (!trendChartRef.value || !trends.value.length) return
   if (trendChart) { trendChart.dispose(); trendChart = null }
   trendChart = echarts.init(trendChartRef.value)
-  const dates = data.value.trends.map(t => t.name)
-  const promptData = data.value.trends.map(t => t.promptTokens)
-  const completionData = data.value.trends.map(t => t.completionTokens)
-  const cachedData = data.value.trends.map(t => t.cachedTokens)
-  const totalData = data.value.trends.map(t => (t.promptTokens || 0) + (t.completionTokens || 0) + (t.cachedTokens || 0))
+  const dates = trends.value.map(t => t.name)
+  const promptData = trends.value.map(t => t.promptTokens)
+  const completionData = trends.value.map(t => t.completionTokens)
+  const cachedData = trends.value.map(t => t.cachedTokens)
+  const totalData = trends.value.map(t => (t.promptTokens || 0) + (t.completionTokens || 0) + (t.cachedTokens || 0))
 
   trendChart.setOption({
     tooltip: {
