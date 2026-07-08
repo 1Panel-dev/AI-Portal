@@ -36,7 +36,7 @@
       <!-- 中间:正文 -->
       <main ref="mainEl" class="flex-1 min-w-0 bg-white rounded-2xl p-6 md:p-8 overflow-x-hidden">
         <p v-if="activeChapter?.description" class="text-[13px] text-[#2563eb] bg-[#eef2ff] border border-[#dbeafe] rounded-xl px-4 py-3 mb-6 leading-relaxed">{{ activeChapter.description }}</p>
-        <div v-if="activeChapter" class="markdown-body" v-html="activeChapter.html"></div>
+        <div v-if="activeChapter" class="markdown-body" v-html="activeChapterHtml"></div>
         <div v-else class="text-text-secondary text-[14px]">未找到文档内容。</div>
       </main>
 
@@ -104,6 +104,20 @@ const mainEl = ref(null)
 const showBackToTop = ref(false)
 
 const activeChapter = computed(() => chapters.find(c => c.id === activeId.value))
+
+// BASE_PATH 子路径部署时（如 /aiportal/），对 HTML 中绝对路径的图片/链接做前缀修正
+const appBase = (() => {
+  if (typeof window === 'undefined') return ''
+  const b = window.__APP_BASE__ || ''
+  if (!b || b.includes('__BASE_PATH__')) return ''
+  return b.endsWith('/') ? b.slice(0, -1) : b
+})()
+
+const activeChapterHtml = computed(() => {
+  const html = activeChapter.value?.html || ''
+  if (!appBase || !html) return html
+  return html.replace(/(src|href)="\/([^"]+)"/g, `$1="${appBase}/$2"`)
+})
 
 // 按分组聚合左侧导航:loadAllChapters 已保证 chapters 按 (group, order) 排好,
 // 这里只需把相邻同 group 的章节归到一起,渲染成「组标题 + 章节列表」
