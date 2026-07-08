@@ -38,10 +38,15 @@
           <span class="text-xs font-semibold text-text-secondary uppercase tracking-wide">筛选</span>
           <div class="h-5 w-px bg-[rgba(0,0,0,0.06)]"></div>
           <span class="text-xs text-text-secondary">时间</span>
-          <select v-model="selectedMonth" class="px-2 py-1 text-xs border border-[rgba(0,0,0,0.08)] rounded-md bg-white outline-none h-7 focus:border-accent">
-            <option value="">全部月份</option>
-            <option v-for="m in monthOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
-          </select>
+          <div class="relative month-picker">
+            <button @click="monthOpen = !monthOpen" class="flex items-center gap-1 px-2 py-1 text-xs border border-[rgba(0,0,0,0.08)] rounded-md bg-white h-7 hover:border-accent transition-colors">
+              {{ monthLabel }}<span class="text-text-tertiary ml-0.5">▾</span>
+            </button>
+            <div v-if="monthOpen" class="absolute left-0 top-full mt-1 bg-white border border-[rgba(0,0,0,0.08)] rounded-lg shadow-lg z-30 max-h-[182px] overflow-y-auto">
+              <div @click="selectedMonth = ''; monthOpen = false" class="px-3 py-1.5 text-xs cursor-pointer hover:bg-accent hover:text-white transition-colors whitespace-nowrap" :class="{ 'bg-accent/10 text-accent font-medium': !selectedMonth }">全部月份</div>
+              <div v-for="m in monthOptions" :key="m.value" @click="selectedMonth = m.value; monthOpen = false" class="px-3 py-1.5 text-xs cursor-pointer hover:bg-accent hover:text-white transition-colors whitespace-nowrap" :class="{ 'bg-accent/10 text-accent font-medium': selectedMonth === m.value }">{{ m.label }}</div>
+            </div>
+          </div>
           <div class="h-5 w-px bg-[rgba(0,0,0,0.06)]"></div>
           <span class="text-xs text-text-secondary">用户</span>
           <div class="relative user-picker">
@@ -211,6 +216,13 @@ const monthOptions = (() => {
 // 默认选中当月
 const currentMonthValue = monthOptions[0]?.value || ''
 const selectedMonth = ref(currentMonthValue)
+const monthOpen = ref(false)
+
+const monthLabel = computed(() => {
+  if (!selectedMonth.value) return '全部月份'
+  const m = monthOptions.find(o => o.value === selectedMonth.value)
+  return m ? m.label : selectedMonth.value
+})
 
 const summary = computed(() => data.value?.summary || {})
 const trends = computed(() => {
@@ -607,6 +619,7 @@ async function fetchStats(isUserSwitch = false) {
 
 function clearFilters() {
   selectedMonth.value = ''
+  monthOpen.value = false
   selectedUser.value = ''
   usernameFilter.value = ''
   userDropdownOpen.value = false
@@ -641,6 +654,7 @@ function onUserInput() {
 
 function onGlobalClick(e) {
   if (!e.target.closest('.user-picker')) userDropdownOpen.value = false
+  if (!e.target.closest('.month-picker')) monthOpen.value = false
 }
 
 watch([selectedUser, selectedMonth], () => {
