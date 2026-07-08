@@ -22,9 +22,20 @@ function parseModelMap(modelMap) {
   }
 
   // 1Panel 个别 backend 的 modelMap 包含非法 Unicode 转义，先做安全清洗
-  // 只保留 \u 后紧跟恰好 4 位十六进制的合法转义，其余全部剥离 \u 前缀
+  // 两轮清洗：
+  //   1) \uXXXX (4 位合法 hex)：仅剔除孤立的 surrogate 对 (D800-DFFF → JSON 非法)
+  //   2) \u 后不足 4 位 hex 或非 hex → 剥离 \u 前缀，保留后面字符
   if (typeof modelMap === 'string' && modelMap.includes('\\u')) {
-    const cleaned = modelMap.replace(/\\u(?!([0-9a-fA-F]{4}))/g, '');
+    let cleaned = modelMap;
+    // 第一轮：处理 \u + 恰好 4 位 hex 的情况
+    cleaned = cleaned.replace(/\\u([0-9a-fA-F]{4})/g, (match, hex) => {
+      const cp = parseInt(hex, 16);
+      // 孤立的 surrogate 码点（D800-DFFF）在 JSON 中非法，剥掉 \u 前缀
+      if (cp >= 0xD800 && cp <= 0xDFFF) return hex;
+      return match;
+    });
+    // 第二轮：处理剩余非法 \u（不足 4 位 hex / 非 hex），只剥 \u 前缀保留后续字符
+    cleaned = cleaned.replace(/\\u([0-9a-fA-F]{0,3})(?=$|[^0-9a-fA-F])/g, (_, hex) => hex || '');
     if (cleaned !== modelMap) {
       console.warn(`[parseModelMap] 清洗非法 Unicode 转义，modelMap 前 120 字符: ${JSON.stringify(modelMap.slice(0, 120))}`);
       modelMap = cleaned;

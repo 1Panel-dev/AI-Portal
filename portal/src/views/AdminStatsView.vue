@@ -557,8 +557,10 @@ async function fetchStats(isUserSwitch = false) {
     // 1Panel usage/statistics 不支持时间参数，只透传 userId
     // 月份筛选在前端对返回的 trends 数据做本地过滤
     if (selectedUser.value) params.set('userId', String(selectedUser.value))
+    const qs = params.toString()
+    const url = `${API_BASE}/admin/usage-statistics${qs ? '?' + qs : ''}`
     const [statsRes, usersRes] = await Promise.all([
-      fetch(`${API_BASE}/admin/usage-statistics?${params}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
+      fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } }),
       fetch(`${API_BASE}/admin/portal-users/map`, { headers: { Authorization: `Bearer ${getToken()}` } }),
     ])
     if (statsRes.ok) {
