@@ -1142,6 +1142,8 @@ watch(activeTab, (v) => {
   if (v === 'keys') {
     if (!apiKeyData.value && !keysLoading.value) { fetchKeys(); fetchBaseUrl() }
     if (apiKeyData.value && !usageData.value) fetchUsage()
+    // 切回 keys tab 时 DOM 重建，ECharts 需重新 init
+    nextTick(() => { initTokenChart(); initReqChart() })
   }
   if (v === 'skills') fetchMySkills()
 })
