@@ -6,14 +6,15 @@ name: create-release
 on:
   push:
     tags:
-      # 只匹配严格版本号 tag（不含 -rc/-dev 等后缀）
-      - 'v[0-9]*.[0-9]*.[0-9]*'
+      - 'v*'
 
 permissions:
   contents: write
 
 jobs:
   create-release:
+    # 仅正式版本 tag（不含 -）生成 Release，rc/dev/beta 后缀一律跳过
+    if: ${{ !contains(github.ref_name, '-') }}
     runs-on: ubuntu-latest
     steps:
       - name: 确定目标 tag
