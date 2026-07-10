@@ -136,7 +136,7 @@ async function syncModelsFromPanel() {
 
   // 1Panel 新版要求 page/pageSize 必填，翻全量
   let page = 1;
-  while (true) {
+  while (page < 50) {
     const response = await panel.post('/api/v2/core/enterprise/ai-proxy/backends/search', {
       page, pageSize: PAGE_SIZE, info: '',
     });
@@ -290,12 +290,19 @@ async function syncSkillsFromPanel() {
 
   // 1Panel search 是分页接口,先把所有 published 的拿到
   let page = 1;
-  while (true) {
+  while (page < 50) {
     const response = await panel.post('/api/v2/core/enterprise/skills-hub/search', {
       page, pageSize: PAGE_SIZE, info: '', status: 'published',
     });
     if (response.status < 200 || response.status >= 300) {
       throw new Error(`1Panel 技能同步失败: ${response.status}`);
+    }
+    // 1Panel 业务码校验（黑名单语义，code ≥ 400 视为失败）
+    if (response.data && typeof response.data === 'object') {
+      const code = Number(response.data.code);
+      if (Number.isFinite(code) && code >= 400) {
+        throw new Error(`1Panel 业务错误 code=${code}: ${response.data.message || response.data.msg || '(无 message)'}`);
+      }
     }
     const payload = getPanelPayload(response.data) || {};
     const items = Array.isArray(payload.items) ? payload.items

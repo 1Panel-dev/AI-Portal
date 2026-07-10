@@ -18,7 +18,7 @@ services:
       PANEL_BASE_URL: ${PANEL_BASE_URL:-}
       PANEL_API_KEY: ${PANEL_API_KEY:-}
     volumes:
-      - ./data:/app/data
+      - ./data:/app/data:z
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1)).on('error', () => process.exit(1))"]
       interval: 30s
