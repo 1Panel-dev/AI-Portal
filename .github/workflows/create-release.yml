@@ -7,14 +7,20 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag 名称（如 v1.0.4）'
+        required: true
+        default: 'v1.0.4'
 
 permissions:
   contents: write
 
 jobs:
   create-release:
-    # 仅正式版本 tag（不含 -）生成 Release，rc/dev/beta 后缀一律跳过
-    if: ${{ !contains(github.ref_name, '-') }}
+    # 仅正式版本 tag（不含 -）生成 Release；workflow_dispatch 手动触发跳过此检查
+    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.ref_name, '-') }}
     runs-on: ubuntu-latest
     steps:
       - name: 确定目标 tag
