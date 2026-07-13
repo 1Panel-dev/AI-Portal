@@ -259,7 +259,7 @@
               <!-- 模型用量横向柱状图 -->
               <div>
                 <h3 class="text-[13px] font-semibold text-text mb-3">模型用量</h3>
-                <div v-if="usageData.models?.length" class="bg-[#fafafa] rounded-xl p-4">
+                <div v-if="sortedModels.length" class="bg-[#fafafa] rounded-xl p-4">
                   <div class="space-y-2 max-h-[260px] overflow-y-auto pr-1">
                     <div v-for="(m, mi) in sortedModels" :key="m.name"
                       class="flex items-center gap-2"
@@ -762,7 +762,9 @@ const onModelMove = (e) => { modelTipX.value = e.clientX + 12; modelTipY.value =
 const onModelLeave = () => { modelHover.value = null }
 const sortedModels = computed(() => {
   const arr = usageData.value?.models ? [...usageData.value.models] : []
-  return arr.sort((a, b) => (b.totalTokens || 0) - (a.totalTokens || 0))
+  // 过滤掉 totalTokens 为 0 的模型（没有使用量）
+  const filtered = arr.filter(m => (m.totalTokens || 0) > 0)
+  return filtered.sort((a, b) => (b.totalTokens || 0) - (a.totalTokens || 0))
 })
 const modelPct = (m) => {
   const max = Math.max(...(usageData.value?.models || []).map(v => v.totalTokens || 0), 1)

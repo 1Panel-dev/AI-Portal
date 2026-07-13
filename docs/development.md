@@ -36,16 +36,42 @@ AI-Portal/
 
 ## 配置
 
-参考 `.env.example`，核心变量如下：
+所有可配置环境变量如下。在 `docker-compose` 部署方式下，编辑 `.env` 即可生效。
 
-| 变量 | 说明 |
-|------|------|
-| `INIT_ADMIN_PASSWORD` | 首次启动创建 admin 账号；不设置则不自动创建管理员 |
-| `PANEL_BASE_URL` | 1Panel 网关地址，也可在管理后台配置 |
-| `PANEL_API_KEY` | 1Panel API 密钥，也可在管理后台配置 |
-| `PANEL_API_TIMEOUT` | 1Panel API 请求超时时间，单位毫秒 |
-| `BASE_PATH` | 反向代理路径前缀，默认 `/` |
-| `SYNC_USER_DEFAULT_PASSWORD` | 从 1Panel 同步用户时的默认密码兜底；留空则无法密码登录 |
+### 基本配置
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `PORT` | `3000` | 后端服务端口 |
+| `BASE_PATH` | `/` | 反向代理路径前缀，例：`/ai-portal/` |
+| `SERVE_STATIC` | `true` | 是否托管前端静态文件（开发时设为 `false`） |
+| `STATIC_PATH` | `./dist` | 前端构建产物路径 |
+
+### 数据库（PostgreSQL）
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `DB_HOST` | `localhost` | 数据库地址；容器内默认走内置 Postgres，设为外置库 IP 即可使用外部数据库 |
+| `DB_PORT` | `5432` | 数据库端口 |
+| `DB_NAME` | `ai_portal` | 数据库名称 |
+| `DB_USER` | `aiportal` | 数据库用户 |
+| `DB_PASSWORD` | `Password123@aiportal` | 数据库密码 |
+
+### 1Panel 网关
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `PANEL_BASE_URL` | — | 1Panel 网关地址（也可在管理后台配置） |
+| `PANEL_API_KEY` | — | 1Panel API 密钥（也可在管理后台配置） |
+| `PANEL_API_TIMEOUT` | `10000` | 1Panel API 请求超时（毫秒） |
+
+### 认证与用户
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `JWT_SECRET` | 首次启动自动生成并持久化到 `data/.generated_secrets` | JWT 签名密钥；可手动预置覆盖自动生成 |
+| `INIT_ADMIN_PASSWORD` | — | 首次启动创建 admin 账号的密码；留空则不自动创建管理员 |
+| `SYNC_USER_DEFAULT_PASSWORD` | — | 从 1Panel 同步用户时的默认密码；留空则同步用户无法密码登录 |
 
 `JWT_SECRET` 由应用首次启动自动生成并持久化到 `data/.generated_secrets`，无需手动配置。
 

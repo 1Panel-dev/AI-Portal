@@ -106,7 +106,7 @@
 
           <!-- 趋势图 ECharts -->
           <div v-if="data" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4 col-span-2">
-            <div class="text-sm font-semibold text-text mb-3">📈 请求 &amp; Tokens 趋势</div>
+            <div class="text-sm font-semibold text-text mb-3">📈 用量趋势</div>
             <div v-if="trends.length" ref="trendChartRef" class="w-full" style="height:220px"></div>
             <div v-else class="h-[220px] flex items-center justify-center text-sm text-text-tertiary">暂无数据</div>
           </div>
@@ -320,6 +320,7 @@ function initTrendChart() {
   const completionData = trends.value.map(t => t.completionTokens)
   const cachedData = trends.value.map(t => t.cachedTokens)
   const totalData = trends.value.map(t => (t.promptTokens || 0) + (t.completionTokens || 0) + (t.cachedTokens || 0))
+  const requestData = trends.value.map(t => t.requestCount || 0)
 
   trendChart.setOption({
     tooltip: {
@@ -336,23 +337,34 @@ function initTrendChart() {
         const map = { promptTokens: '输入', completionTokens: '输出', cachedTokens: '缓存' }
         const colors = { promptTokens: '#3b82f6', completionTokens: '#34d399', cachedTokens: '#f59e0b' }
         params.forEach(p => {
-          if (p.seriesName === '总量') return
-          html += `<div style="display:flex;justify-content:space-between;gap:16px;line-height:1.8"><span style="color:${colors[p.seriesName] || '#475569'}">● ${map[p.seriesName] || p.seriesName}</span><span style="color:#1D2129;font-weight:500">${fmtTokens(p.value)}</span></div>`
+          if (p.seriesName === '总量' || p.seriesName === '请求数') return
+          // 根据 seriesName 找对应的英文 key
+          let colorKey = Object.keys(map).find(k => map[k] === p.seriesName)
+          const color = colorKey ? colors[colorKey] : '#475569'
+          html += `<div style="display:flex;justify-content:space-between;gap:16px;line-height:1.8"><span style="color:${color}">● ${p.seriesName}</span><span style="color:#1D2129;font-weight:500">${fmtTokens(p.value)}</span></div>`
         })
         const total = params.find(p => p.seriesName === '总量')
         if (total) html += `<div style="border-top:1px solid rgba(0,0,0,0.08);margin-top:4px;padding-top:4px;font-weight:600;color:#1D2129">总量: ${fmtTokens(total.value)}</div>`
+        const request = params.find(p => p.seriesName === '请求数')
+        if (request) html += `<div style="border-top:1px solid rgba(0,0,0,0.08);margin-top:4px;padding-top:4px;font-weight:600;color:#8b5cf4">请求数: ${fmtTokens(request.value)}</div>`
         return html
       }
     },
     legend: {
-      data: ['输入', '输出', '缓存', '总量'],
+      data: [
+        { name: '输入' },
+        { name: '输出' },
+        { name: '缓存' },
+        { name: '总量' },
+        { name: '请求数', icon: 'diamond', itemWidth: 12, itemHeight: 12 }
+      ],
       textStyle: { color: '#475569', fontSize: 10 },
-      itemWidth: 10,
-      itemHeight: 10,
+      itemWidth: 8,
+      itemHeight: 8,
       top: 0,
       right: 0
     },
-    grid: { left: 0, right: 0, top: 28, bottom: 0, containLabel: false },
+    grid: { left: 40, right: 38, top: 28, bottom: 0, containLabel: false },
     xAxis: {
       type: 'category',
       data: dates,
@@ -360,13 +372,22 @@ function initTrendChart() {
       axisTick: { show: false },
       axisLabel: { color: '#94a3b8', fontSize: 10, margin: 4 }
     },
-    yAxis: {
-      type: 'value',
-      splitLine: { show: false },
-      axisLabel: { show: false },
-      axisLine: { show: false },
-      axisTick: { show: false }
-    },
+    yAxis: [
+      {
+        type: 'value',
+        splitLine: { show: false },
+        axisLabel: { color: '#94a3b8', fontSize: 10, margin: 4, formatter: (v) => fmtTokens(v) },
+        axisLine: { show: false },
+        axisTick: { show: false }
+      },
+      {
+        type: 'value',
+        splitLine: { show: false },
+        axisLabel: { color: '#94a3b8', fontSize: 10, margin: 4, formatter: (v) => v >= 1000 ? fmtTokens(v) : v },
+        axisLine: { show: false },
+        axisTick: { show: false }
+      }
+    ],
     series: [
       {
         name: '输入',
@@ -401,6 +422,18 @@ function initTrendChart() {
         symbolSize: 6,
         itemStyle: { color: 'rgba(0,0,0,0.5)', borderColor: '#fff', borderWidth: 2 },
         lineStyle: { color: 'rgba(0,0,0,0.5)', width: 2 },
+        z: 10
+      },
+      {
+        name: '请求数',
+        type: 'line',
+        yAxisIndex: 1,
+        data: requestData,
+        smooth: true,
+        symbol: 'diamond',
+        symbolSize: 8,
+        itemStyle: { color: '#8b5cf4', borderColor: '#fff', borderWidth: 2 },
+        lineStyle: { color: '#8b5cf4', width: 2 },
         z: 10
       }
     ]
@@ -657,6 +690,13 @@ function onGlobalClick(e) {
   if (!e.target.closest('.month-picker')) monthOpen.value = false
 }
 
+function onResize() {
+  trendChart?.resize()
+  redChart?.resize()
+  blackChart?.resize()
+  distChart?.resize()
+}
+
 watch([selectedUser, selectedMonth], () => {
   fetchStats(true)
 })
@@ -665,12 +705,14 @@ const logout = () => { localStorage.removeItem('admin_token'); localStorage.remo
 
 onMounted(() => {
   document.addEventListener('click', onGlobalClick)
+  window.addEventListener('resize', onResize)
   const token = getToken()
   if (!token) { router.push('/admin/login'); return }
   fetchStats()
 })
 onUnmounted(() => {
   document.removeEventListener('click', onGlobalClick)
+  window.removeEventListener('resize', onResize)
   if (trendChart) { trendChart.dispose(); trendChart = null }
   if (redChart) { redChart.dispose(); redChart = null }
   if (blackChart) { blackChart.dispose(); blackChart = null }

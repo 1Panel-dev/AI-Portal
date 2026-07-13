@@ -21,6 +21,7 @@
 git clone https://github.com/1Panel-dev/AI-Portal.git
 cp .env.example .env
 # 编辑 .env 配置 PANEL_BASE_URL 和 PANEL_API_KEY（连接 1Panel 企业版网关）
+# 全部可配置参数见 开发文档
 docker-compose up -d
 ```
 
