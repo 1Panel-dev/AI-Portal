@@ -618,6 +618,7 @@ function initTokenChart() {
   if (tokenChart) { tokenChart.dispose(); tokenChart = null }
   tokenChart = echarts.init(el)
   const dates = filteredTrends.value.map(t => t.name)
+  const totalData = filteredTrends.value.map(t => (t.promptTokens || 0) + (t.completionTokens || 0) + (t.cachedTokens || 0))
   tokenChart.setOption({
     tooltip: {
       trigger: 'axis',
@@ -647,9 +648,9 @@ function initTokenChart() {
       }
     },
     legend: {
-      data: ['缓存', '输入', '输出'],
+      data: ['缓存', '输入', '输出', '总计'],
       textStyle: { color: '#475569', fontSize: 10 },
-      itemWidth: 8, itemHeight: 8, top: 0, right: 0
+      itemWidth: 7, itemHeight: 7, top: 0, right: 0
     },
     grid: { left: 40, right: 0, top: 28, bottom: 0, containLabel: false },
     xAxis: {
@@ -670,6 +671,17 @@ function initTokenChart() {
       { name: '缓存', type: 'bar', stack: 'total', data: filteredTrends.value.map(t => t.cachedTokens || 0), itemStyle: { color: '#f59e0b' }, barMaxWidth: 16 },
       { name: '输入', type: 'bar', stack: 'total', data: filteredTrends.value.map(t => t.promptTokens || 0), itemStyle: { color: '#005eeb' }, barMaxWidth: 16 },
       { name: '输出', type: 'bar', stack: 'total', data: filteredTrends.value.map(t => t.completionTokens || 0), itemStyle: { color: '#10b981' }, barMaxWidth: 16 },
+      {
+        name: '总计',
+        type: 'line',
+        data: totalData,
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 6,
+        itemStyle: { color: 'rgba(0,0,0,0.5)', borderColor: '#fff', borderWidth: 2 },
+        lineStyle: { color: 'rgba(0,0,0,0.5)', width: 2 },
+        z: 10
+      }
     ]
   }, { notMerge: true })
 }
