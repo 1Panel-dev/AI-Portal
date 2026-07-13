@@ -35,7 +35,7 @@
     <div class="flex items-center gap-2 mb-3">
       <a
         href="#"
-        @click.prevent="checkAuth"
+        @click.stop.prevent="checkAuth"
         class="flex-1 flex items-center justify-center gap-1.5 h-8 bg-surface-secondary text-text rounded-lg text-[12px] font-medium no-underline transition-colors duration-150 hover:bg-black/[0.06]"
         title="下载技能包(zip)"
       >
