@@ -176,7 +176,16 @@ function handleResponse({ method, path, startedAt, resolve }) {
       }
       const raw = buf.toString('utf-8');
       let data;
-      try { data = JSON.parse(raw); } catch { data = raw; }
+      try { data = JSON.parse(raw); } catch (parseErr) {
+        // 记录 JSON 解析失败详情，特别是 Unicode 转义错误
+        console.error(`[panel-call] JSON.parse 失败: ${parseErr.message}`, {
+          path,
+          status: res.statusCode,
+          contentType: res.headers['content-type'],
+          rawPreview: raw.length > 200 ? raw.slice(0, 200) + '...' : raw,
+        });
+        data = raw;
+      }
       logPanelCall({ method, path, kind: 'http', httpStatus: res.statusCode, body: data, elapsedMs });
       resolve({ status: res.statusCode, data, headers: res.headers });
     });

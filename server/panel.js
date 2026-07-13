@@ -21,33 +21,49 @@ function parseModelMap(modelMap) {
     return Object.keys(modelMap).filter(Boolean);
   }
 
-  // 1Panel 个别 backend 的 modelMap 包含非法 Unicode 转义，先做安全清洗
-  // 两轮清洗：
-  //   1) \uXXXX (4 位合法 hex)：仅剔除孤立的 surrogate 对 (D800-DFFF → JSON 非法)
-  //   2) \u 后不足 4 位 hex 或非 hex → 剥离 \u 前缀，保留后面字符
-  if (typeof modelMap === 'string' && modelMap.includes('\\u')) {
-    let cleaned = modelMap;
-    // 第一轮：处理 \u + 恰好 4 位 hex 的情况
-    cleaned = cleaned.replace(/\\u([0-9a-fA-F]{4})/g, (match, hex) => {
-      const cp = parseInt(hex, 16);
-      // 孤立的 surrogate 码点（D800-DFFF）在 JSON 中非法，剥掉 \u 前缀
-      if (cp >= 0xD800 && cp <= 0xDFFF) return hex;
-      return match;
-    });
-    // 第二轮：处理剩余非法 \u（不足 4 位 hex / 非 hex），只剥 \u 前缀保留后续字符
-    cleaned = cleaned.replace(/\\u([0-9a-fA-F]{0,3})(?=$|[^0-9a-fA-F])/g, (_, hex) => hex || '');
-    if (cleaned !== modelMap) {
-      console.warn(`[parseModelMap] 清洗非法 Unicode 转义，modelMap 前 120 字符: ${JSON.stringify(modelMap.slice(0, 120))}`);
-      modelMap = cleaned;
-    }
-  }
+  const original = String(modelMap);
+
+  // 1. 尝试直接解析
   try {
-    const parsed = JSON.parse(modelMap);
+    const parsed = JSON.parse(original);
     if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
     if (parsed && typeof parsed === 'object') return Object.keys(parsed).filter(Boolean);
-  } catch (err) {
-    console.warn(`[parseModelMap] JSON.parse 失败，modelMap 前 120 字符: ${JSON.stringify(String(modelMap).slice(0, 120))}，原因: ${err.message}，回退逗号分割`);
-    return String(modelMap).split(',').map(item => item.trim()).filter(Boolean);
+  } catch (firstErr) {
+    // 2. 清洗非法 Unicode 转义后重试
+    let cleaned = original;
+    // 处理所有 \u 转义序列
+    cleaned = cleaned.replace(/\\u([0-9a-fA-F]{4})/g, (match, hex) => {
+      const cp = parseInt(hex, 16);
+      // 孤立的 surrogate 码点（D800-DFFF）在 JSON 中非法
+      if (cp >= 0xD800 && cp <= 0xDFFF) return hex; // 移除 \u 前缀
+      return match; // 保留合法转义
+    });
+    // 处理非法 \u 序列（不足4位hex或非hex字符）
+    cleaned = cleaned.replace(/\\u([0-9a-fA-F]{0,3})(?=$|[^0-9a-fA-F])/g, (_, hex) => hex || '');
+    cleaned = cleaned.replace(/\\u([^0-9a-fA-F])/g, (_, char) => char);
+
+    // 3. 尝试解析清洗后的字符串
+    try {
+      const parsed = JSON.parse(cleaned);
+      if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+      if (parsed && typeof parsed === 'object') return Object.keys(parsed).filter(Boolean);
+    } catch (secondErr) {
+      // 4. 如果清洗后仍然失败，尝试更激进的清洗：移除所有反斜杠
+      const aggressiveCleaned = original.replace(/\\/g, '');
+      try {
+        const parsed = JSON.parse(aggressiveCleaned);
+        if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean);
+        if (parsed && typeof parsed === 'object') return Object.keys(parsed).filter(Boolean);
+      } catch (thirdErr) {
+        // 5. 最终回退：逗号分割
+        console.warn(`[parseModelMap] 所有 JSON.parse 尝试均失败，原始: ${JSON.stringify(original.slice(0, 120))}`, {
+          firstError: firstErr.message,
+          secondError: secondErr.message,
+          thirdError: thirdErr.message,
+        });
+        return original.split(',').map(item => item.trim()).filter(Boolean);
+      }
+    }
   }
 
   return [];
@@ -131,6 +147,23 @@ async function createPanelUser({ username, password, name }) {
 }
 
 async function syncModelsFromPanel() {
+  try {
+    return await _syncModelsFromPanel();
+  } catch (err) {
+    console.error(`[syncModels] 未捕获的异常:`, err);
+    console.error(`[syncModels] 错误栈:`, err.stack);
+    // 确保 sync-now 不崩溃,返回错误结果
+    try {
+      await global.pool.query(`
+        INSERT INTO portal_sync_log (sync_type, status, message, total_count, success_count, details)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, ['models', 'error', `同步异常: ${err.message}`, 0, 0, { error: err.message }]);
+    } catch (_) { /* 日志写入失败不中断 */ }
+    throw err; // 仍然抛出,让上层(Promise.allSettled)捕获
+  }
+}
+
+async function _syncModelsFromPanel() {
   const PAGE_SIZE = 100;
   const allBackends = [];
 
@@ -164,6 +197,27 @@ async function syncModelsFromPanel() {
   const backends = allBackends;
   console.log(`[syncModels] 1Panel 返回 ${backends.length} 个 backend,开始解析 modelMap`);
 
+  // 调试：记录前几个 backend 的 modelMap
+  for (let i = 0; i < Math.min(backends.length, 3); i++) {
+    const b = backends[i];
+    console.log(`[syncModels] backend[${i}]: id=${b.id}, provider=${b.provider}, modelMap type=${typeof b.modelMap}, length=${b.modelMap ? b.modelMap.length : 0}`);
+    if (b.modelMap && typeof b.modelMap === 'string' && b.modelMap.length < 200) {
+      console.log(`[syncModels]   modelMap preview: ${JSON.stringify(b.modelMap)}`);
+      // 检查是否包含非法 Unicode 转义
+      if (b.modelMap.includes('\\u')) {
+        console.log(`[syncModels]   modelMap 包含 \\u 转义序列`);
+        // 尝试解析以检查错误
+        try {
+          JSON.parse(b.modelMap);
+          console.log(`[syncModels]   modelMap JSON 解析成功`);
+        } catch (err) {
+          console.error(`[syncModels]   modelMap JSON 解析失败: ${err.message}`);
+          console.error(`[syncModels]   原始字符串: ${b.modelMap}`);
+        }
+      }
+    }
+  }
+
   // 空响应 ≠ 真的没有 backends:再加一道防线,避免「鉴权通过但临时返回空」也触发软删
   // 仅当确实拿到 backends(>0) 时才执行 UPSERT + 软删;否则直接返回 0 不动 DB
   if (backends.length === 0) {
@@ -176,26 +230,39 @@ async function syncModelsFromPanel() {
   // 新实现：一次 INSERT ... VALUES (...), (...), (...) 批量写入
   const rows = [];
   let modelMapWarnCount = 0;
+  let modelMapErrorCount = 0;
   for (const backend of backends) {
     const groupName = backend.accountName || backend.provider || `Backend ${backend.id}`;
-    const modelNames = parseModelMap(backend.modelMap);
-    if (modelNames.length === 0 && backend.modelMap) {
-      modelMapWarnCount++;
-    }
-    for (const modelName of modelNames) {
-      rows.push([
-        backend.id || null,
-        groupName,
-        modelName,
-        backend.provider || '',
-        backend.baseUrl || '',
-        backend.apiType || '',
-        backend,
-        backend.enabled !== false,
-      ]);
+    try {
+      const modelNames = parseModelMap(backend.modelMap);
+      if (modelNames.length === 0 && backend.modelMap) {
+        modelMapWarnCount++;
+        console.warn(`[syncModels] backend ${backend.id} modelMap 解析为空: ${typeof backend.modelMap} "${String(backend.modelMap).slice(0, 100)}"`);
+      }
+      for (const modelName of modelNames) {
+        rows.push([
+          backend.id || null,
+          groupName,
+          modelName,
+          backend.provider || '',
+          backend.baseUrl || '',
+          backend.apiType || '',
+          backend,
+          backend.enabled !== false,
+        ]);
+      }
+    } catch (err) {
+      modelMapErrorCount++;
+      console.error(`[syncModels] backend ${backend.id} parseModelMap 异常:`, err.message);
+      console.error(`[syncModels]   modelMap: ${typeof backend.modelMap} "${String(backend.modelMap).slice(0, 200)}"`);
+      // 跳过这个 backend，继续处理其他
+      continue;
     }
   }
 
+  if (modelMapErrorCount > 0) {
+    console.warn(`[syncModels] ${modelMapErrorCount} 个 backend 的 modelMap 解析失败，已跳过`);
+  }
   if (modelMapWarnCount > 0) {
     console.warn(`[syncModels] ${modelMapWarnCount} 个 backend 的 modelMap 解析为空（JSON 解析失败已回退逗号分割）`);
   }
