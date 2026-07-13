@@ -1,5 +1,3 @@
-## v{VERSION}
-
 ### ✨ New Features / 新增功能
 
 - **Feature**: English description / 中文描述 by @author
