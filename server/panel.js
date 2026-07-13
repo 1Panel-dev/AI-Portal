@@ -330,9 +330,6 @@ async function syncSkillsFromPanel() {
       const installUrl = `/api/skills/${slug}/download`;
 
       await global.pool.query(`
-        WITH deleted AS (
-          DELETE FROM skills WHERE slug = $3 AND id != $1
-        )
         INSERT INTO skills (
           id, title, slug, description, avatar, avatar_color,
           downloads, stars, version, category, tag, author,
@@ -352,12 +349,13 @@ async function syncSkillsFromPanel() {
           'panel', $9, $10, $11,
           CURRENT_DATE, CURRENT_DATE, TRUE, CURRENT_TIMESTAMP
         )
-        ON CONFLICT (id) DO UPDATE SET
+        ON CONFLICT (slug) DO UPDATE SET
           title = EXCLUDED.title,
           description = EXCLUDED.description,
           version = EXCLUDED.version,
           category = EXCLUDED.category,
           risk_level = EXCLUDED.risk_level,
+          panel_skill_id = EXCLUDED.panel_skill_id,
           panel_status = EXCLUDED.panel_status,
           is_active = TRUE,
           synced_at = CURRENT_TIMESTAMP,
@@ -377,7 +375,14 @@ async function syncSkillsFromPanel() {
     let versionCount = 0;
     for (const item of published) {
       try {
-        const skillId = `1panel-${item.id}`;
+        const slug = `1panel-${item.name}`;
+        // 查实际 skills 行 id（slug 冲突时保留旧 id，不一定是 1panel-${item.id}）
+        const skillRow = await global.pool.query(
+          `SELECT id FROM skills WHERE slug = $1 AND source = 'panel'`,
+          [slug]
+        );
+        if (skillRow.rows.length === 0) continue;
+        const skillId = skillRow.rows[0].id;
         const verRes = await panel.post('/api/v2/core/enterprise/skills-hub/versions', { id: item.id });
         if (verRes.status < 200 || verRes.status >= 300) continue;
         const versions = getPanelPayload(verRes.data);
