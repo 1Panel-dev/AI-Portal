@@ -97,7 +97,7 @@
               </h3>
               <div class="flex items-center gap-2">
                 <code class="text-[13px] font-mono text-[#1d1d1f] break-all min-w-0 flex-1 bg-[#f5f5f7] rounded-lg px-3 py-2">{{ downloadPath }}</code>
-                <a :href="latestDownloadUrl" target="_blank" class="shrink-0 px-3 py-2 text-[12px] font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors no-underline">下载</a>
+                <a href="#" @click.prevent="checkAuth(latestDownloadUrl)" class="shrink-0 px-3 py-2 text-[12px] font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors no-underline">下载</a>
               </div>
             </div>
 
@@ -124,7 +124,8 @@
                     :class="versionBadgeClass(v)"
                   >{{ versionLabel(v) }}</span>
                   <a
-                    :href="`${API_BASE}/skills/${skill.slug}/download?v=${encodeURIComponent(v.version)}`"
+                    href="#"
+                    @click.prevent="checkAuth(`${API_BASE}/skills/${skill.slug}/download?v=${encodeURIComponent(v.version)}`)"
                     class="shrink-0 px-2.5 py-1 text-[11px] font-medium bg-accent text-white rounded-md hover:bg-accent-hover transition-colors no-underline"
                   >下载</a>
                   <span class="text-[#aeaeb2] flex-1 text-right text-[12px]">{{ formatDate(v) }}</span>
@@ -146,13 +147,23 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
 import { avatarColors, categoryLabels } from '../data/categories.js'
 import { useSkills } from '../composables/useSkills.js'
 
 const route = useRoute()
+const router = useRouter()
 const { getSkillBySlug } = useSkills()
+
+function checkAuth(url) {
+  const token = localStorage.getItem('token')
+  if (!token) {
+    router.push('/login')
+    return
+  }
+  window.open(url, '_blank')
+}
 
 const skill = ref(null)
 const loading = ref(true)

@@ -126,7 +126,7 @@ function signPortalToken(user) {
   return jwt.sign(
     { id: user.id, username: user.username, type: 'portal_user', role: user.role },
     JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: '1d' }
   );
 }
 
