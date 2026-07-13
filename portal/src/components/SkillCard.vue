@@ -34,9 +34,8 @@
     <!-- 安装操作:下载 / skillctl 两个等大小按钮,保持卡片底部轻盈 -->
     <div class="flex items-center gap-2 mb-3">
       <a
-        :href="downloadUrl"
-        target="_blank"
-        @click.stop
+        href="#"
+        @click.prevent="checkAuth"
         class="flex-1 flex items-center justify-center gap-1.5 h-8 bg-surface-secondary text-text rounded-lg text-[12px] font-medium no-underline transition-colors duration-150 hover:bg-black/[0.06]"
         title="下载技能包(zip)"
       >
@@ -65,14 +64,36 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { avatarColors } from '../data/categories.js'
+
+const router = useRouter()
+
+function isTokenValid() {
+  const token = localStorage.getItem('token')
+  if (!token) return false
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    const payload = JSON.parse(atob(base64))
+    return Date.now() < payload.exp * 1000
+  } catch { return false }
+}
+
+function checkAuth() {
+  if (!isTokenValid()) {
+    router.push('/login')
+    return
+  }
+  const url = `${API_BASE}/skills/${props.skill.slug}/download`
+  window.open(url, '_blank')
+}
 
 const props = defineProps({
   skill: { type: Object, required: true },
   index: { type: Number, default: 0 },
 })
 
-defineEmits(['click', 'download'])
+defineEmits(['click'])
 
 const copied = ref(false)
 
@@ -80,7 +101,6 @@ const copied = ref(false)
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 
 // 直接下载最新版本 zip 的链接
-const downloadUrl = computed(() => `${API_BASE}/skills/${props.skill.slug}/download`)
 
 const avatarColor = computed(() => {
   return avatarColors[props.skill.avatarColor] || { bg: '#e0f2f1', text: '#00695c' }
