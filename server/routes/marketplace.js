@@ -684,7 +684,7 @@ router.get('/api/skills/:slug/manifest', async (req, res) => {
 
 // 下载 Skill 包（CLI 用）
 const SLUG_BLACKLIST = ['api', 'admin', 'download', 'manifest', 'versions', 'categories', 'health', 'stats', 'submit'];
-router.get('/api/skills/:slug/download', downloadLimiter, async (req, res) => {
+router.get('/api/skills/:slug/download', verifyUser, downloadLimiter, async (req, res) => {
   try {
     const { slug } = req.params;
     const { v: version } = req.query;
