@@ -733,6 +733,7 @@ router.get('/api/skills/:slug/download', downloadLimiter, async (req, res) => {
             const match = allVersions.find(v => v && v.version === version);
             if (match) {
               panelSkillId = match.id;
+              downloadCounter.increment(skillRow.id);
             }
           }
         } catch (e) {
@@ -754,9 +755,9 @@ router.get('/api/skills/:slug/download', downloadLimiter, async (req, res) => {
         }
         filePath = result.rows[0].file_path;
         panelSkillId = result.rows[0].panel_skill_id || null;
+        downloadCounter.increment(skillRow.id);
       }
     } else {
-      // 下载最新版本——读取 source / panel_skill_id 用于下游分流
       const result = await global.pool.query(`
         SELECT id, file_path, source, panel_skill_id
         FROM skills
