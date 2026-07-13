@@ -370,6 +370,42 @@ async function syncSkillsFromPanel() {
       ]);
       upsertCount++;
     }
+
+    // ----- 同步版本历史 -----
+    // 逐个调 1Panel versions API 写入 skill_versions 表，
+    // 单个失败不中断整体同步
+    let versionCount = 0;
+    for (const item of published) {
+      try {
+        const skillId = `1panel-${item.id}`;
+        const verRes = await panel.post('/api/v2/core/enterprise/skills-hub/versions', { id: item.id });
+        if (verRes.status < 200 || verRes.status >= 300) continue;
+        const versions = getPanelPayload(verRes.data);
+        if (!Array.isArray(versions) || versions.length === 0) continue;
+
+        for (const v of versions) {
+          if (!v || !v.version) continue;
+          await global.pool.query(`
+            INSERT INTO skill_versions (skill_id, version, file_path, description, created_at)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (skill_id, version) DO NOTHING
+          `, [
+            skillId,
+            String(v.version),
+            v.filePath || null,
+            v.description || null,
+            v.createdAt ? new Date(v.createdAt) : new Date(),
+          ]);
+          versionCount++;
+        }
+      } catch (e) {
+        // 单个技能版本同步失败不中断,仅打日志
+        console.log(`[syncSkills] 版本同步跳过 ${item.name}: ${e.message}`);
+      }
+    }
+    if (versionCount > 0) {
+      console.log(`[syncSkills] 同步 ${versionCount} 个版本记录`);
+    }
   }
 
   // 软删除:远端不存在的 panel 技能(source='panel' 且本轮没同步到的)
