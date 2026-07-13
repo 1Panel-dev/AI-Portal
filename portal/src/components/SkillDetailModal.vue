@@ -135,12 +135,31 @@ function isTokenValid() {
   } catch { return false }
 }
 
-function checkAuth(url) {
+async function checkAuth(url) {
+  const token = localStorage.getItem('token')
   if (!isTokenValid()) {
     router.push('/login')
     return
   }
-  window.open(url, '_blank')
+  try {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    if (res.status === 401) {
+      localStorage.removeItem('token')
+      router.push('/login')
+      return
+    }
+    if (!res.ok) { console.error('下载失败:', res.status); return }
+    const blob = await res.blob()
+    const blobUrl = URL.createObjectURL(blob)
+    const filename = `${props.skill?.slug || 'skill'}.zip`
+    const a = document.createElement('a')
+    a.href = blobUrl
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(blobUrl)
+  } catch (e) { console.error('下载失败:', e) }
 }
 
 const props = defineProps({

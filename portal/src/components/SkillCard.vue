@@ -79,13 +79,32 @@ function isTokenValid() {
   } catch { return false }
 }
 
-function checkAuth() {
+async function checkAuth() {
+  const token = localStorage.getItem('token')
   if (!isTokenValid()) {
     router.push('/login')
     return
   }
   const url = `${API_BASE}/skills/${props.skill.slug}/download`
-  window.open(url, '_blank')
+  try {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    if (res.status === 401) {
+      // token 过期或无效
+      localStorage.removeItem('token')
+      router.push('/login')
+      return
+    }
+    if (!res.ok) { console.error('下载失败:', res.status); return }
+    const blob = await res.blob()
+    const blobUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = blobUrl
+    a.download = `${props.skill.slug}.zip`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(blobUrl)
+  } catch (e) { console.error('下载失败:', e) }
 }
 
 const props = defineProps({
