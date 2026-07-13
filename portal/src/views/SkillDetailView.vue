@@ -183,6 +183,7 @@ async function checkAuth(url) {
     loginDialogOpen.value = true
     return
   }
+  const token = localStorage.getItem('token')
   try {
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
     if (res.status === 401) {

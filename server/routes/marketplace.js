@@ -460,7 +460,7 @@ router.post('/api/skills/:id/download', downloadLimiter, async (req, res) => {
     await global.pool.query(`
       INSERT INTO download_stats (skill_id, user_agent, ip_hash)
       VALUES ($1, $2, $3)
-    `, [id, req.headers['user-agent'] || '', '']);
+    `, [id, req.headers['user-agent'] || '', req.ip]);
 
     // 返回当前 DB 中的 downloads(不含本次未 flush 的累计),与旧契约同形
     res.json({ success: true, downloads: parseInt(result.rows[0].downloads) });
@@ -735,8 +735,8 @@ router.get('/api/skills/:slug/download', verifyUser, downloadLimiter, async (req
               panelSkillId = match.id;
               downloadCounter.increment(skillRow.id);
               global.pool.query(
-                `INSERT INTO download_stats (skill_id, user_agent, ip_hash) VALUES ($1, $2, $3)`,
-                [skillRow.id, req.headers['user-agent'] || '', '']
+                `INSERT INTO download_stats (skill_id, user_agent, ip_hash, user_id) VALUES ($1, $2, $3, $4)`,
+                [skillRow.id, req.headers['user-agent'] || '', req.ip, String(req.user.id)]
               ).catch(() => {});
             }
           }
@@ -761,8 +761,8 @@ router.get('/api/skills/:slug/download', verifyUser, downloadLimiter, async (req
         panelSkillId = result.rows[0].panel_skill_id || null;
         downloadCounter.increment(skillRow.id);
         global.pool.query(
-          `INSERT INTO download_stats (skill_id, user_agent, ip_hash) VALUES ($1, $2, $3)`,
-          [skillRow.id, req.headers['user-agent'] || '', '']
+          `INSERT INTO download_stats (skill_id, user_agent, ip_hash, user_id) VALUES ($1, $2, $3, $4)`,
+          [skillRow.id, req.headers['user-agent'] || '', req.ip, String(req.user.id)]
         ).catch(() => {});
       }
     } else {
@@ -780,8 +780,8 @@ router.get('/api/skills/:slug/download', verifyUser, downloadLimiter, async (req
       // 增加下载量(走缓冲计数器,避免热点行写) —— 本地和 1Panel 都计数
       downloadCounter.increment(row.id);
       global.pool.query(
-        `INSERT INTO download_stats (skill_id, user_agent, ip_hash) VALUES ($1, $2, $3)`,
-        [row.id, req.headers['user-agent'] || '', '']
+        `INSERT INTO download_stats (skill_id, user_agent, ip_hash, user_id) VALUES ($1, $2, $3, $4)`,
+        [row.id, req.headers['user-agent'] || '', req.ip, String(req.user.id)]
       ).catch(() => {});
     }
     // 1Panel 来源:转发到 skills-hub/download

@@ -114,6 +114,7 @@
 
         </div>
     </div>
+  </div>
   </Teleport>
 
   <AppDialog
@@ -136,8 +137,6 @@ import AppDialog from './AppDialog.vue'
 const router = useRouter()
 const loginDialogOpen = ref(false)
 
-const router = useRouter()
-
 function isTokenValid() {
   const token = localStorage.getItem('token')
   if (!token) return false
@@ -153,6 +152,7 @@ async function checkAuth(url) {
     loginDialogOpen.value = true
     return
   }
+  const token = localStorage.getItem('token')
   try {
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
     if (res.status === 401) {

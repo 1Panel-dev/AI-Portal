@@ -96,6 +96,7 @@ async function checkAuth() {
     loginDialogOpen.value = true
     return
   }
+  const token = localStorage.getItem('token')
   const url = `${API_BASE}/skills/${props.skill.slug}/download`
   try {
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
