@@ -635,9 +635,12 @@ function initTokenChart() {
         let total = 0
         params.forEach(p => {
           if (p.seriesName === '总计') return
+          // 根据 seriesName 找对应的英文 key
+          let colorKey = Object.keys(map).find(k => map[k] === p.seriesName)
+          const color = colorKey ? colors[colorKey] : '#475569'
           const v = p.value || 0
           total += v
-          html += `<div style="display:flex;justify-content:space-between;gap:16px;line-height:1.8"><span style="color:${colors[p.seriesName] || '#475569'}">● ${map[p.seriesName] || p.seriesName}</span><span style="color:#1D2129;font-weight:500">${fmtNum(v)}</span></div>`
+          html += `<div style="display:flex;justify-content:space-between;gap:16px;line-height:1.8"><span style="color:${color}">● ${p.seriesName}</span><span style="color:#1D2129;font-weight:500">${fmtNum(v)}</span></div>`
         })
         html += `<div style="border-top:1px solid rgba(0,0,0,0.08);margin-top:4px;padding-top:4px;font-weight:600;color:#1D2129">总计: ${fmtNum(total)}</div>`
         return html
@@ -646,9 +649,9 @@ function initTokenChart() {
     legend: {
       data: ['缓存', '输入', '输出'],
       textStyle: { color: '#475569', fontSize: 10 },
-      itemWidth: 10, itemHeight: 10, top: 0, right: 0
+      itemWidth: 8, itemHeight: 8, top: 0, right: 0
     },
-    grid: { left: 0, right: 0, top: 28, bottom: 0, containLabel: false },
+    grid: { left: 40, right: 0, top: 28, bottom: 0, containLabel: false },
     xAxis: {
       type: 'category',
       data: dates,
@@ -659,7 +662,7 @@ function initTokenChart() {
     yAxis: {
       type: 'value',
       splitLine: { show: false },
-      axisLabel: { show: false },
+      axisLabel: { color: '#94a3b8', fontSize: 10, margin: 4, formatter: (v) => fmtNum(v) },
       axisLine: { show: false },
       axisTick: { show: false }
     },
@@ -701,8 +704,13 @@ function initReqChart() {
           <div style="display:flex;justify-content:space-between;gap:16px;line-height:1.8"><span style="color:#005eeb">● 请求次数</span><span style="color:#1D2129;font-weight:500">${fmtNum(v)}</span></div>`
       }
     },
-    legend: { show: false },
-    grid: { left: 0, right: 0, top: 28, bottom: 0, containLabel: false },
+    legend: {
+      data: [{ name: '请求次数', icon: 'diamond', itemWidth: 10, itemHeight: 10 }],
+      textStyle: { color: '#475569', fontSize: 10 },
+      itemWidth: 7, itemHeight: 7,
+      top: 0, right: 0
+    },
+    grid: { left: 40, right: 0, top: 28, bottom: 0, containLabel: false },
     xAxis: {
       type: 'category',
       data: dates,
@@ -713,7 +721,7 @@ function initReqChart() {
     yAxis: {
       type: 'value',
       splitLine: { show: false },
-      axisLabel: { show: false },
+      axisLabel: { color: '#94a3b8', fontSize: 10, margin: 4, formatter: (v) => v >= 1000 ? fmtNum(v) : v },
       axisLine: { show: false },
       axisTick: { show: false }
     },
