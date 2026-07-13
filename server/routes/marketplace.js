@@ -734,6 +734,10 @@ router.get('/api/skills/:slug/download', downloadLimiter, async (req, res) => {
             if (match) {
               panelSkillId = match.id;
               downloadCounter.increment(skillRow.id);
+              global.pool.query(
+                `INSERT INTO download_stats (skill_id, user_agent, ip_hash) VALUES ($1, $2, $3)`,
+                [skillRow.id, req.headers['user-agent'] || '', '']
+              ).catch(() => {});
             }
           }
         } catch (e) {
@@ -756,6 +760,10 @@ router.get('/api/skills/:slug/download', downloadLimiter, async (req, res) => {
         filePath = result.rows[0].file_path;
         panelSkillId = result.rows[0].panel_skill_id || null;
         downloadCounter.increment(skillRow.id);
+        global.pool.query(
+          `INSERT INTO download_stats (skill_id, user_agent, ip_hash) VALUES ($1, $2, $3)`,
+          [skillRow.id, req.headers['user-agent'] || '', '']
+        ).catch(() => {});
       }
     } else {
       const result = await global.pool.query(`
@@ -771,8 +779,11 @@ router.get('/api/skills/:slug/download', downloadLimiter, async (req, res) => {
       panelSkillId = row.panel_skill_id || null;
       // 增加下载量(走缓冲计数器,避免热点行写) —— 本地和 1Panel 都计数
       downloadCounter.increment(row.id);
+      global.pool.query(
+        `INSERT INTO download_stats (skill_id, user_agent, ip_hash) VALUES ($1, $2, $3)`,
+        [row.id, req.headers['user-agent'] || '', '']
+      ).catch(() => {});
     }
-
     // 1Panel 来源:转发到 skills-hub/download
     if (panelSkillId) {
       try {
