@@ -156,9 +156,17 @@ const route = useRoute()
 const router = useRouter()
 const { getSkillBySlug } = useSkills()
 
-function checkAuth(url) {
+function isTokenValid() {
   const token = localStorage.getItem('token')
-  if (!token) {
+  if (!token) return false
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return Date.now() < payload.exp * 1000
+  } catch { return false }
+}
+
+function checkAuth(url) {
+  if (!isTokenValid()) {
     router.push('/login')
     return
   }
