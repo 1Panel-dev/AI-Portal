@@ -330,6 +330,9 @@ async function syncSkillsFromPanel() {
       const installUrl = `/api/skills/${slug}/download`;
 
       await global.pool.query(`
+        WITH deleted AS (
+          DELETE FROM skills WHERE slug = $3 AND id != $1
+        )
         INSERT INTO skills (
           id, title, slug, description, avatar, avatar_color,
           downloads, stars, version, category, tag, author,
