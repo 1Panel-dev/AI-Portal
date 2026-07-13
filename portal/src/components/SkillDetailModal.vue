@@ -114,14 +114,27 @@
 
         </div>
     </div>
-    </div>
   </Teleport>
+
+  <AppDialog
+    :open="loginDialogOpen"
+    title="提示"
+    message="请先登录后再下载技能"
+    type="confirm"
+    confirmText="去登录"
+    @close="loginDialogOpen = false"
+    @confirm="loginDialogOpen = false; router.push('/login')"
+  />
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { avatarColors, categoryLabels } from '../data/categories.js'
+import AppDialog from './AppDialog.vue'
+
+const router = useRouter()
+const loginDialogOpen = ref(false)
 
 const router = useRouter()
 
@@ -136,9 +149,8 @@ function isTokenValid() {
 }
 
 async function checkAuth(url) {
-  const token = localStorage.getItem('token')
   if (!isTokenValid()) {
-    router.push('/login')
+    loginDialogOpen.value = true
     return
   }
   try {

@@ -143,18 +143,30 @@
       </div>
     </main>
   </div>
+
+  <AppDialog
+    :open="loginDialogOpen"
+    title="提示"
+    message="请先登录后再下载技能"
+    type="confirm"
+    confirmText="去登录"
+    @close="loginDialogOpen = false"
+    @confirm="loginDialogOpen = false; router.push('/login')"
+  />
 </template>
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
+import AppDialog from '../components/AppDialog.vue'
 import { avatarColors, categoryLabels } from '../data/categories.js'
 import { useSkills } from '../composables/useSkills.js'
 
 const route = useRoute()
 const router = useRouter()
 const { getSkillBySlug } = useSkills()
+const loginDialogOpen = ref(false)
 
 function isTokenValid() {
   const token = localStorage.getItem('token')
@@ -167,9 +179,8 @@ function isTokenValid() {
 }
 
 async function checkAuth(url) {
-  const token = localStorage.getItem('token')
   if (!isTokenValid()) {
-    router.push('/login')
+    loginDialogOpen.value = true
     return
   }
   try {
