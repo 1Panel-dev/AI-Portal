@@ -699,13 +699,14 @@ function initReqChart() {
       textStyle: { color: '#1D2129', fontSize: 11 },
       formatter: (params) => {
         const d = params[0]?.axisValue || ''
-        const v = params[0]?.value || 0
+        const bar = params.find(p => p.seriesName === '请求次数')
+        const v = bar?.value || 0
         return `<div style="font-weight:600;margin-bottom:4px;color:#1D2129">${d}</div>
           <div style="display:flex;justify-content:space-between;gap:16px;line-height:1.8"><span style="color:#005eeb">● 请求次数</span><span style="color:#1D2129;font-weight:500">${fmtNum(v)}</span></div>`
       }
     },
     legend: {
-      data: [{ name: '请求次数', icon: 'diamond', itemWidth: 10, itemHeight: 10 }],
+      data: ['请求次数', { name: '趋势', icon: 'diamond', itemWidth: 10, itemHeight: 10 }],
       textStyle: { color: '#475569', fontSize: 10 },
       itemWidth: 7, itemHeight: 7,
       top: 0, right: 0
@@ -725,13 +726,26 @@ function initReqChart() {
       axisLine: { show: false },
       axisTick: { show: false }
     },
-    series: [{
-      name: '请求次数',
-      type: 'bar',
-      data: values,
-      itemStyle: { color: '#005eeb', borderRadius: [2, 2, 0, 0] },
-      barMaxWidth: 16
-    }]
+    series: [
+      {
+        name: '请求次数',
+        type: 'bar',
+        data: values,
+        itemStyle: { color: '#005eeb', borderRadius: [2, 2, 0, 0] },
+        barMaxWidth: 16
+      },
+      {
+        name: '趋势',
+        type: 'line',
+        data: values,
+        smooth: true,
+        symbol: 'diamond',
+        symbolSize: 6,
+        itemStyle: { color: '#1e40af', borderColor: '#fff', borderWidth: 2 },
+        lineStyle: { color: '#1e40af', width: 2 },
+        z: 10
+      }
+    ]
   }, { notMerge: true })
 }
 
