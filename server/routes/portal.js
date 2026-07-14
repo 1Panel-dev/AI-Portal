@@ -352,19 +352,20 @@ router.get('/api/models/example', async (req, res) => {
   }
 });
 
-// 公开端点:返回「提交技能开关」与「skillctl 文档地址」,供前端展示用
+// 公开端点:返回「提交技能开关」「skillctl 文档地址」「1Panel 地址」,供前端展示用
 // 不缓存:管理员改完立即生效是更重要的诉求,几行 system_config 查询完全可以承受
 router.get('/api/config/feature-flags', async (req, res) => {
   try {
     const result = await global.pool.query(`
       SELECT key, value FROM system_config
-      WHERE key IN ('portal_skill_submit_enabled', 'site_skillctl_doc_url')
+      WHERE key IN ('portal_skill_submit_enabled', 'site_skillctl_doc_url', 'panel_base_url')
     `);
     const map = {};
     for (const row of result.rows) map[row.key] = row.value;
     res.json({
       skillSubmitEnabled: map.portal_skill_submit_enabled === 'true',
       skillctlDocUrl: map.site_skillctl_doc_url || '',
+      panelEndpoint: map.panel_base_url || '',
     });
   } catch (err) {
     console.error('获取功能开关失败:', err);

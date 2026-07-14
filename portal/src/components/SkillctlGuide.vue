@@ -98,7 +98,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import AppDialog from './AppDialog.vue'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
@@ -110,6 +110,7 @@ const tokenError = ref('')
 const generating = ref(false)
 const copied = ref(false)
 const showRefreshDialog = ref(false)
+const featureFlags = ref({ panelEndpoint: '' })
 
 const fetchToken = async () => {
   tokenLoading.value = true
@@ -184,17 +185,36 @@ const platforms = [
   { icon: '🐧', label: 'Linux ARM64', url: '/downloads/skillctl-linux-arm64', filename: 'skillctl-linux-arm64' },
 ]
 
-const commands = [
-  { cmd: 'skillctl login <endpoint> --token <token>', desc: '登录 1Panel' },
-  { cmd: 'skillctl whoami', desc: '查看当前登录身份' },
-  { cmd: 'skillctl agent create default --skills-path /path/to/skills', desc: '创建 Agent' },
-  { cmd: 'skillctl agent list', desc: '查看 Agent 列表' },
-  { cmd: 'skillctl search [keyword]', desc: '搜索 Skill' },
-  { cmd: 'skillctl install <skill-name>', desc: '安装 Skill' },
+const cmdTemplates = [
+  { cmd: (ep, tk) => {
+    let c = ep ? `skillctl login ${ep} --token <token>` : 'skillctl login <endpoint> --token <token>'
+    if (tk) c = c.replace('<token>', tk)
+    return c
+  }, desc: '登录 1Panel' },
+  { cmd: () => 'skillctl whoami', desc: '查看当前登录身份' },
+  { cmd: () => 'skillctl agent create default --skills-path /path/to/skills', desc: '创建 Agent' },
+  { cmd: () => 'skillctl agent list', desc: '查看 Agent 列表' },
+  { cmd: () => 'skillctl search [keyword]', desc: '搜索 Skill' },
+  { cmd: () => 'skillctl install <skill-name>', desc: '安装 Skill' },
 ]
+
+const commands = computed(() =>
+  cmdTemplates.map(t => ({ cmd: t.cmd(featureFlags.value.panelEndpoint, token.value), desc: t.desc }))
+)
+
+const loadFeatureFlags = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/config/feature-flags`)
+    if (res.ok) {
+      const data = await res.json()
+      featureFlags.value = data
+    }
+  } catch (e) { console.warn('loadFeatureFlags failed:', e) }
+}
 
 onMounted(async () => {
   fetchToken()
+  loadFeatureFlags()
   try {
     const res = await fetch(`${API_BASE}/version`)
     const data = await res.json()

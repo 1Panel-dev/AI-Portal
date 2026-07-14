@@ -280,7 +280,7 @@
           </div>
 
           <div v-if="activeTab === 'skills'" class="space-y-6">
-            <SkillctlGuide />
+            <SkillctlGuide v-if="!isAdmin" />
             <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
               <div class="flex items-center justify-between gap-3 mb-6">
                 <h2 class="text-lg font-semibold text-text">{{ isAdmin ? '技能审核' : '我的技能' }}</h2>

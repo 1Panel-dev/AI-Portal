@@ -13,8 +13,6 @@
         </router-link>
       </div>
 
-      <SkillctlGuide class="mb-7" />
-
       <div v-if="loading" class="bg-white border border-[rgba(0,0,0,0.04)] rounded-xl p-10 text-center text-sm text-text-secondary shadow-card">
         加载中...
       </div>
@@ -56,7 +54,6 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
-import SkillctlGuide from '../components/SkillctlGuide.vue'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const router = useRouter()

@@ -59,7 +59,18 @@
               <li>
                 登录 1Panel 并配置本地 Skill 安装目录（首次使用）：
                 <div class="mt-1.5 space-y-1">
-                  <code class="block text-[12px] font-mono text-text bg-surface-secondary rounded-lg px-3 py-1.5">skillctl login &lt;1Panel地址&gt; --token &lt;API-Key&gt;</code>
+                  <div class="relative group">
+                    <code class="block text-[12px] font-mono text-text bg-surface-secondary rounded-lg px-3 py-1.5 pr-8 truncate">{{ loginCommand }}</code>
+                    <button
+                      @click="copyLoginCommandToClipboard"
+                      class="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity text-text-tertiary hover:text-text"
+                      :class="loginCopied ? 'text-green-600 opacity-100' : ''"
+                      :title="loginCopied ? '已复制' : '复制'"
+                    >
+                      <svg v-if="loginCopied" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                      <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    </button>
+                  </div>
                   <code class="block text-[12px] font-mono text-text bg-surface-secondary rounded-lg px-3 py-1.5">skillctl agent create default --skills-path &lt;本地skills目录&gt;</code>
                 </div>
               </li>
@@ -136,6 +147,33 @@ import AppDialog from './AppDialog.vue'
 
 const router = useRouter()
 const loginDialogOpen = ref(false)
+const featureFlags = ref({ panelEndpoint: '' })
+const skillctlToken = ref('')
+
+const loginCommand = computed(() => {
+  const ep = featureFlags.value.panelEndpoint
+  return ep
+    ? `skillctl login ${ep} --token <API-Key>`
+    : `skillctl login <1Panel地址> --token <API-Key>`
+})
+
+const copyLoginCommand = computed(() => {
+  const ep = featureFlags.value.panelEndpoint || '<1Panel地址>'
+  const tok = skillctlToken.value || '<API-Key>'
+  return `skillctl login ${ep} --token ${tok}`
+})
+
+const loginCopied = ref(false)
+let loginCopiedTimer = null
+
+const copyLoginCommandToClipboard = async () => {
+  try {
+    await navigator.clipboard.writeText(copyLoginCommand.value)
+    loginCopied.value = true
+    clearTimeout(loginCopiedTimer)
+    loginCopiedTimer = setTimeout(() => { loginCopied.value = false }, 2000)
+  } catch { /* ignore */ }
+}
 
 function isTokenValid() {
   const token = localStorage.getItem('token')
@@ -191,6 +229,8 @@ const latestDownloadUrl = computed(() => props.skill ? `${API_BASE}/skills/${pro
 
 const versions = ref([])
 const versionsLoading = ref(false)
+const versionsSlug = ref('')
+let versionsTimer = null
 
 const versionLabel = (v) => {
   if (v.status === 'published') return '已发布'
@@ -217,22 +257,60 @@ const formatDate = (v) => {
 
 const loadVersions = async () => {
   if (!props.skill) return
-  versionsLoading.value = true
+  if (versionsSlug.value === props.skill.slug) return
+  versionsTimer = setTimeout(() => { versionsLoading.value = true }, 200)
   try {
     const res = await fetch(`${API_BASE}/skills/${encodeURIComponent(props.skill.slug)}/versions`)
     const json = await res.json()
     const data = Array.isArray(json?.data) ? json.data : []
     versions.value = data.filter(v => v && v.version)
+    versionsSlug.value = props.skill.slug
   } catch {
     versions.value = []
   } finally {
+    clearTimeout(versionsTimer)
     versionsLoading.value = false
   }
 }
 
-// 弹框打开时加载版本列表
+const loadFeatureFlags = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/config/feature-flags`)
+    if (res.ok) {
+      const data = await res.json()
+      featureFlags.value = data
+    }
+  } catch (e) {
+    console.warn('loadFeatureFlags failed:', e)
+  }
+}
+
+const fetchSkillctlToken = async () => {
+  const t = localStorage.getItem('token')
+  if (!t) return
+  try {
+    const res = await fetch(`${API_BASE}/skillctl-token`, {
+      headers: { Authorization: `Bearer ${t}` },
+    })
+    if (res.ok) {
+      const data = await res.json()
+      skillctlToken.value = data?.token || ''
+    }
+  } catch (e) {
+    console.warn('fetchSkillctlToken failed:', e)
+  }
+}
+
+// 弹框打开时加载版本列表和 feature-flags
 watch(() => props.isOpen, (open) => {
-  if (open) loadVersions()
+  if (open) {
+    loadVersions()
+    loadFeatureFlags()
+    fetchSkillctlToken()
+  } else {
+    clearTimeout(loginCopiedTimer)
+    loginCopied.value = false
+  }
 })
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
