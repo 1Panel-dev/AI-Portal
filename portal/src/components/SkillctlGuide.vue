@@ -177,7 +177,7 @@ const copyToken = async () => {
 }
 
 const platforms = [
-  { icon: '🪟', label: 'Windows', url: '/downloads/skillctl-windows-amd64.exe', filename: 'skillctl-windows-amd64.exe' },
+  { icon: '🪟', label: 'Windows x86_64', url: '/downloads/skillctl-windows-amd64.zip', filename: 'skillctl-windows-amd64.zip' },
   { icon: '🍎', label: 'macOS Intel', url: '/downloads/skillctl-darwin-amd64', filename: 'skillctl-darwin-amd64' },
   { icon: '🍎', label: 'macOS Apple Silicon', url: '/downloads/skillctl-darwin-arm64', filename: 'skillctl-darwin-arm64' },
   { icon: '🐧', label: 'Linux x86_64', url: '/downloads/skillctl-linux-amd64', filename: 'skillctl-linux-amd64' },

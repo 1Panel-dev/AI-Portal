@@ -44,6 +44,7 @@ make linux-amd64
 make linux-arm64
 make darwin-amd64
 make darwin-arm64
+make windows-amd64
 ```
 
 ## 下载 skillctl
@@ -52,20 +53,20 @@ make darwin-arm64
 
 | 平台 | 下载链接 |
 |------|----------|
-| 🪟 Windows x86_64 | [skillctl-windows-amd64.exe](/downloads/skillctl-windows-amd64.exe) |
+| 🪟 Windows x86_64 | [skillctl-windows-amd64.zip](/downloads/skillctl-windows-amd64.zip) |
 | 🍎 macOS Intel | [skillctl-darwin-amd64](/downloads/skillctl-darwin-amd64) |
 | 🍎 macOS Apple Silicon | [skillctl-darwin-arm64](/downloads/skillctl-darwin-arm64) |
 | 🐧 Linux x86_64 | [skillctl-linux-amd64](/downloads/skillctl-linux-amd64) |
 | 🐧 Linux ARM64 | [skillctl-linux-arm64](/downloads/skillctl-linux-arm64) |
 
-下载后赋予执行权限：
+Linux / macOS 下载后，需要赋予执行权限并安装到系统命令目录：
 
 ```bash
-chmod +x skillctl-*
-# Linux / macOS
-sudo mv skillctl-linux-amd64（或对应的文件名） /usr/local/bin/skillctl
-# Windows: 将 .exe 文件放到 PATH 目录即可
+chmod +x ./skillctl-linux-amd64
+sudo mv ./skillctl-linux-amd64 /usr/local/bin/skillctl
 ```
+
+请将 `skillctl-linux-amd64` 替换为当前 Linux 或 macOS 平台对应的下载文件名。Windows 请使用下方的 Windows 安装流程。
 
 验证安装：
 
@@ -73,9 +74,33 @@ sudo mv skillctl-linux-amd64（或对应的文件名） /usr/local/bin/skillctl
 skillctl help
 ```
 
-## 安装到系统命令
+### Windows 一次安装，任意目录使用
 
-将二进制文件安装为系统命令：
+下载 `skillctl-windows-amd64.zip` 并完整解压，解压后的结构为：
+
+```text
+skillctl-windows-amd64/
+├── skillctl-windows-amd64.exe
+├── install-skillctl.ps1
+└── README-Windows.txt
+```
+
+进入解压后的 `skillctl-windows-amd64` 目录，打开 PowerShell 并执行：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-skillctl.ps1
+```
+
+脚本会把程序安装为 `%LOCALAPPDATA%\Programs\skillctl\skillctl.exe`，并把安装目录加入当前用户的 `PATH`，不需要管理员权限。安装后关闭并重新打开终端，即可在任意目录运行：
+
+```powershell
+skillctl help
+skillctl login https://panel.example.com --token <token>
+```
+
+## Linux / macOS 安装到系统命令
+
+以下命令仅适用于 Linux 和 macOS。将当前平台的二进制文件安装为系统命令：
 
 ```bash
 chmod +x ./skillctl
