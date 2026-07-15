@@ -12,17 +12,21 @@
     <div class="mb-5 rounded-xl border border-[rgba(0,0,0,0.06)] bg-surface-secondary px-4 py-3">
       <div class="text-xs text-text-tertiary mb-2.5">下载最新版本</div>
       <div class="flex flex-wrap gap-2">
-        <a
+        <button
           v-for="(item, i) in platforms"
           :key="i"
-          :href="item.url"
-          :download="item.filename"
-          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-[rgba(0,0,0,0.08)] bg-white hover:bg-surface-secondary transition-colors cursor-pointer no-underline text-text"
+          @click="downloadOrCopy(item)"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-[rgba(0,0,0,0.08)] bg-white hover:bg-surface-secondary transition-colors cursor-pointer text-text"
+          :class="copiedPlatform === item.filename ? 'text-green-600 border-green-200 bg-green-50' : ''"
         >
           <span>{{ item.icon }}</span>
           <span>{{ item.label }}</span>
-        </a>
+          <span v-if="isWeCom" class="text-[10px] text-text-tertiary ml-0.5">{{ copiedPlatform === item.filename ? '已复制' : '(复制链接)' }}</span>
+        </button>
       </div>
+      <p v-if="isWeCom" class="text-[11px] text-amber-600 mt-2">
+        企业微信内不支持直接下载文件，点击按钮会自动复制下载链接。请将链接粘贴到 Chrome、Edge、Safari 等系统浏览器中下载。
+      </p>
     </div>
 
     <!-- Token -->
@@ -109,8 +113,13 @@ const tokenLoading = ref(false)
 const tokenError = ref('')
 const generating = ref(false)
 const copied = ref(false)
+const copiedPlatform = ref(null)
 const showRefreshDialog = ref(false)
 const featureFlags = ref({ panelEndpoint: '' })
+
+const isWeCom = (() => {
+  try { return /wxwork/i.test(navigator.userAgent || '') } catch { return false }
+})()
 
 const fetchToken = async () => {
   tokenLoading.value = true
@@ -177,12 +186,56 @@ const copyToken = async () => {
   } catch { /* ignore */ }
 }
 
+const getFullUrl = (path) => {
+  if (typeof window === 'undefined') return path
+  if (/^https?:\/\//i.test(path)) return path
+  return window.location.origin + path
+}
+
+const downloadOrCopy = async (item) => {
+  const url = getFullUrl(item.url)
+
+  // 企业微信环境：直接复制链接并提示用户用系统浏览器打开
+  if (isWeCom) {
+    await copyToClipboard(url, item.filename)
+    return
+  }
+
+  // 普通浏览器：直接下载
+  const a = document.createElement('a')
+  a.href = url
+  a.download = item.filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
+const copyToClipboard = async (text, key) => {
+  try {
+    await navigator.clipboard.writeText(text)
+    copiedPlatform.value = key || text
+    setTimeout(() => { copiedPlatform.value = null }, 2000)
+  } catch {
+    // clipboard 不可用时尝试 fallback
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+    copiedPlatform.value = key || text
+    setTimeout(() => { copiedPlatform.value = null }, 2000)
+  }
+}
+
 const platforms = [
-  { icon: '🪟', label: 'Windows x86_64', url: '/downloads/skillctl-windows-amd64.zip', filename: 'skillctl-windows-amd64.zip' },
-  { icon: '🍎', label: 'macOS Intel', url: '/downloads/skillctl-darwin-amd64', filename: 'skillctl-darwin-amd64' },
-  { icon: '🍎', label: 'macOS Apple Silicon', url: '/downloads/skillctl-darwin-arm64', filename: 'skillctl-darwin-arm64' },
-  { icon: '🐧', label: 'Linux x86_64', url: '/downloads/skillctl-linux-amd64', filename: 'skillctl-linux-amd64' },
-  { icon: '🐧', label: 'Linux ARM64', url: '/downloads/skillctl-linux-arm64', filename: 'skillctl-linux-arm64' },
+  { icon: '\u{1FA9F}', label: 'Windows x86_64', url: '/downloads/skillctl-windows-amd64.zip', filename: 'skillctl-windows-amd64.zip' },
+  { icon: '\u{1F34E}', label: 'macOS Intel', url: '/downloads/skillctl-darwin-amd64', filename: 'skillctl-darwin-amd64' },
+  { icon: '\u{1F34E}', label: 'macOS Apple Silicon', url: '/downloads/skillctl-darwin-arm64', filename: 'skillctl-darwin-arm64' },
+  { icon: '\u{1F427}', label: 'Linux x86_64', url: '/downloads/skillctl-linux-amd64', filename: 'skillctl-linux-amd64' },
+  { icon: '\u{1F427}', label: 'Linux ARM64', url: '/downloads/skillctl-linux-arm64', filename: 'skillctl-linux-arm64' },
 ]
 
 const cmdTemplates = [

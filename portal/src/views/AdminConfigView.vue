@@ -266,7 +266,7 @@
                 class="w-full px-3 py-2 border border-[rgba(0,0,0,0.06)] rounded-lg text-text bg-surface-secondary outline-none focus:border-text font-mono text-sm"
                 placeholder="http://192.168.1.100:33846"
               />
-              <p class="text-xs text-text-secondary mt-1">1Panel 管理面板地址,需包含协议和端口。在 1Panel 菜单「AI → AI 网关访问地址」中查看</p>
+              <p class="text-xs text-text-secondary mt-1">1Panel 管理面板地址,需包含协议和端口。示例: http://192.168.1.100:33846</p>
             </div>
             <div class="col-span-2">
               <label class="block text-sm font-medium text-text mb-1">1Panel API Key</label>
