@@ -29,3 +29,5 @@
 - **Docs image path BASE_PATH**: fix online docs images not loading under sub-path deployment / 修复在线文档图片在 BASE_PATH 子路径下无法加载 by @fit2cloudzhao
 - **Docker Compose SELinux**: add :z label to volumes for CentOS deployment compatibility / Docker Compose volume 加 SELinux :z 标签兼容 CentOS by @fit2cloudzhao
 - **Empty data states**: fix null/empty data handling in ProfileView for new users / 修复新用户无数据时展示异常 by @fit2cloudzhao
+- **1Panel config description**: fix misleading "AI gateway" hint in admin 1Panel address field / 修复管理后台 1Panel 访问地址描述错误引用「AI 网关」 by @fit2cloudzhao
+- **WeChat Work skillctl download**: copy download link to clipboard in WeCom embedded browser, guide user to system browser / 企微浏览器 skillctl 下载改为复制链接并引导用系统浏览器打开 by @fit2cloudzhao
