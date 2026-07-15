@@ -83,16 +83,18 @@ app.use('/uploads', express.static(uploadsDir, {
   }));
 
 // skillctl 下载文件：生产走 STATIC_PATH/downloads/，开发回退到 ../skillctl/dist/
-const downloadsDir = path.join(STATIC_PATH, 'downloads');
-const downloadsDevDir = path.join(__dirname, '../skillctl/dist');
+const downloadsDir = path.resolve(STATIC_PATH, 'downloads');
+const downloadsDevDir = path.resolve(__dirname, '../skillctl/dist');
 app.use('/downloads', (req, res, next) => {
-  // 先查生产路径
-  const prodPath = path.join(downloadsDir, req.path);
+  // 仅允许纯文件名，防止路径穿越（如 /downloads/../../../etc/passwd）
+  const filename = path.basename(req.path);
+  if (!filename || filename === '.' || filename === '..') return next();
+  const prodPath = path.join(downloadsDir, filename);
   if (fs.existsSync(prodPath)) {
     return res.download(prodPath);
   }
   // 开发回退
-  const devPath = path.join(downloadsDevDir, req.path);
+  const devPath = path.join(downloadsDevDir, filename);
   if (fs.existsSync(devPath)) {
     return res.download(devPath);
   }
