@@ -206,7 +206,7 @@ if (SERVE_STATIC) {
   // 例外: /downloads/ 下的文件无扩展名 (如 skillctl-darwin-arm64)，不走 SPA
   app.get('*', async (req, res) => {
     try {
-      if (req.path.startsWith('/downloads/')) {
+      if (req.path === '/downloads' || req.path.startsWith('/downloads/')) {
         return res.status(404).end();
       }
       if (req.path !== '/' && /\.([a-zA-Z0-9]{1,20})(?:\?.*)?$/.test(req.path)) {
