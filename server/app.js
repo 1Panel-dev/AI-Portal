@@ -82,6 +82,23 @@ app.use('/uploads', express.static(uploadsDir, {
     fallthrough: true,
   }));
 
+// skillctl 下载文件：生产走 STATIC_PATH/downloads/，开发回退到 ../skillctl/dist/
+const downloadsDir = path.join(STATIC_PATH, 'downloads');
+const downloadsDevDir = path.join(__dirname, '../skillctl/dist');
+app.use('/downloads', (req, res, next) => {
+  // 先查生产路径
+  const prodPath = path.join(downloadsDir, req.path);
+  if (fs.existsSync(prodPath)) {
+    return res.download(prodPath);
+  }
+  // 开发回退
+  const devPath = path.join(downloadsDevDir, req.path);
+  if (fs.existsSync(devPath)) {
+    return res.download(devPath);
+  }
+  next();
+});
+
 // API 路由
 app.use(require('./routes/admin'));
 app.use(require('./routes/marketplace'));
@@ -184,8 +201,12 @@ if (SERVE_STATIC) {
 
   // SPA fallback: GET 请求且 URL 带文件扩展名 → 静态资源不存在，直接 404
   // 不带扩展名 → SPA 客户端路由，返回 index.html
+  // 例外: /downloads/ 下的文件无扩展名 (如 skillctl-darwin-arm64)，不走 SPA
   app.get('*', async (req, res) => {
     try {
+      if (req.path.startsWith('/downloads/')) {
+        return res.status(404).end();
+      }
       if (req.path !== '/' && /\.([a-zA-Z0-9]{1,20})(?:\?.*)?$/.test(req.path)) {
         return res.status(404).end();
       }
