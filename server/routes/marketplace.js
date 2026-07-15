@@ -692,6 +692,9 @@ router.get('/api/skills/:slug/download', verifyUser, downloadLimiter, async (req
       return res.status(400).json({ error: '无效的 slug' });
     }
 
+    // 下载文件名去掉 1panel- 前缀（slug 加前缀是为了 DB 唯一约束，文件名不需要）
+    const downloadName = slug.startsWith('1panel-') ? slug.slice(7) : slug;
+
     let filePath;
     let panelSkillId = null; // 非 null 表示来源是 1Panel
     if (version) {
@@ -789,7 +792,7 @@ router.get('/api/skills/:slug/download', verifyUser, downloadLimiter, async (req
       try {
         const buffer = await downloadPanelSkill(panelSkillId);
         res.setHeader('Content-Type', 'application/zip');
-        res.setHeader('Content-Disposition', `attachment; filename="${slug}.zip"`);
+        res.setHeader('Content-Disposition', `attachment; filename="${downloadName}.zip"`);
         return res.send(buffer);
       } catch (err) {
         console.error('1Panel 技能下载失败:', err.message);
@@ -806,7 +809,7 @@ router.get('/api/skills/:slug/download', verifyUser, downloadLimiter, async (req
     if (signedUrl) {
       const fileBuffer = await storage.download(filePath);
       res.setHeader('Content-Type', 'application/zip');
-      res.setHeader('Content-Disposition', `attachment; filename="${slug}.zip"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${downloadName}.zip"`);
       return res.send(fileBuffer);
     }
 
@@ -815,7 +818,7 @@ router.get('/api/skills/:slug/download', verifyUser, downloadLimiter, async (req
     if (!fs.existsSync(localPath)) {
       return res.status(404).json({ error: '技能包文件未找到' });
     }
-    res.download(localPath, `${slug}.zip`);
+    res.download(localPath, `${downloadName}.zip`);
   } catch (err) {
     console.error('Error downloading skill:', err);
     res.status(500).json({ error: '下载失败' });
