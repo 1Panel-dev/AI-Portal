@@ -151,6 +151,9 @@ docs/superpowers/
 # Runtime data
 data/
 
+# Release notes（本地存档，不提交）
+.github/release/
+
 # 分离版文件（本地保留，不提交到仓库）
 Dockerfile.separate
 docker-compose.separate.yml
