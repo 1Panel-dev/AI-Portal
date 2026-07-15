@@ -71,14 +71,23 @@ export function isTokenExpired(token) {
 }
 
 /**
- * 统一登出：清除本地存储并跳转登录页
+ * 清除所有登录态（localStorage）
  */
-export function logout(router) {
+export function clearAuth() {
   localStorage.removeItem('token')
   localStorage.removeItem('admin_token')
   localStorage.removeItem('user')
+}
+
+/**
+ * 统一登出：清除本地存储并跳转登录页
+ * @param {import('vue-router').Router} [router]
+ * @param {string} [loginPath='/login'] 登录页路径，admin 为 '/admin/login'
+ */
+export function logout(router, loginPath = '/login') {
+  clearAuth()
   if (router) {
-    router.push('/login')
+    router.push(loginPath)
   } else if (typeof window !== 'undefined') {
     window.location.href = (window.__APP_BASE__ || '/') + 'login'
   }

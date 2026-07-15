@@ -2,7 +2,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 import './style.css'
-import { getRouterBase, isTokenExpired } from './lib/apiBase.js'
+import { getRouterBase, isTokenExpired, clearAuth } from './lib/apiBase.js'
 
 // 首屏直出：模型广场是默认首页，eager 加载避免一次额外的网络往返
 import ModelsView from './views/ModelsView.vue'
@@ -46,9 +46,7 @@ let wecomOauthAllowed = false
 router.beforeEach((to, from, next) => {
   // 统一的过期清理：如果 token 过期，清除所有登录态并跳转登录页
   const clearAndRedirect = (path) => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('admin_token')
-    localStorage.removeItem('user')
+    clearAuth()
     return next({ path, query: to.path !== '/' ? { redirect: to.fullPath } : {} })
   }
 
@@ -63,9 +61,7 @@ router.beforeEach((to, from, next) => {
         sessionStorage.removeItem('wecom_oauth_completed')
         wecomOauthAllowed = true
       } else if (!wecomOauthAllowed) {
-        localStorage.removeItem('token')
-        localStorage.removeItem('admin_token')
-        localStorage.removeItem('user')
+        clearAuth()
         return next({ path: '/login', query: { redirect: to.fullPath } })
       }
     }
