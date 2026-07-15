@@ -189,7 +189,11 @@ const copyToken = async () => {
 const getFullUrl = (path) => {
   if (typeof window === 'undefined') return path
   if (/^https?:\/\//i.test(path)) return path
-  return window.location.origin + path
+  // 拼接 BASE_PATH 前缀，兼容子路径部署（如 /portal/）
+  const base = (typeof window.__APP_BASE__ === 'string' && !window.__APP_BASE__.includes('__BASE_PATH__'))
+    ? window.__APP_BASE__.replace(/\/$/, '')
+    : ''
+  return window.location.origin + base + path
 }
 
 const downloadOrCopy = async (item) => {
