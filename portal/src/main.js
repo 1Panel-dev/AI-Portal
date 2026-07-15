@@ -2,7 +2,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 import './style.css'
-import { getRouterBase } from './lib/apiBase.js'
+import { getRouterBase, isTokenExpired } from './lib/apiBase.js'
 
 // 首屏直出：模型广场是默认首页，eager 加载避免一次额外的网络往返
 import ModelsView from './views/ModelsView.vue'
@@ -44,9 +44,18 @@ function isInsideWecomUA() {
 let wecomOauthAllowed = false
 
 router.beforeEach((to, from, next) => {
+  // 统一的过期清理：如果 token 过期，清除所有登录态并跳转登录页
+  const clearAndRedirect = (path) => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('admin_token')
+    localStorage.removeItem('user')
+    return next({ path, query: to.path !== '/' ? { redirect: to.fullPath } : {} })
+  }
+
   if (to.meta.requiresAuth) {
     const token = localStorage.getItem('admin_token')
     if (!token) return next('/admin/login')
+    if (isTokenExpired(token)) return clearAndRedirect('/admin/login')
   }
   if (to.meta.requiresUserAuth) {
     if (isInsideWecomUA()) {
@@ -62,6 +71,7 @@ router.beforeEach((to, from, next) => {
     }
     const token = localStorage.getItem('token')
     if (!token) return next({ path: '/login', query: { redirect: to.fullPath } })
+    if (isTokenExpired(token)) return clearAndRedirect('/login')
   }
   next()
 })
