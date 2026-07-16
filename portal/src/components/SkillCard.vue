@@ -111,7 +111,7 @@ async function checkAuth() {
     const blobUrl = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = blobUrl
-    a.download = `${props.skill.slug}.zip`
+    a.download = `${props.skill.slug.replace(/^1panel-/, '')}.zip`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)

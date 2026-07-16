@@ -230,7 +230,7 @@ async function checkAuth(url) {
     if (!res.ok) { console.error('下载失败:', res.status); return }
     const blob = await res.blob()
     const blobUrl = URL.createObjectURL(blob)
-    const filename = `${skill.value?.slug || 'skill'}.zip`
+    const filename = `${(skill.value?.slug || 'skill').replace(/^1panel-/, '')}.zip`
     const a = document.createElement('a')
     a.href = blobUrl
     a.download = filename

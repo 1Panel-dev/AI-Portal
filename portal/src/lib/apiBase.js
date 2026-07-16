@@ -71,6 +71,13 @@ export function isTokenExpired(token) {
 }
 
 /**
+ * 去掉 slug 的 1panel- 前缀，用于下载文件名等展示场景
+ */
+export function cleanSlug(slug) {
+  return slug ? slug.replace(/^1panel-/, '') : slug
+}
+
+/**
  * 清除所有登录态（localStorage）
  */
 export function clearAuth() {
