@@ -1,22 +1,5 @@
 <template>
-  <div class="relative z-10 min-h-screen">
-    <NavBar />
-
-    <main class="max-w-[1000px] mx-auto px-6 py-10 pt-[132px]">
-      <div class="flex items-center gap-4 mb-6">
-        <button @click="$router.push('/admin/stats')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/stats' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">数据统计</button>
-
-        <button @click="$router.push('/admin')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">审核管理</button>
-
-        <button @click="$router.push('/admin/skills')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/skills' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">技能管理</button>
-
-        <button @click="$router.push('/admin/users')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/users' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">用户管理</button>
-
-        <button @click="$router.push('/admin/config')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/config' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">系统配置</button>
-
-        <button @click="$router.push('/admin/oauth')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/oauth' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">第三方登录</button>
-      </div>
-
+  <div>
       <div class="flex items-center justify-between mb-6">
         <div>
           <h1 class="text-2xl font-bold text-text">用户管理</h1>
@@ -27,7 +10,6 @@
           <button @click="syncUsers" :disabled="syncing" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"><RefreshCw class="w-4 h-4" />{{ syncing ? '同步中...' : '同步用户' }}</button>
           <button v-if="selectedUsers.size > 0" @click="openBatchPassword" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">{{ `批量改密 (${selectedUsers.size})` }}</button>
           <button @click="showNewUserDialog = true" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all"><UserPlus class="w-4 h-4" />新增用户</button>
-          <button @click="logout" class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all">退出登录</button>
         </div>
       </div>
 
@@ -90,8 +72,6 @@
           <option :value="100">100 条/页</option>
         </select>
       </div>
-    </main>
-
     <Teleport to="body">
       <div v-if="deletingUser" class="fixed inset-0 z-[300] flex items-center justify-center bg-black/45 px-5 backdrop-blur-[8px]" @click="deletingUser = null">
         <div class="w-full max-w-[420px] rounded-2xl bg-white p-6 shadow-modal" @click.stop>
@@ -154,7 +134,6 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { RefreshCw, UserPlus, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-vue-next'
-import NavBar from '../components/NavBar.vue'
 import NewUserDialog from '../components/admin/NewUserDialog.vue'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
@@ -341,8 +320,6 @@ const changePassword = async () => {
     changingPassword.value = false
   }
 }
-
-const logout = () => { localStorage.removeItem('admin_token'); localStorage.removeItem('user'); router.push('/admin/login') }
 
 onMounted(() => fetchUsers(1))
 </script>

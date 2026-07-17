@@ -1,24 +1,10 @@
 <template>
-  <div class="relative z-10 min-h-screen">
-    <NavBar />
-
-    <main class="max-w-[1000px] mx-auto px-6 py-10 pt-[132px]">
-      <!-- Admin Nav -->
-      <div class="flex items-center gap-4 mb-6">
-        <button @click="$router.push('/admin/stats')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/stats' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">数据统计</button>
-        <button @click="$router.push('/admin')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">审核管理</button>
-        <button @click="$router.push('/admin/skills')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/skills' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">技能管理</button>
-        <button @click="$router.push('/admin/users')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/users' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">用户管理</button>
-        <button @click="$router.push('/admin/config')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/config' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">系统配置</button>
-        <button @click="$router.push('/admin/oauth')" class="px-4 py-2 text-sm font-medium rounded-lg transition-all" :class="$route.path === '/admin/oauth' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'">第三方登录</button>
-      </div>
-
+  <div>
       <div class="flex items-center justify-between mb-6">
         <div>
           <h1 class="text-2xl font-bold text-text">数据统计</h1>
           <p class="text-text-secondary text-sm mt-1">AI 使用情况全局概览</p>
         </div>
-        <button @click="logout" class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all">退出登录</button>
       </div>
 
       <!-- Loading -->
@@ -78,8 +64,8 @@
               </div>
             </div>
           </div>
+          <button v-if="selectedUser || usernameFilter || selectedMonth" @click="clearFilters" class="text-xs text-accent hover:underline shrink-0">清除筛选</button>
           <div class="flex-1"></div>
-          <button v-if="selectedUser || usernameFilter || selectedMonth" @click="clearFilters" class="text-xs text-accent hover:underline">清除筛选</button>
         </div>
 
         <!-- 顶部数据区 -->
@@ -158,14 +144,12 @@
       </template>
 
       <div v-else class="text-center py-20 text-text-secondary">暂无数据</div>
-    </main>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import NavBar from '../components/NavBar.vue'
 import * as echarts from 'echarts/core'
 import { BarChart, LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
@@ -700,8 +684,6 @@ function onResize() {
 watch([selectedUser, selectedMonth], () => {
   fetchStats(true)
 })
-
-const logout = () => { localStorage.removeItem('admin_token'); localStorage.removeItem('user'); router.push('/admin/login') }
 
 onMounted(() => {
   document.addEventListener('click', onGlobalClick)

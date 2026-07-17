@@ -24,12 +24,19 @@ const routes = [
   { path: '/oauth/bind', component: () => import('./views/OAuthBindView.vue'), meta: { public: true } },
   { path: '/profile', component: () => import('./views/ProfileView.vue'), meta: { requiresUserAuth: true } },
   { path: '/admin/login', component: () => import('./views/AdminLoginView.vue'), meta: { public: true } },
-  { path: '/admin', component: () => import('./views/AdminView.vue'), meta: { requiresAuth: true } },
-  { path: '/admin/skills', component: () => import('./views/AdminSkillsView.vue'), meta: { requiresAuth: true } },
-  { path: '/admin/users', component: () => import('./views/AdminUsersView.vue'), meta: { requiresAuth: true } },
-  { path: '/admin/config', component: () => import('./views/AdminConfigView.vue'), meta: { requiresAuth: true } },
-  { path: '/admin/oauth', component: () => import('./views/AdminOAuthView.vue'), meta: { requiresAuth: true } },
-  { path: '/admin/stats', component: () => import('./views/AdminStatsView.vue'), meta: { requiresAuth: true } },
+  {
+    path: '/admin',
+    component: () => import('./components/AdminLayout.vue'),
+    meta: { requiresAuth: true },
+    children: [
+      { path: '', component: () => import('./views/AdminView.vue') },
+      { path: 'skills', component: () => import('./views/AdminSkillsView.vue') },
+      { path: 'users', component: () => import('./views/AdminUsersView.vue') },
+      { path: 'config', component: () => import('./views/AdminConfigView.vue') },
+      { path: 'oauth', component: () => import('./views/AdminOAuthView.vue') },
+      { path: 'stats', component: () => import('./views/AdminStatsView.vue') },
+    ],
+  },
 ]
 
 const router = createRouter({

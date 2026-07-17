@@ -1,54 +1,5 @@
 <template>
-  <div class="relative z-10 min-h-screen">
-    <NavBar />
-
-    <main class="max-w-[1000px] mx-auto px-6 py-10 pt-[132px]">
-      <!-- Admin Nav -->
-      <div class="flex items-center gap-4 mb-6">
-        <button
-          @click="$router.push('/admin/stats')"
-          class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/stats' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
-        >
-          数据统计
-        </button>
-        <button
-          @click="$router.push('/admin')"
-          class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
-        >
-          审核管理
-        </button>
-        <button
-          @click="$router.push('/admin/skills')"
-          class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/skills' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
-        >
-          技能管理
-        </button>
-        <button
-          @click="$router.push('/admin/users')"
-          class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/users' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
-        >
-          用户管理
-        </button>
-        <button
-          @click="$router.push('/admin/config')"
-          class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/config' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
-        >
-          系统配置
-        </button>
-        <button
-          @click="$router.push('/admin/oauth')"
-          class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-          :class="$route.path === '/admin/oauth' ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] hover:border-text'"
-        >
-          第三方登录
-        </button>
-      </div>
-
+  <div>
       <div class="flex items-center justify-between mb-6">
         <div>
           <h1 class="text-2xl font-bold text-text">系统配置</h1>
@@ -56,12 +7,6 @@
             配置 1Panel 与站点品牌
           </p>
         </div>
-        <button
-          @click="logout"
-          class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all"
-        >
-          退出登录
-        </button>
       </div>
 
       <!-- Loading -->
@@ -630,8 +575,6 @@
 
         </div><!-- /Tab: 站点设置 -->
       </div>
-    </main>
-
     <!-- Confirm Dialog -->
     <Teleport to="body">
       <div v-if="showConfirm" class="fixed inset-0 z-50 flex items-center justify-center">
@@ -687,7 +630,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import NavBar from '../components/NavBar.vue'
 import { Cloud, HardDrive, Eye, EyeOff, PlugZap, RefreshCw, Check } from 'lucide-vue-next'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
@@ -1188,11 +1130,6 @@ const doSwitch = async () => {
   } finally {
     switching.value = false
   }
-}
-
-const logout = () => {
-  localStorage.removeItem('admin_token')
-  router.push('/admin/login')
 }
 
 // ============ 1Panel 配置 ============
