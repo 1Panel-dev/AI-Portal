@@ -1,30 +1,39 @@
 <template>
-  <NavBar />
-  <div class="flex" style="padding-top:52px">
-    <!-- Sidebar -->
+  <div class="flex h-screen">
+    <!-- Sidebar：全高，贯穿顶到底 -->
     <aside
       class="flex-shrink-0 flex flex-col bg-white border-r border-[rgba(0,0,0,0.05)] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden"
-      style="position:sticky; top:52px; height:calc(100vh - 52px)"
       :style="{ width: collapsed ? '64px' : '240px' }"
     >
-      <!-- Toggle row -->
+      <!-- 顶部：Logo + 折叠按钮（固定不滚，与右侧顶栏等高对齐） -->
       <div
-        class="flex-shrink-0 h-11 flex items-center border-b border-[rgba(0,0,0,0.04)]"
-        :class="collapsed ? 'justify-center px-0' : 'justify-between px-4'"
+        class="flex-shrink-0 h-[52px] flex items-center border-b border-[rgba(0,0,0,0.04)]"
+        :class="collapsed ? 'justify-center px-0' : 'px-4'"
       >
-        <span v-if="!collapsed" class="text-[11px] font-medium text-text-tertiary tracking-wide select-none">导航菜单</span>
-        <button
-          @click="collapsed = !collapsed"
-          class="group flex items-center justify-center rounded-lg text-text-tertiary hover:text-text hover:bg-[rgba(0,0,0,0.06)] transition-all duration-150"
-          :class="collapsed ? 'w-8 h-8' : 'w-6 h-6'"
-          :title="collapsed ? '展开菜单' : '收起菜单'"
+        <router-link
+          to="/admin"
+          class="flex items-center min-w-0 text-text no-underline"
+          :class="collapsed ? 'justify-center' : ''"
+          :title="collapsed ? siteName : undefined"
         >
-          <PanelLeftClose v-if="!collapsed" class="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
-          <PanelLeftOpen v-else class="w-4 h-4 group-hover:scale-110 transition-transform" />
-        </button>
+          <img
+            v-if="siteLogoIsDefault"
+            :src="siteLogo"
+            alt="1Panel"
+            class="shrink-0 block object-contain object-left"
+            :class="collapsed ? 'h-[22px] w-[22px]' : 'h-[24px] w-[88px] mr-[8px]'"
+          />
+          <div v-else class="flex shrink-0 items-center" :class="collapsed ? 'h-[24px]' : 'h-[24px] mr-[8px]'">
+            <img :src="siteLogo" alt="logo" class="h-full w-auto" :class="collapsed ? 'max-w-[24px]' : ''" />
+          </div>
+          <span
+            v-if="!collapsed"
+            class="min-w-0 truncate text-[16px] font-[900] [-webkit-text-stroke:0.5px_currentColor]"
+          >{{ siteName }}</span>
+        </router-link>
       </div>
 
-      <!-- Menu items -->
+      <!-- Menu items（自身滚动） -->
       <nav class="flex-1 overflow-y-auto pt-6 pb-4 px-3 space-y-5" :class="collapsed ? 'px-1.5' : ''">
         <section>
           <p v-if="!collapsed" class="px-2.5 mb-1.5 text-[10px] font-medium text-text-tertiary tracking-[0.12em] uppercase select-none">概览</p>
@@ -69,28 +78,47 @@
         </section>
       </nav>
 
-      <div v-if="!collapsed" class="flex-shrink-0 px-3 pb-4 pt-1">
-        <div class="rounded-xl bg-[rgba(0,0,0,0.02)] px-3.5 py-3">
-          <p class="text-[10px] text-text-tertiary leading-relaxed">
+      <!-- 底部：版本标 + 折叠按钮（展开态）；折叠态只放展开按钮 -->
+      <div class="flex-shrink-0 px-3 pb-4 pt-1" :class="collapsed ? 'flex justify-center' : ''">
+        <div
+          class="flex items-center rounded-xl bg-[rgba(0,0,0,0.02)]"
+          :class="collapsed ? 'justify-center w-10 h-10' : 'px-3.5 py-3'"
+        >
+          <p v-if="!collapsed" class="flex-1 min-w-0 text-[10px] text-text-tertiary leading-relaxed">
             AI-Portal <span class="opacity-30 mx-1">·</span> <span class="font-semibold text-text-secondary">v1.0.3</span>
           </p>
+          <button
+            @click="collapsed = !collapsed"
+            class="group flex items-center justify-center rounded-lg text-text-tertiary hover:text-text hover:bg-[rgba(0,0,0,0.06)] transition-all duration-150"
+            :class="collapsed ? 'w-8 h-8' : 'w-6 h-6 ml-2 shrink-0'"
+            :title="collapsed ? '展开菜单' : '收起菜单'"
+          >
+            <PanelLeftOpen v-if="collapsed" class="w-4 h-4 group-hover:scale-110 transition-transform" />
+            <PanelLeftClose v-else class="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+          </button>
         </div>
       </div>
     </aside>
 
-    <main class="flex-1 min-h-[calc(100vh-52px)]">
-      <div class="px-10 pt-[72px] pb-16">
-        <router-view />
-      </div>
-    </main>
+    <!-- 右列：顶栏 + 内容区（独立滚动） -->
+    <div class="flex-1 flex flex-col min-w-0">
+      <AdminTopBar />
+      <main class="flex-1 overflow-y-auto">
+        <div class="px-10 py-8">
+          <router-view />
+        </div>
+      </main>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import NavBar from './NavBar.vue'
+import AdminTopBar from './admin/AdminTopBar.vue'
 import SideItem from './admin/SideItem.vue'
+import { siteName, siteLogo, siteLogoIsDefault } from '../composables/useSiteBranding.js'
+import { bannerVisible } from '../composables/useAnnouncement.js'
 import { BarChart3, ClipboardCheck, Puzzle, UserCog, Sliders, KeyRound, PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -100,4 +128,14 @@ function isActive(path) {
   if (path === '/admin') return route.path === '/admin'
   return route.path.startsWith(path)
 }
+
+// 进入后台时隐藏顶部公告横幅（避免遮挡后台顶栏），离开时恢复原状态
+let savedBannerVisible = null
+onMounted(() => {
+  savedBannerVisible = bannerVisible.value
+  bannerVisible.value = false
+})
+onUnmounted(() => {
+  if (savedBannerVisible !== null) bannerVisible.value = savedBannerVisible
+})
 </script>
