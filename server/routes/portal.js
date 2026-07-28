@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { verifyAdmin, verifyUser, signPortalToken } = require('../auth');
 const { panel, getPanelPayload, getPanelItems, findPanelUser, createPanelUser, syncModelsFromPanel } = require('../panel');
 const { isAnyProviderEnabled } = require('../oauth');
+const { inspectPanelBiz, listPanelKeysOfUser } = require('../lib/panel-biz');
 
 const router = express.Router();
 
@@ -784,45 +785,6 @@ router.get('/api/keys/:id', verifyUser, async (req, res) => {
 function maskApiKey(key) {
   if (!key || key.length <= 8) return key || '****';
   return key.slice(0, 4) + '****' + key.slice(-4);
-}
-
-/**
- * 1Panel 习惯 HTTP 200 + body.code 表达业务状态。
- * 这里把"业务失败"识别集中到一处:HTTP 已 2xx,但 body.code 落在 HTTP 错误段(>=400)。
- * 返回 { ok: boolean, code: number|null, message: string }。
- */
-function inspectPanelBiz(panelRes) {
-  const data = panelRes?.data;
-  if (!data || typeof data !== 'object') return { ok: true, code: null, message: '' };
-  const code = Number(data.code);
-  const message = data.message || data.msg || '';
-  if (Number.isFinite(code) && code >= 400) {
-    return { ok: false, code, message: String(message) };
-  }
-  return { ok: true, code: Number.isFinite(code) ? code : null, message: String(message) };
-}
-
-/**
- * 翻页拿当前用户在 1Panel 端的全部 api-key 记录(按 panel userId 过滤)。
- * 翻全量(防御 100 条单页上限),并按 createdAt/createTime 倒序方便取最新。
- */
-async function listPanelKeysOfUser(panelUserId) {
-  const PAGE_SIZE = 100;
-  const out = [];
-  let page = 1;
-  while (page < 50) { // 安全上限,防止远端 total 异常时死循环
-    const res = await panel.post('/api/v2/core/enterprise/ai-proxy/api-keys/search', {
-      page, pageSize: PAGE_SIZE, info: '',
-    });
-    if (res.status < 200 || res.status >= 300) {
-      throw new Error(`1Panel api-keys/search HTTP ${res.status}`);
-    }
-    const items = getPanelItems(res.data);
-    out.push(...items.filter(k => k.userId === panelUserId));
-    if (items.length < PAGE_SIZE) break;
-    page++;
-  }
-  return out;
 }
 
 /**
