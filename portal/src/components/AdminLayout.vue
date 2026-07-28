@@ -35,6 +35,7 @@
 
       <!-- Menu items（自身滚动） -->
       <nav class="flex-1 overflow-y-auto pt-6 pb-4 px-3 space-y-5" :class="collapsed ? 'px-1.5' : ''">
+        <!-- 概览 -->
         <section>
           <p v-if="!collapsed" class="px-2.5 mb-1.5 text-[10px] font-medium text-text-tertiary tracking-[0.12em] uppercase select-none">概览</p>
           <div class="space-y-0.5">
@@ -44,27 +45,53 @@
           </div>
         </section>
         <div class="mx-3 h-px bg-[rgba(0,0,0,0.04)]"></div>
+
+        <!-- 内容管理 -->
         <section>
           <p v-if="!collapsed" class="px-2.5 mb-1.5 text-[10px] font-medium text-text-tertiary tracking-[0.12em] uppercase select-none">内容管理</p>
           <div class="space-y-0.5">
             <SideItem to="/admin" :active="isActive('/admin')" :collapsed="collapsed" title="审核管理">
               <ClipboardCheck class="w-5 h-5" /><template #label>审核管理</template>
             </SideItem>
+          </div>
+        </section>
+        <div class="mx-3 h-px bg-[rgba(0,0,0,0.04)]"></div>
+
+        <!-- 资源管理（资源组排第一） -->
+        <section>
+          <p v-if="!collapsed" class="px-2.5 mb-1.5 text-[10px] font-medium text-text-tertiary tracking-[0.12em] uppercase select-none">资源管理</p>
+          <div class="space-y-0.5">
+            <SideItem to="/admin/groups" :active="isActive('/admin/groups')" :collapsed="collapsed" title="资源组管理">
+              <FolderKanban class="w-5 h-5" /><template #label>资源组管理</template>
+            </SideItem>
             <SideItem to="/admin/skills" :active="isActive('/admin/skills')" :collapsed="collapsed" title="技能管理">
               <Puzzle class="w-5 h-5" /><template #label>技能管理</template>
+            </SideItem>
+            <SideItem to="/admin/mcps" :active="isActive('/admin/mcps')" :collapsed="collapsed" title="MCP 管理">
+              <LayoutGrid class="w-5 h-5" /><template #label>MCP 管理</template>
+            </SideItem>
+            <SideItem to="/admin/models" :active="isActive('/admin/models')" :collapsed="collapsed" title="模型管理">
+              <Sun class="w-5 h-5" /><template #label>模型管理</template>
             </SideItem>
           </div>
         </section>
         <div class="mx-3 h-px bg-[rgba(0,0,0,0.04)]"></div>
+
+        <!-- 用户与权限 -->
         <section>
           <p v-if="!collapsed" class="px-2.5 mb-1.5 text-[10px] font-medium text-text-tertiary tracking-[0.12em] uppercase select-none">用户与权限</p>
           <div class="space-y-0.5">
             <SideItem to="/admin/users" :active="isActive('/admin/users')" :collapsed="collapsed" title="用户管理">
               <UserCog class="w-5 h-5" /><template #label>用户管理</template>
             </SideItem>
+            <SideItem to="/admin/roles" :active="isActive('/admin/roles')" :collapsed="collapsed" title="角色权限">
+              <ShieldCheck class="w-5 h-5" /><template #label>角色权限</template>
+            </SideItem>
           </div>
         </section>
         <div class="mx-3 h-px bg-[rgba(0,0,0,0.04)]"></div>
+
+        <!-- 系统设置 -->
         <section>
           <p v-if="!collapsed" class="px-2.5 mb-1.5 text-[10px] font-medium text-text-tertiary tracking-[0.12em] uppercase select-none">系统设置</p>
           <div class="space-y-0.5">
@@ -73,6 +100,9 @@
             </SideItem>
             <SideItem to="/admin/oauth" :active="isActive('/admin/oauth')" :collapsed="collapsed" title="第三方登录">
               <KeyRound class="w-5 h-5" /><template #label>第三方登录</template>
+            </SideItem>
+            <SideItem to="/admin/panel-groups" :active="isActive('/admin/panel-groups')" :collapsed="collapsed" title="1Panel 授权信息">
+              <Boxes class="w-5 h-5" /><template #label>1Panel 授权信息</template>
             </SideItem>
           </div>
         </section>
@@ -119,7 +149,7 @@ import AdminTopBar from './admin/AdminTopBar.vue'
 import SideItem from './admin/SideItem.vue'
 import { siteName, siteLogo, siteLogoIsDefault } from '../composables/useSiteBranding.js'
 import { bannerVisible } from '../composables/useAnnouncement.js'
-import { BarChart3, ClipboardCheck, Puzzle, UserCog, Sliders, KeyRound, PanelLeftClose, PanelLeftOpen } from 'lucide-vue-next'
+import { BarChart3, ClipboardCheck, Puzzle, UserCog, Sliders, KeyRound, PanelLeftClose, PanelLeftOpen, FolderKanban, LayoutGrid, Sun, ShieldCheck, Boxes } from 'lucide-vue-next'
 
 const route = useRoute()
 const collapsed = ref(false)
