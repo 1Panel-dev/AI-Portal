@@ -1315,4 +1315,11 @@ router.get('/api/version', (req, res) => {
   res.json({ version: pkg.version });
 });
 
+// 当前用户权限（前端 UI 控制）
+router.get('/api/my/permissions', verifyUser, async (req, res) => {
+  const { getUserPermissions } = require('../lib/permission');
+  const data = await getUserPermissions(req.portalUser.id);
+  res.json(data);
+});
+
 module.exports = router;
