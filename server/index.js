@@ -14,6 +14,7 @@ const panelApi = require('./lib/1panel-api');
 const downloadCounter = require('./lib/downloadCounter');
 const modelSync = require('./lib/modelSync');
 const skillsSync = require('./lib/skillsSync');
+const mcpSync = require('./lib/mcpSync');
 const { initDatabase } = require('./db');
 
 // 从 system_config 读 panel_sync_enabled / panel_sync_interval_minutes
@@ -52,6 +53,7 @@ async function startServer() {
     if (syncCfg.enabled) {
       modelSync.start(syncCfg.intervalMs);
       skillsSync.start(syncCfg.intervalMs);
+      mcpSync.start(syncCfg.intervalMs);
     } else {
       console.log('⏸️ 1Panel 同步已在管理后台禁用,跳过启动');
     }
@@ -62,10 +64,12 @@ async function startServer() {
       if (cfg.enabled) {
         modelSync.restart(cfg.intervalMs);
         skillsSync.restart(cfg.intervalMs);
+        mcpSync.restart(cfg.intervalMs);
         console.log('🔄 1Panel 配置已更新,同步调度器已重启');
       } else {
         modelSync.stop();
         skillsSync.stop();
+        mcpSync.stop();
         console.log('⏸️ 1Panel 同步已禁用');
       }
     });

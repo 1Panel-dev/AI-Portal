@@ -5,7 +5,7 @@ const multer = require('multer');
 const storage = require('../lib/storage');
 const panelApi = require('../lib/1panel-api');
 const { JWT_SECRET, loginLimiter, verifyAuth, verifyAdmin } = require('../auth');
-const { panel, getPanelPayload, getPanelItems, getPanelRoles, syncModelsFromPanel, syncSkillsFromPanel, findPanelUser, createPanelUser } = require('../panel');
+const { panel, getPanelPayload, getPanelItems, getPanelRoles, syncModelsFromPanel, syncSkillsFromPanel, syncMcpsFromPanel, findPanelUser, createPanelUser } = require('../panel');
 const { inspectPanelBiz } = require('../lib/panel-biz');
 const bcrypt = require('bcrypt');
 const oauthRegistry = require('../oauth');
@@ -938,9 +938,10 @@ router.post('/api/admin/panel-config/sync-now', verifyAdmin, async (req, res) =>
   console.log('[admin] 管理员触发手动同步,userId=', req.user?.id, '|', new Date().toISOString());
   try {
     // 并发跑模型 + 技能 + 角色同步,失败不互相影响
-    const [modelsResult, skillsResult, rolesResult] = await Promise.allSettled([
+    const [modelsResult, skillsResult, mcpsResult, rolesResult] = await Promise.allSettled([
       syncModelsFromPanel(),
       syncSkillsFromPanel(),
+      syncMcpsFromPanel(),
       // 同步角色列表并缓存到本地（方便管理后台加载最新数据）
       (async () => {
         const roles = await getPanelRoles();
@@ -964,6 +965,9 @@ router.post('/api/admin/panel-config/sync-now', verifyAdmin, async (req, res) =>
       skills: skillsResult.status === 'fulfilled'
         ? { ...skillsResult.value, ok: true }
         : { ok: false, error: skillsResult.reason?.message },
+      mcps: mcpsResult.status === 'fulfilled'
+        ? { ...mcpsResult.value, ok: true }
+        : { ok: false, error: mcpsResult.reason?.message },
       roles: rolesResult.status === 'fulfilled'
         ? rolesResult.value
         : { ok: false, error: rolesResult.reason?.message },

@@ -1,8 +1,6 @@
 // server/lib/resource-types.js
 // 资源类型注册机制 + model/skill/mcp 三适配器
 // 加新类型 = INSERT resource_types + registerResourceType, 不动核心循环
-const { panel, getPanelItems } = require('../panel');
-const { inspectPanelBiz } = require('./panel-biz');
 
 const registry = new Map();
 
@@ -52,25 +50,14 @@ registerResourceType('skill', {
   },
 });
 
-// ---- mcp 适配器 ----
+// ---- mcp 适配器（从本地 portal_mcps 表读，同步调度器定期刷新）----
 registerResourceType('mcp', {
   name: 'MCP',
   async listAll() {
-    // MCP 无本地表, 实时调 1Panel mcp search 翻全页
-    const PAGE_SIZE = 100;
-    const out = [];
-    let page = 1;
-    while (page <= 50) {
-      const res = await panel.post('/api/v2/ai/mcp/search', { page, pageSize: PAGE_SIZE, name: '' });
-      if (res.status < 200 || res.status >= 300) throw new Error(`1Panel mcp/search HTTP ${res.status}`);
-      const biz = inspectPanelBiz(res);
-      if (!biz.ok) throw new Error(`1Panel mcp/search 业务错误: ${biz.message}`);
-      const items = getPanelItems(res.data);
-      out.push(...items);
-      if (items.length < PAGE_SIZE) break;
-      page++;
-    }
-    return out;
+    const r = await global.pool.query(
+      'SELECT id, panel_mcp_id, name, type FROM portal_mcps WHERE is_active ORDER BY name'
+    );
+    return r.rows;
   },
   async isVisibleToUser(_userId, ids) {
     // mcp 不取交集

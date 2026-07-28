@@ -1,29 +1,14 @@
 const express = require('express');
-const { panel, getPanelPayload } = require('../panel');
 
 const router = express.Router();
 
 /**
- * 1Panel 业务错误检查
- * 1Panel 习惯返 HTTP 200 + body.code >= 400 表达业务失败
- */
-function panelBizError(response) {
-  const data = response?.data;
-  if (!data || typeof data !== 'object') return null;
-  const code = Number(data.code);
-  if (Number.isFinite(code) && code >= 400) {
-    return data.message || data.msg || `1Panel business code=${code}`;
-  }
-  return null;
-}
-
-/**
  * GET /api/mcp/search
  *
- * 代理 1Panel MCP 搜索，将前端 GET 参数转为 1Panel POST 请求
+ * 从本地 portal_mcps 表查询 MCP 列表（由同步调度器从 1Panel 定时同步）。
  *
  * Query params:
- *   q        - 搜索名称（映射到 1Panel 的 name）
+ *   q        - 搜索名称
  *   page     - 页码，默认 1
  *   pageSize - 每页条数，默认 20，最大 100
  *
@@ -36,42 +21,35 @@ router.get('/api/mcp/search', async (req, res) => {
     const pageNum = Math.max(1, parseInt(page) || 1);
     const size = Math.min(100, Math.max(1, parseInt(pageSize) || 20));
 
-    const response = await panel.post('/api/v2/ai/mcp/search', {
-      page: pageNum,
-      pageSize: size,
-      name: q,
-    });
+    const pool = global.pool;
+    const offset = (pageNum - 1) * size;
 
-    // HTTP 层错误
-    if (response.status < 200 || response.status >= 300) {
-      return res.status(502).json({
-        error: 'PANEL_UNREACHABLE',
-        reason: `1Panel 请求失败: HTTP ${response.status}`,
-      });
+    // 查 portal_mcps 本地表
+    let countResult, rows;
+    if (q.trim()) {
+      const like = `%${q.trim()}%`;
+      countResult = await pool.query(
+        'SELECT count(*) FROM portal_mcps WHERE is_active = TRUE AND (name ILIKE $1 OR type ILIKE $1)',
+        [like]
+      );
+      rows = await pool.query(
+        'SELECT id, panel_mcp_id, name, type, synced_at FROM portal_mcps WHERE is_active = TRUE AND (name ILIKE $1 OR type ILIKE $1) ORDER BY name LIMIT $2 OFFSET $3',
+        [like, size, offset]
+      );
+    } else {
+      countResult = await pool.query(
+        'SELECT count(*) FROM portal_mcps WHERE is_active = TRUE'
+      );
+      rows = await pool.query(
+        'SELECT id, panel_mcp_id, name, type, synced_at FROM portal_mcps WHERE is_active = TRUE ORDER BY name LIMIT $1 OFFSET $2',
+        [size, offset]
+      );
     }
 
-    // 1Panel 业务码错误
-    const bizError = panelBizError(response);
-    if (bizError) {
-      return res.status(502).json({
-        error: 'PANEL_REJECTED',
-        reason: `1Panel 业务错误: ${bizError}`,
-      });
-    }
-
-    // 解包响应
-    const payload = getPanelPayload(response.data) || {};
-    const items = Array.isArray(payload.items) ? payload.items
-                : Array.isArray(payload.list) ? payload.list
-                : Array.isArray(payload) ? payload
-                : [];
-
-    const total = typeof payload.total === 'number' ? payload.total
-                : typeof payload.count === 'number' ? payload.count
-                : items.length;
+    const total = parseInt(countResult.rows[0].count) || 0;
 
     res.json({
-      data: items,
+      data: rows.rows,
       pagination: {
         page: pageNum,
         pageSize: size,
@@ -81,16 +59,7 @@ router.get('/api/mcp/search', async (req, res) => {
     });
   } catch (err) {
     console.error('[mcp] Search error:', err.message);
-    if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT') {
-      return res.status(502).json({
-        error: 'PANEL_UNREACHABLE',
-        reason: `1Panel 网络不可达: ${err.message}`,
-      });
-    }
-    res.status(500).json({
-      error: 'MCP_SEARCH_FAILED',
-      reason: err.message,
-    });
+    res.status(500).json({ error: 'MCP_SEARCH_FAILED', reason: err.message });
   }
 });
 

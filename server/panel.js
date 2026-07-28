@@ -620,6 +620,59 @@ async function syncPanelGroups() {
   return { userGroups: userGroups.length, modelGroups: modelGroups.length, skipped: false };
 }
 
+/**
+ * 同步 1Panel MCP 列表到本地 portal_mcps 表（对齐 syncModelsFromPanel 范式）。
+ * 沿用空响应不清表 + inspectPanelBiz 业务码校验。
+ */
+async function syncMcpsFromPanel() {
+  const { inspectPanelBiz } = require('./lib/panel-biz');
+  const PAGE_SIZE = 100;
+  const allItems = [];
+
+  let page = 1;
+  while (page <= 50) {
+    const res = await panel.post('/api/v2/ai/mcp/search', { page, pageSize: PAGE_SIZE, name: '' });
+    if (res.status < 200 || res.status >= 300) throw new Error(`1Panel mcp/search HTTP ${res.status}`);
+    const biz = inspectPanelBiz(res);
+    if (!biz.ok) throw new Error(`1Panel mcp/search 业务错误 code=${biz.code}: ${biz.message}`);
+    const items = getPanelItems(res.data);
+    allItems.push(...items);
+    if (items.length < PAGE_SIZE) break;
+    page++;
+  }
+
+  // 空响应不清表（铁律 6）
+  if (!allItems.length) {
+    console.warn('[panel] syncMcpsFromPanel: 1Panel 返回空 MCP 列表,跳过本轮 UPSERT 与软删');
+    return { mcpCount: 0, skipped: true };
+  }
+
+  // 批量 UPSERT
+  for (const mcp of allItems) {
+    await global.pool.query(`
+      INSERT INTO portal_mcps (panel_mcp_id, name, type, raw_data, synced_at)
+      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+      ON CONFLICT (panel_mcp_id) DO UPDATE SET
+        name = EXCLUDED.name, type = EXCLUDED.type, raw_data = EXCLUDED.raw_data,
+        synced_at = CURRENT_TIMESTAMP
+    `, [
+      String(mcp.id ?? mcp.key ?? ''),
+      mcp.name || '',
+      mcp.type || '',
+      JSON.stringify(mcp),
+    ]);
+  }
+
+  // 软删 1Panel 不再返回的 MCP
+  const panelIds = allItems.map(m => String(m.id ?? m.key ?? ''));
+  await global.pool.query(
+    'UPDATE portal_mcps SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE NOT (panel_mcp_id = ANY($1)) AND is_active = TRUE',
+    [panelIds]
+  );
+
+  return { mcpCount: allItems.length, skipped: false };
+}
+
 module.exports = {
   panel,
   getPanelPayload,
@@ -630,6 +683,7 @@ module.exports = {
   getPanelRoles,
   syncModelsFromPanel,
   syncSkillsFromPanel,
+  syncMcpsFromPanel,
   downloadPanelSkill,
   syncPanelGroups,
 };

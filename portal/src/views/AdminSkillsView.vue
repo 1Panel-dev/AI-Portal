@@ -10,6 +10,12 @@
         </div>
         <div class="flex gap-3">
           <button
+            @click="syncSkills" :disabled="syncing"
+            class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"
+          >
+            <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': syncing }" />{{ syncing ? '同步中...' : '同步' }}
+          </button>
+          <button
             @click="$router.push('/admin')"
             class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all"
           >
@@ -281,7 +287,7 @@
 <script setup>
 import { ref, watchEffect, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ChevronDown, Search, ArrowUpDown, Inbox, Pencil, Eye, EyeOff, Trash2, X, ArrowLeft } from 'lucide-vue-next'
+import { ChevronDown, Search, ArrowUpDown, Inbox, Pencil, Eye, EyeOff, Trash2, X, ArrowLeft, RefreshCw } from 'lucide-vue-next'
 import { avatarColors, categories } from '../data/categories.js'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
@@ -372,6 +378,23 @@ watchEffect(() => {
 })
 
 const getToken = () => localStorage.getItem('admin_token')
+
+const syncing = ref(false)
+const syncSkills = async () => {
+  syncing.value = true
+  try {
+    const res = await fetch(`${API_BASE}/admin/panel-config/sync-now`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getToken()}` },
+    })
+    if (!res.ok) throw new Error((await res.json()).error || '同步失败')
+    await fetchSkills(true)
+  } catch (err) {
+    console.error('[AdminSkills] sync error:', err.message)
+  } finally {
+    syncing.value = false
+  }
+}
 
 const fetchSkills = async (reset = false) => {
   if (reset) {
