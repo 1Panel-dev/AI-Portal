@@ -149,7 +149,7 @@ function formatDate(d) {
 async function fetchGroups() {
   loading.value = true
   try {
-    const res = await fetch(`${API_BASE}/api/admin/groups`, { headers: { Authorization: `Bearer ${getToken()}` } })
+    const res = await fetch(`${API_BASE}/admin/groups`, { headers: { Authorization: `Bearer ${getToken()}` } })
     if (res.status === 401) return router.push('/admin/login')
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || '获取资源组失败')
@@ -171,7 +171,7 @@ async function create() {
   if (!newName.value.trim()) return
   creating.value = true
   try {
-    const res = await fetch(`${API_BASE}/api/admin/groups`, {
+    const res = await fetch(`${API_BASE}/admin/groups`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: newName.value, description: newDesc.value }),
@@ -196,7 +196,7 @@ async function doDelete() {
   if (!deletingGroup.value) return
   deleting.value = true
   try {
-    const res = await fetch(`${API_BASE}/api/admin/groups/${deletingGroup.value.id}`, {
+    const res = await fetch(`${API_BASE}/admin/groups/${deletingGroup.value.id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${getToken()}` },
     })

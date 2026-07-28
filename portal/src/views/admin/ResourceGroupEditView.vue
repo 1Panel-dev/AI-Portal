@@ -227,7 +227,7 @@ const showToast = (message, type = 'success') => {
 // ---- 拉取详情 + 资源类型 ----
 async function fetchGroupDetail() {
   try {
-    const res = await fetch(`${API_BASE}/api/admin/groups/${groupId}`, { headers: { Authorization: `Bearer ${getToken()}` } })
+    const res = await fetch(`${API_BASE}/admin/groups/${groupId}`, { headers: { Authorization: `Bearer ${getToken()}` } })
     if (res.status === 401) return router.push('/admin/login')
     if (res.status === 404) { showToast('资源组不存在', 'error'); router.push('/admin/groups'); return }
     const data = await res.json().catch(() => ({}))
@@ -249,7 +249,7 @@ async function fetchGroupDetail() {
 
 async function fetchResourceTypes() {
   try {
-    const res = await fetch(`${API_BASE}/api/admin/resource-types`, { headers: { Authorization: `Bearer ${getToken()}` } })
+    const res = await fetch(`${API_BASE}/admin/resource-types`, { headers: { Authorization: `Bearer ${getToken()}` } })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || '获取资源类型失败')
     resourceTypes.value = data.data || []
@@ -271,7 +271,7 @@ async function fetchResourceList(key) {
   try {
     if (key === 'model') {
       // /api/models -> { groups: [{name, provider, models:[{model_name, group_name, provider}]}] }
-      const res = await fetch(`${API_BASE}/api/models`, { headers: { Authorization: `Bearer ${getToken()}` } })
+      const res = await fetch(`${API_BASE}/models`, { headers: { Authorization: `Bearer ${getToken()}` } })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || '获取模型失败')
       const list = []
@@ -287,7 +287,7 @@ async function fetchResourceList(key) {
       let page = 1
       const limit = 100
       while (true) {
-        const res = await fetch(`${API_BASE}/api/skills?page=${page}&limit=${limit}`, { headers: { Authorization: `Bearer ${getToken()}` } })
+        const res = await fetch(`${API_BASE}/skills?page=${page}&limit=${limit}`, { headers: { Authorization: `Bearer ${getToken()}` } })
         const data = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(data.error || '获取技能失败')
         const rows = data.data || []
@@ -304,7 +304,7 @@ async function fetchResourceList(key) {
       let page = 1
       const pageSize = 100
       while (true) {
-        const res = await fetch(`${API_BASE}/api/mcp/search?page=${page}&pageSize=${pageSize}`, { headers: { Authorization: `Bearer ${getToken()}` } })
+        const res = await fetch(`${API_BASE}/mcp/search?page=${page}&pageSize=${pageSize}`, { headers: { Authorization: `Bearer ${getToken()}` } })
         const data = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(data.error || data.reason || '获取 MCP 失败')
         const items = data.data || []
@@ -333,7 +333,7 @@ async function saveItems() {
         items.push({ resource_type: key, resource_id: rid })
       }
     }
-    const res = await fetch(`${API_BASE}/api/admin/groups/${groupId}/items`, {
+    const res = await fetch(`${API_BASE}/admin/groups/${groupId}/items`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ items }),
@@ -357,7 +357,7 @@ async function fetchMembers() {
     const pageSize = 100
     while (true) {
       const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
-      const res = await fetch(`${API_BASE}/api/admin/portal-users?${params}`, { headers: { Authorization: `Bearer ${getToken()}` } })
+      const res = await fetch(`${API_BASE}/admin/portal-users?${params}`, { headers: { Authorization: `Bearer ${getToken()}` } })
       if (res.status === 401) return router.push('/admin/login')
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || '获取用户失败')
@@ -378,7 +378,7 @@ async function fetchMembers() {
 async function saveMembers() {
   savingMembers.value = true
   try {
-    const res = await fetch(`${API_BASE}/api/admin/groups/${groupId}/members`, {
+    const res = await fetch(`${API_BASE}/admin/groups/${groupId}/members`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ userIds: [...selectedMemberIds.value] }),

@@ -99,7 +99,7 @@ const lastSyncedAt = computed(() => {
 
 async function fetchPanelGroups() {
   try {
-    const res = await fetch(`${API_BASE}/api/admin/panel-groups`, { headers: { Authorization: `Bearer ${getToken()}` } })
+    const res = await fetch(`${API_BASE}/admin/panel-groups`, { headers: { Authorization: `Bearer ${getToken()}` } })
     if (res.status === 401) return router.push('/admin/login')
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || '获取 1Panel 授权信息失败')
@@ -114,7 +114,7 @@ async function syncPanelGroups() {
   if (syncing.value) return
   syncing.value = true
   try {
-    const res = await fetch(`${API_BASE}/api/admin/panel-groups/sync`, {
+    const res = await fetch(`${API_BASE}/admin/panel-groups/sync`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${getToken()}` },
     })
