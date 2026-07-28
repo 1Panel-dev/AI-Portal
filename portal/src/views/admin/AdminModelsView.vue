@@ -15,7 +15,7 @@
     <div v-if="loading" class="py-20 text-center text-text-secondary">加载中...</div>
     <div v-else class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-hidden shadow-card">
       <div class="grid grid-cols-[1.5fr_1fr_1fr_0.8fr_0.6fr] gap-3 px-4 py-3 text-xs font-semibold text-text-secondary bg-surface-secondary border-b border-[rgba(0,0,0,0.06)]">
-        <div>模型名称</div><div>模型组</div><div>供应商</div><div>类型</div><div>状态</div>
+        <div>模型名称</div><div>账户</div><div>供应商</div><div>类型</div><div>状态</div>
       </div>
       <div v-if="!paged.length" class="py-14 text-center text-sm text-text-secondary">暂无模型（点击同步从 1Panel 拉取）</div>
       <div v-for="m in paged" :key="m.id" class="grid grid-cols-[1.5fr_1fr_1fr_0.8fr_0.6fr] gap-3 px-4 py-3 items-center border-b border-[rgba(0,0,0,0.04)] last:border-b-0 text-sm">
