@@ -1243,12 +1243,14 @@ const syncNow = async () => {
     })
     const data = await res.json()
     if (data.success) {
-      const m = data.models, s = data.skills
+      const m = data.models, s = data.skills, mc = data.mcps
       const parts = []
       if (m?.ok) parts.push(`模型 ${m.modelCount || 0}`)
       else parts.push(`模型 失败: ${m?.error || '未知'}`)
       if (s?.ok) parts.push(`技能 ${s.upsertCount || 0}`)
       else parts.push(`技能 失败: ${s?.error || '未知'}`)
+      if (mc?.ok) parts.push(`MCP ${mc.mcpCount || 0}`)
+      else parts.push(`MCP 失败: ${mc?.error || '未知'}`)
       panelMsg.value = '同步完成: ' + parts.join(' | ')
       panelMsgOk.value = true
       await fetchPanelConfig()

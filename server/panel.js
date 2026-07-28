@@ -554,6 +554,132 @@ async function downloadPanelSkill(panelSkillId) {
   throw new Error('1Panel 下载返回格式无法识别');
 }
 
+/**
+ * 同步 1Panel 用户组 / 模型组到本地缓存表（只读参考）。
+ * 沿用空响应不清表语义: 1Panel 返回空时跳过 UPSERT, 防误清。
+ */
+async function syncPanelGroups() {
+  const { inspectPanelBiz } = require('./lib/panel-biz');
+  const PAGE_SIZE = 100;
+
+  async function searchAll(path, body) {
+    const out = [];
+    let page = 1;
+    while (page <= 50) {
+      const res = await panel.post(path, { page, pageSize: PAGE_SIZE, ...body });
+      if (res.status < 200 || res.status >= 300) throw new Error(`1Panel ${path} HTTP ${res.status}`);
+      const biz = inspectPanelBiz(res);
+      if (!biz.ok) throw new Error(`1Panel ${path} 业务错误: ${biz.message}`);
+      const items = getPanelItems(res.data);
+      out.push(...items);
+      if (items.length < PAGE_SIZE) break;
+      page++;
+    }
+    return out;
+  }
+
+  const userGroups = await searchAll('/api/v2/core/enterprise/ai-proxy/groups/search', {});
+  const modelGroups = await searchAll('/api/v2/core/enterprise/ai-proxy/model-groups/search', {});
+
+  // 空响应不清表
+  if (!userGroups.length && !modelGroups.length) {
+    return { userGroups: 0, modelGroups: 0, skipped: true };
+  }
+
+  // 批量 UPSERT（用户组）
+  if (userGroups.length) {
+    for (const g of userGroups) {
+      await global.pool.query(`
+        INSERT INTO panel_user_groups (panel_group_id, name, qps_limit, token_limit, model_group_ids, model_group_names, api_key_count, synced_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,CURRENT_TIMESTAMP)
+        ON CONFLICT (panel_group_id) DO UPDATE SET
+          name=EXCLUDED.name, qps_limit=EXCLUDED.qps_limit, token_limit=EXCLUDED.token_limit,
+          model_group_ids=EXCLUDED.model_group_ids, model_group_names=EXCLUDED.model_group_names,
+          api_key_count=EXCLUDED.api_key_count, synced_at=CURRENT_TIMESTAMP
+      `, [
+        g.id, g.name, g.qpsLimit || 0, g.tokenLimit || 0,
+        JSON.stringify(g.modelGroupIds || []), JSON.stringify(g.modelGroupNames || []), g.apiKeyCount || 0
+      ]);
+    }
+  }
+
+  // 批量 UPSERT（模型组）
+  if (modelGroups.length) {
+    for (const g of modelGroups) {
+      await global.pool.query(`
+        INSERT INTO panel_model_groups (panel_group_id, name, models, selection_strategy, synced_at)
+        VALUES ($1,$2,$3,$4,CURRENT_TIMESTAMP)
+        ON CONFLICT (panel_group_id) DO UPDATE SET
+          name=EXCLUDED.name, models=EXCLUDED.models, selection_strategy=EXCLUDED.selection_strategy, synced_at=CURRENT_TIMESTAMP
+      `, [
+        g.id, g.name, JSON.stringify(g.models || []), g.selectionStrategy || null
+      ]);
+    }
+  }
+
+  return { userGroups: userGroups.length, modelGroups: modelGroups.length, skipped: false };
+}
+
+/**
+ * 同步 1Panel MCP 列表到本地 portal_mcps 表（对齐 syncModelsFromPanel 范式）。
+ * 沿用空响应不清表 + inspectPanelBiz 业务码校验。
+ */
+async function syncMcpsFromPanel() {
+  const { inspectPanelBiz } = require('./lib/panel-biz');
+  const PAGE_SIZE = 100;
+  const allItems = [];
+
+  let page = 1;
+  while (page <= 50) {
+    const res = await panel.post('/api/v2/ai/mcp/search', { page, pageSize: PAGE_SIZE, name: '' });
+    if (res.status < 200 || res.status >= 300) throw new Error(`1Panel mcp/search HTTP ${res.status}`);
+    const biz = inspectPanelBiz(res);
+    if (!biz.ok) throw new Error(`1Panel mcp/search 业务错误 code=${biz.code}: ${biz.message}`);
+    const items = getPanelItems(res.data);
+    allItems.push(...items);
+    if (items.length < PAGE_SIZE) break;
+    page++;
+  }
+
+  // 空响应不清表（铁律 6）
+  if (!allItems.length) {
+    console.warn('[panel] syncMcpsFromPanel: 1Panel 返回空 MCP 列表,跳过本轮 UPSERT 与软删');
+    return { mcpCount: 0, skipped: true };
+  }
+
+  // 批量 UPSERT（恢复 is_active=TRUE，对齐 syncModels/syncSkills 范式）
+  for (const mcp of allItems) {
+    await global.pool.query(`
+      INSERT INTO portal_mcps (panel_mcp_id, name, type, status, port, base_url, sse_path, output_transport, raw_data, is_active, synced_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, CURRENT_TIMESTAMP)
+      ON CONFLICT (panel_mcp_id) DO UPDATE SET
+        name = EXCLUDED.name, type = EXCLUDED.type, status = EXCLUDED.status,
+        port = EXCLUDED.port, base_url = EXCLUDED.base_url, sse_path = EXCLUDED.sse_path,
+        output_transport = EXCLUDED.output_transport, raw_data = EXCLUDED.raw_data,
+        is_active = TRUE, synced_at = CURRENT_TIMESTAMP
+    `, [
+      String(mcp.id ?? mcp.key ?? ''),
+      mcp.name || '',
+      mcp.type || '',
+      mcp.status || '',
+      mcp.port != null ? Number(mcp.port) : null,
+      mcp.baseUrl || '',
+      mcp.ssePath || '',
+      mcp.outputTransport || '',
+      JSON.stringify(mcp),
+    ]);
+  }
+
+  // 软删 1Panel 不再返回的 MCP
+  const panelIds = allItems.map(m => String(m.id ?? m.key ?? ''));
+  await global.pool.query(
+    'UPDATE portal_mcps SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE NOT (panel_mcp_id = ANY($1)) AND is_active = TRUE',
+    [panelIds]
+  );
+
+  return { mcpCount: allItems.length, skipped: false };
+}
+
 module.exports = {
   panel,
   getPanelPayload,
@@ -564,5 +690,7 @@ module.exports = {
   getPanelRoles,
   syncModelsFromPanel,
   syncSkillsFromPanel,
+  syncMcpsFromPanel,
   downloadPanelSkill,
+  syncPanelGroups,
 };

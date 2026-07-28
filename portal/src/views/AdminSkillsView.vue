@@ -10,6 +10,12 @@
         </div>
         <div class="flex gap-3">
           <button
+            @click="syncSkills" :disabled="syncing"
+            class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"
+          >
+            <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': syncing }" />{{ syncing ? '同步中...' : '同步' }}
+          </button>
+          <button
             @click="$router.push('/admin')"
             class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all"
           >
@@ -275,13 +281,19 @@
         </div>
       </div>
     </div>
+    <!-- Toast -->
+    <Teleport to="body">
+      <div v-if="toast.show" class="fixed top-24 left-1/2 -translate-x-1/2 z-[400] px-6 py-3 rounded-xl text-sm font-medium shadow-lg transition-all" :class="toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'" @click="toast.show = false">
+        {{ toast.message }}
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
 import { ref, watchEffect, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ChevronDown, Search, ArrowUpDown, Inbox, Pencil, Eye, EyeOff, Trash2, X, ArrowLeft } from 'lucide-vue-next'
+import { ChevronDown, Search, ArrowUpDown, Inbox, Pencil, Eye, EyeOff, Trash2, X, ArrowLeft, RefreshCw } from 'lucide-vue-next'
 import { avatarColors, categories } from '../data/categories.js'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
@@ -372,6 +384,38 @@ watchEffect(() => {
 })
 
 const getToken = () => localStorage.getItem('admin_token')
+
+const syncing = ref(false)
+const toast = ref({ show: false, message: '', type: 'success' })
+let toastTimer = null
+const showToast = (message, type = 'success') => {
+  toast.value = { show: true, message, type }
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
+}
+
+const syncSkills = async () => {
+  if (syncing.value) return
+  syncing.value = true
+  try {
+    const res = await fetch(`${API_BASE}/admin/panel-config/sync-now`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getToken()}` },
+    })
+    if (res.status === 401) {
+      localStorage.removeItem('admin_token')
+      return router.push('/admin/login')
+    }
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || '同步失败')
+    showToast('同步完成', 'success')
+    await fetchSkills(true)
+  } catch (err) {
+    showToast(err.message || '同步失败', 'error')
+  } finally {
+    syncing.value = false
+  }
+}
 
 const fetchSkills = async (reset = false) => {
   if (reset) {

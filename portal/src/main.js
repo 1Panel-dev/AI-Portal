@@ -35,6 +35,14 @@ const routes = [
       { path: 'config', component: () => import('./views/AdminConfigView.vue') },
       { path: 'oauth', component: () => import('./views/AdminOAuthView.vue') },
       { path: 'stats', component: () => import('./views/AdminStatsView.vue') },
+      // RBAC Phase 1: 资源组 / 角色 / 1Panel授权信息 / 模型&MCP空壳
+      // 守卫仍由父级 /admin 的 requiresAuth(admin_token) 统一兜底, 不改守卫逻辑
+      { path: 'groups', component: () => import('./views/admin/ResourceGroupsView.vue') },
+      { path: 'groups/:id', component: () => import('./views/admin/ResourceGroupEditView.vue') },
+      { path: 'panel-groups', component: () => import('./views/admin/PanelGroupsView.vue') },
+      { path: 'roles', component: () => import('./views/admin/RolesView.vue') },
+      { path: 'models', component: () => import('./views/admin/AdminModelsView.vue') },
+      { path: 'mcps', component: () => import('./views/admin/AdminMcpsView.vue') },
     ],
   },
 ]

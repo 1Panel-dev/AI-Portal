@@ -103,6 +103,7 @@ app.use('/downloads', (req, res, next) => {
 
 // API 路由
 app.use(require('./routes/admin'));
+app.use(require('./routes/admin-groups'));
 app.use(require('./routes/marketplace'));
 app.use(require('./routes/portal'));
 app.use(require('./routes/oauth').router);
