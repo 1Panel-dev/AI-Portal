@@ -647,18 +647,25 @@ async function syncMcpsFromPanel() {
     return { mcpCount: 0, skipped: true };
   }
 
-  // 批量 UPSERT
+  // 批量 UPSERT（恢复 is_active=TRUE，对齐 syncModels/syncSkills 范式）
   for (const mcp of allItems) {
     await global.pool.query(`
-      INSERT INTO portal_mcps (panel_mcp_id, name, type, raw_data, synced_at)
-      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+      INSERT INTO portal_mcps (panel_mcp_id, name, type, status, port, base_url, sse_path, output_transport, raw_data, is_active, synced_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, CURRENT_TIMESTAMP)
       ON CONFLICT (panel_mcp_id) DO UPDATE SET
-        name = EXCLUDED.name, type = EXCLUDED.type, raw_data = EXCLUDED.raw_data,
-        synced_at = CURRENT_TIMESTAMP
+        name = EXCLUDED.name, type = EXCLUDED.type, status = EXCLUDED.status,
+        port = EXCLUDED.port, base_url = EXCLUDED.base_url, sse_path = EXCLUDED.sse_path,
+        output_transport = EXCLUDED.output_transport, raw_data = EXCLUDED.raw_data,
+        is_active = TRUE, synced_at = CURRENT_TIMESTAMP
     `, [
       String(mcp.id ?? mcp.key ?? ''),
       mcp.name || '',
       mcp.type || '',
+      mcp.status || '',
+      mcp.port != null ? Number(mcp.port) : null,
+      mcp.baseUrl || '',
+      mcp.ssePath || '',
+      mcp.outputTransport || '',
       JSON.stringify(mcp),
     ]);
   }

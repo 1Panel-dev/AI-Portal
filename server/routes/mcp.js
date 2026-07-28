@@ -24,7 +24,7 @@ router.get('/api/mcp/search', async (req, res) => {
     const pool = global.pool;
     const offset = (pageNum - 1) * size;
 
-    // 查 portal_mcps 本地表
+    // 查 portal_mcps 本地表，返回全字段（广场页依赖 status/port/baseUrl 等）
     let countResult, rows;
     if (q.trim()) {
       const like = `%${q.trim()}%`;
@@ -33,7 +33,9 @@ router.get('/api/mcp/search', async (req, res) => {
         [like]
       );
       rows = await pool.query(
-        'SELECT id, panel_mcp_id, name, type, synced_at FROM portal_mcps WHERE is_active = TRUE AND (name ILIKE $1 OR type ILIKE $1) ORDER BY name LIMIT $2 OFFSET $3',
+        `SELECT id, panel_mcp_id, name, type, status, port, base_url, sse_path, output_transport, synced_at
+         FROM portal_mcps WHERE is_active = TRUE AND (name ILIKE $1 OR type ILIKE $1)
+         ORDER BY name LIMIT $2 OFFSET $3`,
         [like, size, offset]
       );
     } else {
@@ -41,15 +43,30 @@ router.get('/api/mcp/search', async (req, res) => {
         'SELECT count(*) FROM portal_mcps WHERE is_active = TRUE'
       );
       rows = await pool.query(
-        'SELECT id, panel_mcp_id, name, type, synced_at FROM portal_mcps WHERE is_active = TRUE ORDER BY name LIMIT $1 OFFSET $2',
+        `SELECT id, panel_mcp_id, name, type, status, port, base_url, sse_path, output_transport, synced_at
+         FROM portal_mcps WHERE is_active = TRUE
+         ORDER BY name LIMIT $1 OFFSET $2`,
         [size, offset]
       );
     }
 
     const total = parseInt(countResult.rows[0].count) || 0;
 
+    // 转驼峰，对齐前端 server.baseUrl/server.ssePath 等访问
+    const data = rows.rows.map(r => ({
+      id: r.panel_mcp_id,
+      name: r.name,
+      type: r.type,
+      status: r.status,
+      port: r.port,
+      baseUrl: r.base_url,
+      ssePath: r.sse_path,
+      outputTransport: r.output_transport,
+      updatedAt: r.synced_at,
+    }));
+
     res.json({
-      data: rows.rows,
+      data,
       pagination: {
         page: pageNum,
         pageSize: size,
