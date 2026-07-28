@@ -937,7 +937,7 @@ router.post('/api/admin/panel-config/sync-now', verifyAdmin, async (req, res) =>
   const startTime = Date.now();
   console.log('[admin] 管理员触发手动同步,userId=', req.user?.id, '|', new Date().toISOString());
   try {
-    // 并发跑模型 + 技能 + 角色同步,失败不互相影响
+    // 并发跑模型 + 技能 + MCP + 角色同步,失败不互相影响
     const [modelsResult, skillsResult, mcpsResult, rolesResult] = await Promise.allSettled([
       syncModelsFromPanel(),
       syncSkillsFromPanel(),
