@@ -12,6 +12,18 @@
       </div>
     </div>
 
+    <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4 mb-4 flex items-center gap-3">
+      <div class="flex-1 relative">
+        <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="搜索模型名称、账户或供应商..."
+          class="w-full pl-10 pr-4 py-2 bg-surface-secondary border border-[rgba(0,0,0,0.08)] rounded-lg text-sm outline-none focus:border-text transition-all"
+        >
+      </div>
+    </div>
+
     <div v-if="loading" class="py-20 text-center text-text-secondary">加载中...</div>
     <div v-else class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-hidden shadow-card">
       <div class="grid grid-cols-[1.5fr_1fr_1fr_0.8fr_0.6fr] gap-3 px-4 py-3 text-xs font-semibold text-text-secondary bg-surface-secondary border-b border-[rgba(0,0,0,0.06)]">
@@ -48,7 +60,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { RefreshCw } from 'lucide-vue-next'
+import { RefreshCw, Search } from 'lucide-vue-next'
 import { API_BASE } from '../../lib/apiBase'
 
 const router = useRouter()
@@ -59,13 +71,28 @@ const loading = ref(false)
 const syncing = ref(false)
 const page = ref(1)
 const pageSize = ref(20)
+const searchQuery = ref('')
 
-const totalModels = computed(() => allModels.value.length)
+const filtered = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return allModels.value
+  return allModels.value.filter(m =>
+    String(m.model_name || '').toLowerCase().includes(q) ||
+    String(m.group_name || '').toLowerCase().includes(q) ||
+    String(m.provider || '').toLowerCase().includes(q)
+  )
+})
+
+const totalModels = computed(() => filtered.value.length)
 const totalPages = computed(() => Math.max(1, Math.ceil(totalModels.value / pageSize.value)))
 const paged = computed(() => {
   const start = (page.value - 1) * pageSize.value
-  return allModels.value.slice(start, start + pageSize.value)
+  return filtered.value.slice(start, start + pageSize.value)
 })
+
+// 搜索变化时回到第一页
+import { watch } from 'vue'
+watch(searchQuery, () => { page.value = 1 })
 
 async function fetchModels() {
   loading.value = true

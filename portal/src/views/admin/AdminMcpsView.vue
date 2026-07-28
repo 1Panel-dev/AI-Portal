@@ -12,6 +12,20 @@
       </div>
     </div>
 
+    <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4 mb-4 flex items-center gap-3">
+      <div class="flex-1 relative">
+        <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="搜索 MCP 名称或类型..."
+          class="w-full pl-10 pr-4 py-2 bg-surface-secondary border border-[rgba(0,0,0,0.08)] rounded-lg text-sm outline-none focus:border-text transition-all"
+          @keyup.enter="goPage(1)"
+        >
+      </div>
+      <button @click="goPage(1)" class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">搜索</button>
+    </div>
+
     <div v-if="loading" class="py-20 text-center text-text-secondary">加载中...</div>
     <div v-else class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-hidden shadow-card">
       <div class="grid grid-cols-[1.5fr_1fr_1fr_0.8fr] gap-3 px-4 py-3 text-xs font-semibold text-text-secondary bg-surface-secondary border-b border-[rgba(0,0,0,0.06)]">
@@ -47,7 +61,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { RefreshCw } from 'lucide-vue-next'
+import { RefreshCw, Search } from 'lucide-vue-next'
 import { API_BASE } from '../../lib/apiBase'
 
 const router = useRouter()
@@ -59,13 +73,16 @@ const syncing = ref(false)
 const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+const searchQuery = ref('')
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
 async function fetchMcps() {
   loading.value = true
   try {
-    const res = await fetch(`${API_BASE}/mcp/search?page=${page.value}&pageSize=${pageSize.value}`, { headers: { Authorization: `Bearer ${getToken()}` } })
+    const params = new URLSearchParams({ page: String(page.value), pageSize: String(pageSize.value) })
+    if (searchQuery.value.trim()) params.set('q', searchQuery.value.trim())
+    const res = await fetch(`${API_BASE}/mcp/search?${params}`, { headers: { Authorization: `Bearer ${getToken()}` } })
     if (res.status === 401) return router.push('/admin/login')
     const data = await res.json().catch(() => ({}))
     mcps.value = data.data || []
