@@ -48,12 +48,18 @@
         <button @click="page++" :disabled="page >= totalPages" class="h-9 px-2 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">›</button>
         <button @click="page = totalPages" :disabled="page >= totalPages" class="w-9 h-9 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px] font-medium">»</button>
       </div>
-      <select v-model.number="pageSize" class="px-2.5 py-1.5 border border-[rgba(0,0,0,0.1)] rounded-lg text-[13px] bg-white outline-none cursor-pointer">
+      <select v-model.number="pageSize" @change="page = 1" class="px-2.5 py-1.5 border border-[rgba(0,0,0,0.1)] rounded-lg text-[13px] bg-white outline-none cursor-pointer">
         <option :value="10">10 条/页</option>
         <option :value="20">20 条/页</option>
         <option :value="50">50 条/页</option>
       </select>
     </div>
+    <!-- Toast -->
+    <Teleport to="body">
+      <div v-if="toast.show" class="fixed top-24 left-1/2 -translate-x-1/2 z-[400] px-6 py-3 rounded-xl text-sm font-medium shadow-lg transition-all" :class="toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'" @click="toast.show = false">
+        {{ toast.message }}
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -72,6 +78,13 @@ const syncing = ref(false)
 const page = ref(1)
 const pageSize = ref(20)
 const searchQuery = ref('')
+const toast = ref({ show: false, message: '', type: 'success' })
+let toastTimer = null
+const showToast = (message, type = 'success') => {
+  toast.value = { show: true, message, type }
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
+}
 
 const filtered = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
@@ -86,7 +99,9 @@ const filtered = computed(() => {
 const totalModels = computed(() => filtered.value.length)
 const totalPages = computed(() => Math.max(1, Math.ceil(totalModels.value / pageSize.value)))
 const paged = computed(() => {
-  const start = (page.value - 1) * pageSize.value
+  // 夹紧 page，防止过滤/pageSize 变化后 page 越界导致空表
+  const p = Math.min(page.value, totalPages.value)
+  const start = (p - 1) * pageSize.value
   return filtered.value.slice(start, start + pageSize.value)
 })
 
@@ -118,17 +133,23 @@ async function fetchModels() {
 }
 
 async function syncAll() {
+  if (syncing.value) return
   syncing.value = true
   try {
     const res = await fetch(`${API_BASE}/admin/panel-config/sync-now`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${getToken()}` },
     })
+    if (res.status === 401) {
+      localStorage.removeItem('admin_token')
+      return router.push('/admin/login')
+    }
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || '同步失败')
+    showToast('同步完成', 'success')
     await fetchModels()
   } catch (err) {
-    console.error('[AdminModelsView] sync error:', err.message)
+    showToast(err.message || '同步失败', 'error')
   } finally {
     syncing.value = false
   }

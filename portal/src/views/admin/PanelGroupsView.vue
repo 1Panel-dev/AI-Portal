@@ -70,7 +70,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { RefreshCw } from 'lucide-vue-next'
 import { API_BASE } from '../../lib/apiBase'
@@ -131,4 +131,5 @@ async function syncPanelGroups() {
 }
 
 onMounted(fetchPanelGroups)
+onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 </script>

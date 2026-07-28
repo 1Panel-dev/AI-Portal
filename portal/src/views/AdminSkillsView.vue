@@ -281,6 +281,12 @@
         </div>
       </div>
     </div>
+    <!-- Toast -->
+    <Teleport to="body">
+      <div v-if="toast.show" class="fixed top-24 left-1/2 -translate-x-1/2 z-[400] px-6 py-3 rounded-xl text-sm font-medium shadow-lg transition-all" :class="toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'" @click="toast.show = false">
+        {{ toast.message }}
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -380,17 +386,32 @@ watchEffect(() => {
 const getToken = () => localStorage.getItem('admin_token')
 
 const syncing = ref(false)
+const toast = ref({ show: false, message: '', type: 'success' })
+let toastTimer = null
+const showToast = (message, type = 'success') => {
+  toast.value = { show: true, message, type }
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
+}
+
 const syncSkills = async () => {
+  if (syncing.value) return
   syncing.value = true
   try {
     const res = await fetch(`${API_BASE}/admin/panel-config/sync-now`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${getToken()}` },
     })
-    if (!res.ok) throw new Error((await res.json()).error || '同步失败')
+    if (res.status === 401) {
+      localStorage.removeItem('admin_token')
+      return router.push('/admin/login')
+    }
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || '同步失败')
+    showToast('同步完成', 'success')
     await fetchSkills(true)
   } catch (err) {
-    console.error('[AdminSkills] sync error:', err.message)
+    showToast(err.message || '同步失败', 'error')
   } finally {
     syncing.value = false
   }

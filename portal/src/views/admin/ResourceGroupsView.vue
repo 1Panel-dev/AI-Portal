@@ -97,7 +97,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { RefreshCw, Plus } from 'lucide-vue-next'
 import { API_BASE } from '../../lib/apiBase'
@@ -194,6 +194,7 @@ function confirmDelete(g) { deletingGroup.value = g }
 
 async function doDelete() {
   if (!deletingGroup.value) return
+  if (deleting.value) return  // 防重复提交
   deleting.value = true
   try {
     const res = await fetch(`${API_BASE}/admin/groups/${deletingGroup.value.id}`, {
@@ -213,4 +214,5 @@ async function doDelete() {
 }
 
 onMounted(fetchGroups)
+onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 </script>

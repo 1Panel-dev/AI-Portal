@@ -132,7 +132,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Info, Eye } from 'lucide-vue-next'
 import { API_BASE } from '../../lib/apiBase'
@@ -317,7 +317,8 @@ async function fetchResourceList(key) {
       resourceCatalog[key] = list
     }
   } catch (err) {
-    showToast(err.message || `获取${activeTypeName.value}列表失败`, 'error')
+    const typeName = resourceTypes.value.find(t => t.key === key)?.name || key
+    showToast(err.message || `获取${typeName}列表失败`, 'error')
     resourceCatalog[key] = []
   } finally {
     resourceLoading.value = false
@@ -401,4 +402,5 @@ onMounted(async () => {
   }
   fetchMembers()
 })
+onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 </script>
