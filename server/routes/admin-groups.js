@@ -58,9 +58,12 @@ router.get('/api/admin/groups/:id', verifyAdmin, async (req, res) => {
 router.put('/api/admin/groups/:id', verifyAdmin, async (req, res) => {
   const id = Number(req.params.id);
   const { name, description } = req.body;
+  // partial update: COALESCE 保留原值, 前端可只改 name 或 description 单字段。
+  // 注: description 清空语义不被支持——传 null 时 COALESCE(null, description) 会保留原值而非清空。
+  // Phase1 不需要清空 description, 如需清空得走显式 patch 路径。
   const r = await pool().query(
-    'UPDATE resource_groups SET name = $1, description = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *',
-    [name?.trim(), description ?? null, id]
+    'UPDATE resource_groups SET name = COALESCE($1, name), description = COALESCE($2, description), updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *',
+    [name?.trim() ?? null, description ?? null, id]
   );
   if (!r.rowCount) return res.status(404).json({ error: '资源组不存在' });
   res.json({ data: r.rows[0] });
