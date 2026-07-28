@@ -121,6 +121,20 @@ const verifyUser = async (req, res, next) => {
   }
 };
 
+// 权限中间件（Phase 1 就绪但不挂载; 依赖 verifyUser 设的 req.portalUser, 与 verifyAdmin 混用会 crash）
+function requirePermission(permissionKey) {
+  return async (req, res, next) => {
+    if (!req.portalUser) {
+      return res.status(401).json({ error: '未登录' });
+    }
+    if (req.portalUser.is_portal_admin) return next();
+    const { hasPermission } = require('./lib/permission');
+    const ok = await hasPermission(req.portalUser.id, permissionKey);
+    if (!ok) return res.status(403).json({ code: 'FORBIDDEN', error: '权限不足' });
+    next();
+  };
+}
+
 // 生成 portal user token
 function signPortalToken(user) {
   return jwt.sign(
@@ -190,6 +204,7 @@ module.exports = {
   verifyAuth,
   verifyAdmin,
   verifyUser,
+  requirePermission,
   signPortalToken,
   signAdminToken,
   signOauthTicket,

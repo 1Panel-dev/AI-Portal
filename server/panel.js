@@ -554,6 +554,72 @@ async function downloadPanelSkill(panelSkillId) {
   throw new Error('1Panel 下载返回格式无法识别');
 }
 
+/**
+ * 同步 1Panel 用户组 / 模型组到本地缓存表（只读参考）。
+ * 沿用空响应不清表语义: 1Panel 返回空时跳过 UPSERT, 防误清。
+ */
+async function syncPanelGroups() {
+  const { inspectPanelBiz } = require('./lib/panel-biz');
+  const PAGE_SIZE = 100;
+
+  async function searchAll(path, body) {
+    const out = [];
+    let page = 1;
+    while (page <= 50) {
+      const res = await panel.post(path, { page, pageSize: PAGE_SIZE, ...body });
+      if (res.status < 200 || res.status >= 300) throw new Error(`1Panel ${path} HTTP ${res.status}`);
+      const biz = inspectPanelBiz(res);
+      if (!biz.ok) throw new Error(`1Panel ${path} 业务错误: ${biz.message}`);
+      const items = getPanelItems(res.data);
+      out.push(...items);
+      if (items.length < PAGE_SIZE) break;
+      page++;
+    }
+    return out;
+  }
+
+  const userGroups = await searchAll('/api/v2/core/enterprise/ai-proxy/groups/search', {});
+  const modelGroups = await searchAll('/api/v2/core/enterprise/ai-proxy/model-groups/search', {});
+
+  // 空响应不清表
+  if (!userGroups.length && !modelGroups.length) {
+    return { userGroups: 0, modelGroups: 0, skipped: true };
+  }
+
+  // 批量 UPSERT（用户组）
+  if (userGroups.length) {
+    for (const g of userGroups) {
+      await global.pool.query(`
+        INSERT INTO panel_user_groups (panel_group_id, name, qps_limit, token_limit, model_group_ids, model_group_names, api_key_count, synced_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,CURRENT_TIMESTAMP)
+        ON CONFLICT (panel_group_id) DO UPDATE SET
+          name=EXCLUDED.name, qps_limit=EXCLUDED.qps_limit, token_limit=EXCLUDED.token_limit,
+          model_group_ids=EXCLUDED.model_group_ids, model_group_names=EXCLUDED.model_group_names,
+          api_key_count=EXCLUDED.api_key_count, synced_at=CURRENT_TIMESTAMP
+      `, [
+        g.id, g.name, g.qpsLimit || 0, g.tokenLimit || 0,
+        JSON.stringify(g.modelGroupIds || []), JSON.stringify(g.modelGroupNames || []), g.apiKeyCount || 0
+      ]);
+    }
+  }
+
+  // 批量 UPSERT（模型组）
+  if (modelGroups.length) {
+    for (const g of modelGroups) {
+      await global.pool.query(`
+        INSERT INTO panel_model_groups (panel_group_id, name, models, selection_strategy, synced_at)
+        VALUES ($1,$2,$3,$4,CURRENT_TIMESTAMP)
+        ON CONFLICT (panel_group_id) DO UPDATE SET
+          name=EXCLUDED.name, models=EXCLUDED.models, selection_strategy=EXCLUDED.selection_strategy, synced_at=CURRENT_TIMESTAMP
+      `, [
+        g.id, g.name, JSON.stringify(g.models || []), g.selectionStrategy || null
+      ]);
+    }
+  }
+
+  return { userGroups: userGroups.length, modelGroups: modelGroups.length, skipped: false };
+}
+
 module.exports = {
   panel,
   getPanelPayload,
@@ -565,4 +631,5 @@ module.exports = {
   syncModelsFromPanel,
   syncSkillsFromPanel,
   downloadPanelSkill,
+  syncPanelGroups,
 };
