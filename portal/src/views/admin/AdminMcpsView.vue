@@ -3,7 +3,7 @@
     <div class="flex items-center justify-between mb-6">
       <div>
         <h1 class="text-2xl font-bold text-text">MCP 管理</h1>
-        <p class="text-text-secondary text-sm mt-1">MCP 资源来自 1Panel 同步</p>
+        <p class="text-text-secondary text-sm mt-1">MCP 资源来自 1Panel 同步，共 {{ total }} 个</p>
       </div>
       <div class="flex gap-3">
         <button @click="syncMcps" :disabled="syncing" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50">
@@ -25,11 +25,27 @@
         <div><span class="px-2 py-0.5 rounded-full text-xs bg-emerald-50 text-emerald-600">同步</span></div>
       </div>
     </div>
+
+    <div v-if="totalPages > 1" class="flex items-center justify-between mt-6 text-sm text-text-secondary">
+      <span>共 {{ total }} 个 MCP</span>
+      <div class="flex items-center gap-1.5">
+        <button @click="goPage(1)" :disabled="page <= 1" class="w-9 h-9 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px] font-medium">«</button>
+        <button @click="goPage(page - 1)" :disabled="page <= 1" class="h-9 px-2 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">‹</button>
+        <span class="px-2 text-text-secondary">{{ page }} / {{ totalPages }}</span>
+        <button @click="goPage(page + 1)" :disabled="page >= totalPages" class="h-9 px-2 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">›</button>
+        <button @click="goPage(totalPages)" :disabled="page >= totalPages" class="w-9 h-9 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px] font-medium">»</button>
+      </div>
+      <select v-model.number="pageSize" @change="goPage(1)" class="px-2.5 py-1.5 border border-[rgba(0,0,0,0.1)] rounded-lg text-[13px] bg-white outline-none cursor-pointer">
+        <option :value="10">10 条/页</option>
+        <option :value="20">20 条/页</option>
+        <option :value="50">50 条/页</option>
+      </select>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { RefreshCw } from 'lucide-vue-next'
 import { API_BASE } from '../../lib/apiBase'
@@ -40,21 +56,31 @@ const getToken = () => localStorage.getItem('admin_token')
 const mcps = ref([])
 const loading = ref(false)
 const syncing = ref(false)
-const toast = ref({ show: false, message: '', type: 'success' })
+const page = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
+
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
 async function fetchMcps() {
   loading.value = true
   try {
-    const res = await fetch(`${API_BASE}/mcp/search?page=1&pageSize=1000`, { headers: { Authorization: `Bearer ${getToken()}` } })
+    const res = await fetch(`${API_BASE}/mcp/search?page=${page.value}&pageSize=${pageSize.value}`, { headers: { Authorization: `Bearer ${getToken()}` } })
     if (res.status === 401) return router.push('/admin/login')
     const data = await res.json().catch(() => ({}))
     mcps.value = data.data || []
+    total.value = data.pagination?.total || mcps.value.length
   } catch (err) {
     console.error('[AdminMcpsView] 加载失败:', err.message)
-    showToast('加载 MCP 列表失败', 'error')
   } finally {
     loading.value = false
   }
+}
+
+function goPage(p) {
+  if (p < 1 || p > totalPages.value) return
+  page.value = p
+  fetchMcps()
 }
 
 async function syncMcps() {
@@ -66,18 +92,12 @@ async function syncMcps() {
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || '同步失败')
-    showToast('同步完成', 'success')
     await fetchMcps()
   } catch (err) {
-    showToast(err.message || '同步失败', 'error')
+    console.error('[AdminMcpsView] sync error:', err.message)
   } finally {
     syncing.value = false
   }
-}
-
-function showToast(message, type = 'success') {
-  toast.value = { show: true, message, type }
-  setTimeout(() => { toast.value.show = false }, 3000)
 }
 
 onMounted(fetchMcps)
