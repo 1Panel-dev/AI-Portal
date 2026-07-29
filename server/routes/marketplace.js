@@ -5,7 +5,7 @@ const multer = require('multer');
 const storage = require('../lib/storage');
 const downloadCounter = require('../lib/downloadCounter');
 const { panel, getPanelPayload, getPanelItems, downloadPanelSkill } = require('../panel');
-const { downloadLimiter, uploadLimiter, verifyUser, optionalUser } = require('../auth');
+const { downloadLimiter, uploadLimiter, verifyUser, requirePermission, optionalUser } = require('../auth');
 
 const router = express.Router();
 
@@ -491,7 +491,7 @@ router.post('/api/skills/:id/download', downloadLimiter, async (req, res) => {
 // ============ Skill 包上传/下载 API ============
 
 // 上传 Skill 包（zip）
-router.post('/api/skills/upload', verifyUser, uploadLimiter, upload.single('file'), async (req, res) => {
+router.post('/api/skills/upload', verifyUser, requirePermission('skill:create'), uploadLimiter, upload.single('file'), async (req, res) => {
   try {
     if (!(await isSkillSubmitEnabled())) {
       return res.status(403).json({
