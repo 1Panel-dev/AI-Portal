@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
-const { verifyAdmin, verifyUser, signPortalToken } = require('../auth');
+const { verifyAdmin, verifyUser, requirePermission, optionalUser, signPortalToken } = require('../auth');
 const { panel, getPanelPayload, getPanelItems, findPanelUser, createPanelUser, syncModelsFromPanel } = require('../panel');
 const { isAnyProviderEnabled } = require('../oauth');
 const { inspectPanelBiz, listPanelKeysOfUser } = require('../lib/panel-biz');
@@ -247,7 +247,7 @@ router.put('/api/auth/password', verifyUser, async (req, res) => {
   }
 });
 
-router.get('/api/models', async (req, res) => {
+router.get('/api/models', optionalUser, async (req, res) => {
   try {
     let rows = [];
     let syncFailedReason = null;  // 记录首次兜底同步是否失败,用于给前端 hint
@@ -295,6 +295,20 @@ router.get('/api/models', async (req, res) => {
       vllm: 'vLLM',
       custom: '自定义',
     };
+
+    // RBAC Phase 2: 登录非超管用户按资源组过滤模型（访客/超管/未授权全公开兜底）
+    if (req.portalUser && !req.portalUser.is_portal_admin) {
+      const { getVisibleResourcesForUser } = require('../lib/permission');
+      const visible = await getVisibleResourcesForUser(req.portalUser.id);
+      // visible.model 在「全公开兜底」时是 listAll() 返回的行对象数组（含 model_name 等字段），
+      // 在「资源组已勾选」时是模型名字符串数组。只有后者才需要过滤；前者直接放行。
+      // 用首元素是否为原始值（string）区分两种形态，避免把全公开误过滤成空。
+      if (Array.isArray(visible.model) && typeof visible.model[0] === 'string') {
+        const allowedNames = new Set(visible.model);
+        rows = rows.filter(r => allowedNames.has(r.model_name));
+      }
+      // 非数组 / 首元素为对象 -> 全公开（兜底），rows 不动
+    }
 
     const groups = {};
     for (const row of rows) {
@@ -535,7 +549,7 @@ function generateApiKey() {
   return key;
 }
 
-router.post('/api/keys', verifyUser, async (req, res) => {
+router.post('/api/keys', verifyUser, requirePermission('key:create'), async (req, res) => {
   try {
     let panelUserId = req.portalUser.panel_user_id;
 
@@ -812,7 +826,7 @@ async function purgePanelKeysOfUser(panelUserId) {
   return existing.length;
 }
 
-router.post('/api/keys/reset', verifyUser, async (req, res) => {
+router.post('/api/keys/reset', verifyUser, requirePermission('key:edit'), async (req, res) => {
   try {
     if (!req.portalUser.panel_user_id) {
       return res.status(400).json({ error: '需要先关联 1Panel 用户' });
@@ -955,7 +969,7 @@ router.post('/api/keys/reset', verifyUser, async (req, res) => {
 // 1Panel 远端删除失败(网络/业务码 >=400)时本地一律不动,避免"本地以为删了、远端还在"。
 // 用 purgePanelKeysOfUser 而不是仅删 row.panel_key_id —— 与 reset 同因:本地缓存的
 // panel_key_id 可能与远端漂移(历史半失败 reset 留下),应以"按 panel_user_id 翻页 search"为准。
-router.delete('/api/keys', verifyUser, async (req, res) => {
+router.delete('/api/keys', verifyUser, requirePermission('key:delete'), async (req, res) => {
   try {
     if (!req.portalUser.panel_user_id) {
       return res.status(400).json({ error: '需要先关联 1Panel 用户' });
