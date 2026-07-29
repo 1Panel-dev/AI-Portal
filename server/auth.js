@@ -87,7 +87,7 @@ const verifyAdmin = (req, res, next) => {
   }
 };
 
-// 验证普通用户权限
+// 验证普通用户权限（Phase 2: 认 admin_token + SELECT 加 is_portal_admin）
 const verifyUser = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -98,10 +98,10 @@ const verifyUser = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    // portal_user 类型的 token 需要查询数据库
-    if (decoded.type === 'portal_user') {
+    // 兼容两种 token: portal_user 和 admin（spec 核查修正3）
+    if (decoded.type === 'portal_user' || decoded.type === 'admin') {
       const result = await global.pool.query(`
-        SELECT id, panel_user_id, username, name, role, status, last_login_at, created_at
+        SELECT id, panel_user_id, username, name, role, status, is_portal_admin, last_login_at, created_at
         FROM portal_users
         WHERE id = $1
       `, [decoded.id]);
@@ -119,6 +119,25 @@ const verifyUser = async (req, res, next) => {
   } catch (err) {
     return res.status(401).json({ error: 'Token 无效或已过期' });
   }
+};
+
+// 可选用户中间件（供三广场用: 访客放行, 登录用户附 req.portalUser 用于过滤）
+const optionalUser = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return next();
+  try {
+    const decoded = jwt.verify(authHeader.substring(7), JWT_SECRET);
+    if (decoded.type === 'portal_user' || decoded.type === 'admin') {
+      const result = await global.pool.query(
+        'SELECT id, panel_user_id, is_portal_admin FROM portal_users WHERE id = $1 AND status = $2',
+        [decoded.id, 'active']
+      );
+      if (result.rowCount) req.portalUser = result.rows[0];
+    }
+  } catch {
+    // 无效 token 静默放行（访客语义）
+  }
+  next();
 };
 
 // 权限中间件（Phase 1 就绪但不挂载; 依赖 verifyUser 设的 req.portalUser, 与 verifyAdmin 混用会 crash）
@@ -204,6 +223,7 @@ module.exports = {
   verifyAuth,
   verifyAdmin,
   verifyUser,
+  optionalUser,
   requirePermission,
   signPortalToken,
   signAdminToken,
