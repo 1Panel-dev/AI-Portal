@@ -46,6 +46,7 @@
           <div class="text-text-secondary">{{ user.submission_count || 0 }}</div>
           <div class="text-xs text-text-tertiary">{{ formatDate(user.created_at) }}</div>
           <div class="text-right flex items-center justify-end gap-1.5">
+            <button v-if="user.role !== 'admin'" @click="openRoleDialog(user)" class="px-2.5 py-1 text-xs text-text-secondary border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary transition-all">分配角色</button>
             <button v-if="user.role !== 'admin'" @click="openPasswordDialog(user)" class="px-2.5 py-1 text-xs text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-all">改密</button>
             <button v-if="user.role !== 'admin'" @click="confirmDelete(user)" class="px-2.5 py-1 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-all">删除</button>
             <span v-else class="text-xs text-text-tertiary">不可操作</span>
@@ -114,6 +115,23 @@
       </div>
     </Teleport>
 
+    <!-- 角色分配弹框 -->
+    <AppDialog :open="showRoleDialog" title="分配角色" size="md" @close="showRoleDialog = false">
+      <div class="space-y-2">
+        <p class="text-xs text-text-tertiary mb-2">为用户 {{ roleTarget?.username }} 分配角色（admin 为内置超管标记，不可分配）</p>
+        <label v-for="r in assignableRoles" :key="r.id" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface-secondary cursor-pointer">
+          <input type="checkbox" :value="r.id" v-model="selectedRoleIds" />
+          <span class="text-sm text-text">{{ r.name }}</span>
+          <span v-if="r.is_system" class="text-[10px] text-text-tertiary">（内置）</span>
+        </label>
+        <div v-if="!loadingRoles && assignableRoles.length === 0" class="py-4 text-center text-xs text-text-tertiary">暂无可分配角色</div>
+      </div>
+      <template #footer>
+        <button @click="showRoleDialog = false" class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary">取消</button>
+        <button @click="saveRoles" :disabled="savingRoles" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50">{{ savingRoles ? '保存中…' : '保存' }}</button>
+      </template>
+    </AppDialog>
+
     <!-- Toast 通知 -->
     <Teleport to="body">
       <div v-if="toast.show" class="fixed top-24 left-1/2 -translate-x-1/2 z-[400] px-6 py-3 rounded-xl text-sm font-medium shadow-lg transition-all animate-fade-up" :class="toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'" @click="toast.show = false">
@@ -135,6 +153,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { RefreshCw, UserPlus, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-vue-next'
 import NewUserDialog from '../components/admin/NewUserDialog.vue'
+import AppDialog from '../components/AppDialog.vue'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const router = useRouter()
@@ -318,6 +337,61 @@ const changePassword = async () => {
     showToast(err.message || '修改失败', 'error')
   } finally {
     changingPassword.value = false
+  }
+}
+
+// —— 角色分配 ——
+const showRoleDialog = ref(false)
+const roleTarget = ref(null)
+const assignableRoles = ref([])      // 可分配角色列表（排除 admin 超管标记）
+const selectedRoleIds = ref([])
+const savingRoles = ref(false)
+const loadingRoles = ref(false)
+
+// 打开分配弹框: 拉可分配角色列表 + 该用户已分配角色
+const openRoleDialog = async (user) => {
+  roleTarget.value = user
+  showRoleDialog.value = true
+  loadingRoles.value = true
+  assignableRoles.value = []
+  selectedRoleIds.value = []
+  try {
+    const token = getToken()
+    // 拉全部角色, 前端排除 admin（超管标记, 不可分配）
+    const [rolesRes, userRolesRes] = await Promise.all([
+      fetch(`${API_BASE}/admin/roles`, { headers: { Authorization: `Bearer ${token}` } }),
+      fetch(`${API_BASE}/admin/users/${user.id}/roles`, { headers: { Authorization: `Bearer ${token}` } }),
+    ])
+    const rolesData = await rolesRes.json().catch(() => ({}))
+    const userRolesData = await userRolesRes.json().catch(() => ({}))
+    assignableRoles.value = (rolesData.data || []).filter(r => r.name !== 'admin')
+    selectedRoleIds.value = (userRolesData.data || []).map(x => x.id)
+  } catch (e) {
+    showToast(e.message || '加载角色失败', 'error')
+  } finally {
+    loadingRoles.value = false
+  }
+}
+
+const saveRoles = async () => {
+  if (!roleTarget.value) return
+  savingRoles.value = true
+  try {
+    const token = getToken()
+    const r = await fetch(`${API_BASE}/admin/users/${roleTarget.value.id}/roles`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roleIds: selectedRoleIds.value }),
+    })
+    const data = await r.json().catch(() => ({}))
+    if (!r.ok) throw new Error(data.error || data.reason || '保存失败')
+    showRoleDialog.value = false
+    showToast('角色已保存', 'success')
+    await fetchUsers(page.value)
+  } catch (e) {
+    showToast(e.message || '保存失败', 'error')
+  } finally {
+    savingRoles.value = false
   }
 }
 
