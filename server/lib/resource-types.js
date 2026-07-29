@@ -31,7 +31,11 @@ registerResourceType('model', {
       return all.map(m => m.model_name);
     }
     const allowed = await getUserAllowedModels(portalUser.panel_user_id);
-    if (!allowed) return [];
+    // allowed 为 null = 全公开兜底（三层 JOIN 空, 存量兼容）
+    if (!allowed) {
+      const all = await this.listAll();
+      return all.map(m => m.model_name);
+    }
     const allowedSet = new Set(allowed);
     return modelNames.filter(m => allowedSet.has(m));
   },
