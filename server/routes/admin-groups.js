@@ -2,7 +2,7 @@
 // 资源组 CRUD + 1Panel 组同步 + 资源类型接口（薄路由范式）
 // 守卫 + 参数校验 + 调 lib + 返回 JSON, 不写业务逻辑
 const express = require('express');
-const { verifyAdmin } = require('../auth');
+const { verifyUser, requirePermission } = require('../auth');
 const { syncPanelGroups } = require('../panel');
 const { getResourceType, getAllResourceTypes } = require('../lib/resource-types');
 
@@ -10,7 +10,7 @@ const router = express.Router();
 const pool = () => global.pool;
 
 // ---- 资源类型 ----
-router.get('/api/admin/resource-types', verifyAdmin, async (req, res) => {
+router.get('/api/admin/resource-types', verifyUser, requirePermission('group:view'), async (req, res) => {
   try {
     res.json({ data: getAllResourceTypes() });
   } catch (e) {
@@ -19,7 +19,7 @@ router.get('/api/admin/resource-types', verifyAdmin, async (req, res) => {
 });
 
 // ---- 资源组 CRUD ----
-router.get('/api/admin/groups', verifyAdmin, async (req, res) => {
+router.get('/api/admin/groups', verifyUser, requirePermission('group:view'), async (req, res) => {
   try {
     const r = await pool().query(`
       SELECT g.*,
@@ -35,7 +35,7 @@ router.get('/api/admin/groups', verifyAdmin, async (req, res) => {
   }
 });
 
-router.post('/api/admin/groups', verifyAdmin, async (req, res) => {
+router.post('/api/admin/groups', verifyUser, requirePermission('group:create'), async (req, res) => {
   const { name, description } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: '资源组名称不能为空' });
   try {
@@ -49,7 +49,7 @@ router.post('/api/admin/groups', verifyAdmin, async (req, res) => {
   }
 });
 
-router.get('/api/admin/groups/:id', verifyAdmin, async (req, res) => {
+router.get('/api/admin/groups/:id', verifyUser, requirePermission('group:view'), async (req, res) => {
   const id = Number(req.params.id);
   try {
     const g = await pool().query('SELECT * FROM resource_groups WHERE id = $1', [id]);
@@ -67,7 +67,7 @@ router.get('/api/admin/groups/:id', verifyAdmin, async (req, res) => {
   }
 });
 
-router.put('/api/admin/groups/:id', verifyAdmin, async (req, res) => {
+router.put('/api/admin/groups/:id', verifyUser, requirePermission('group:edit'), async (req, res) => {
   const id = Number(req.params.id);
   const { name, description } = req.body;
   // partial update: COALESCE 保留原值, 前端可只改 name 或 description 单字段。
@@ -85,7 +85,7 @@ router.put('/api/admin/groups/:id', verifyAdmin, async (req, res) => {
   }
 });
 
-router.delete('/api/admin/groups/:id', verifyAdmin, async (req, res) => {
+router.delete('/api/admin/groups/:id', verifyUser, requirePermission('group:delete'), async (req, res) => {
   const id = Number(req.params.id);
   try {
     await pool().query('DELETE FROM resource_groups WHERE id = $1', [id]);
@@ -96,7 +96,7 @@ router.delete('/api/admin/groups/:id', verifyAdmin, async (req, res) => {
 });
 
 // 全量覆盖资源（事务）
-router.put('/api/admin/groups/:id/items', verifyAdmin, async (req, res) => {
+router.put('/api/admin/groups/:id/items', verifyUser, requirePermission('group:edit'), async (req, res) => {
   const id = Number(req.params.id);
   const items = Array.isArray(req.body.items) ? req.body.items : [];
   const client = await pool().connect();
@@ -122,7 +122,7 @@ router.put('/api/admin/groups/:id/items', verifyAdmin, async (req, res) => {
 });
 
 // 全量覆盖成员（事务）
-router.put('/api/admin/groups/:id/members', verifyAdmin, async (req, res) => {
+router.put('/api/admin/groups/:id/members', verifyUser, requirePermission('group:edit'), async (req, res) => {
   const id = Number(req.params.id);
   const userIds = Array.isArray(req.body.userIds) ? req.body.userIds : [];
   const client = await pool().connect();
@@ -147,7 +147,7 @@ router.put('/api/admin/groups/:id/members', verifyAdmin, async (req, res) => {
 });
 
 // ---- 1Panel 组同步 ----
-router.get('/api/admin/panel-groups', verifyAdmin, async (req, res) => {
+router.get('/api/admin/panel-groups', verifyUser, requirePermission('group:view'), async (req, res) => {
   try {
     const userGroups = await pool().query('SELECT * FROM panel_user_groups ORDER BY name');
     const modelGroups = await pool().query('SELECT * FROM panel_model_groups ORDER BY name');
@@ -157,12 +157,66 @@ router.get('/api/admin/panel-groups', verifyAdmin, async (req, res) => {
   }
 });
 
-router.post('/api/admin/panel-groups/sync', verifyAdmin, async (req, res) => {
+router.post('/api/admin/panel-groups/sync', verifyUser, requirePermission('group:edit'), async (req, res) => {
   try {
     const result = await syncPanelGroups();
     res.json({ data: result });
   } catch (e) {
     res.status(502).json({ error: 'PANEL_REJECTED', reason: e.message });
+  }
+});
+
+// ---- 角色列表（供角色分配区动态拉, 为后续自定义角色铺路）----
+// 返回全部角色（含 is_system 标记）, 前端按 name !== 'admin' 排除超管标记角色不可分配
+router.get('/api/admin/roles', verifyUser, requirePermission('role:view'), async (req, res) => {
+  try {
+    const r = await pool().query(
+      'SELECT id, name, description, is_system FROM roles ORDER BY id'
+    );
+    res.json({ data: r.rows });
+  } catch (e) {
+    res.status(500).json({ error: '获取角色列表失败', reason: e.message });
+  }
+});
+
+// ---- 用户角色分配（spec 盲区1: 没有它管理角色无法赋予用户）----
+
+// 查某用户已分配的角色
+router.get('/api/admin/users/:id/roles', verifyUser, requirePermission('user:edit'), async (req, res) => {
+  const userId = Number(req.params.id);
+  try {
+    const r = await pool().query(`
+      SELECT r.id, r.name, r.is_system FROM roles r
+      JOIN user_roles ur ON ur.role_id = r.id
+      WHERE ur.user_id = $1 ORDER BY r.id
+    `, [userId]);
+    res.json({ data: r.rows });
+  } catch (e) {
+    res.status(500).json({ error: '获取用户角色失败', reason: e.message });
+  }
+});
+
+// 全量覆盖某用户的角色（事务, 跟 items/members 一个范式）
+router.put('/api/admin/users/:id/roles', verifyUser, requirePermission('user:edit'), async (req, res) => {
+  const userId = Number(req.params.id);
+  const roleIds = Array.isArray(req.body.roleIds) ? req.body.roleIds.map(Number) : [];
+  const client = await pool().connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM user_roles WHERE user_id = $1', [userId]);
+    for (const rid of roleIds) {
+      await client.query(
+        `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [userId, rid]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: '更新用户角色失败', reason: e.message });
+  } finally {
+    client.release();
   }
 });
 

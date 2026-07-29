@@ -56,8 +56,8 @@
           <div v-if="showDropdown"
             class="absolute right-0 top-full mt-2 w-[160px] bg-white border border-[rgba(0,0,0,0.08)] rounded-xl shadow-card-hover py-1 z-[265]">
             <!-- 管理员菜单 -->
-            <template v-if="isAdmin">
-              <router-link to="/admin/stats" @click="showDropdown = false"
+            <template v-if="showAdminEntry">
+              <router-link to="/admin" @click="showDropdown = false"
                 class="flex items-center gap-2 px-4 py-2.5 text-sm text-text hover:bg-black/5 no-underline transition-colors">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
                 管理后台
@@ -100,6 +100,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { siteName, siteLogo, siteLogoIsDefault } from '../composables/useSiteBranding.js'
 import { bannerEnabled, bannerHtml, bannerVisible } from '../composables/useAnnouncement.js'
+import { loadPermissions, isPortalAdmin, permissions } from '../composables/usePermissions.js'
 import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
@@ -125,6 +126,12 @@ const isActive = (path) => {
 
 const isLoggedIn = computed(() => !!localStorage.getItem('token') || !!localStorage.getItem('admin_token'))
 const isAdmin = computed(() => !!localStorage.getItem('admin_token'))
+const ADMIN_PERMS = ['role:view','role:create','role:edit','role:delete','group:view','group:create','group:edit','group:delete','user:view','user:edit','user:create','user:delete','skill:edit','skill:delete','system:config']
+const showAdminEntry = computed(() => {
+  if (localStorage.getItem('admin_token')) return true
+  if (isPortalAdmin.value) return true
+  return ADMIN_PERMS.some(k => permissions.value.includes(k))
+})
 const userInitial = computed(() => {
   try {
     const user = JSON.parse(localStorage.getItem('user') || '{}')
@@ -141,6 +148,9 @@ const logout = () => {
 }
 
 const handleKeydown = (e) => { if (e.key === 'Escape') showDropdown.value = false }
-onMounted(() => document.addEventListener('keydown', handleKeydown))
+onMounted(() => {
+  document.addEventListener('keydown', handleKeydown)
+  loadPermissions()
+})
 onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
 </script>

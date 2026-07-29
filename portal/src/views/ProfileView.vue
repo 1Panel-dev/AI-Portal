@@ -135,11 +135,11 @@
                 </button>
               </div>
               <div v-if="apiKeyData" class="flex items-center gap-2">
-                <button @click="openResetDialog" :disabled="resettingKey || deletingKey"
+                <button v-if="can('key:edit')" @click="openResetDialog" :disabled="resettingKey || deletingKey"
                   class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.12)] text-text-secondary rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50">
                   {{ resettingKey ? '重置中...' : '重置 Key' }}
                 </button>
-                <button @click="openDeleteDialog" :disabled="resettingKey || deletingKey"
+                <button v-if="can('key:delete')" @click="openDeleteDialog" :disabled="resettingKey || deletingKey"
                   class="px-4 py-2 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-all disabled:opacity-50">
                   {{ deletingKey ? '删除中...' : '删除 Key' }}
                 </button>
@@ -157,7 +157,7 @@
                 </svg>
               </div>
               <p class="text-text-secondary text-sm mb-4">暂无 API Key</p>
-              <button @click="createKey" :disabled="creatingKey"
+              <button v-if="can('key:create')" @click="createKey" :disabled="creatingKey"
                 class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50">
                 {{ creatingKey ? '创建中...' : '申请 API Key' }}
               </button>
@@ -527,6 +527,7 @@ import NavBar from '../components/NavBar.vue'
 import SkillDetailModal from '../components/SkillDetailModal.vue'
 import AppDialog from '../components/AppDialog.vue'
 import SkillctlGuide from '../components/SkillctlGuide.vue'
+import { loadPermissions, can, isPortalAdmin } from '../composables/usePermissions.js'
 import * as echarts from 'echarts/core'
 import { BarChart, LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
@@ -1208,6 +1209,7 @@ onMounted(() => {
   if (activeTab.value === 'skills') fetchMySkills()
   loadOauthState()
   loadFeatureFlags()
+  loadPermissions()
   if (route.query.bound === '1') {
     setTimeout(() => showToast('已绑定企业微信'), 100)
   }

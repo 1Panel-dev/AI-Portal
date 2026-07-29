@@ -4,7 +4,7 @@ const path = require('path');
 const multer = require('multer');
 const storage = require('../lib/storage');
 const panelApi = require('../lib/1panel-api');
-const { JWT_SECRET, loginLimiter, verifyAuth, verifyAdmin } = require('../auth');
+const { JWT_SECRET, loginLimiter, verifyAuth, verifyAdmin, verifyUser, requirePermission } = require('../auth');
 const { panel, getPanelPayload, getPanelItems, getPanelRoles, syncModelsFromPanel, syncSkillsFromPanel, syncMcpsFromPanel, findPanelUser, createPanelUser } = require('../panel');
 const { inspectPanelBiz } = require('../lib/panel-biz');
 const bcrypt = require('bcrypt');
@@ -189,7 +189,7 @@ async function detectSkillType(filePath) {
 
 // 验证管理员 token 中间件
 
-router.get('/api/admin/submissions', verifyAdmin, async (req, res) => {
+router.get('/api/admin/submissions', verifyUser, requirePermission('skill:edit'), async (req, res) => {
   try {
     const result = await global.pool.query(`
       SELECT *
@@ -206,7 +206,7 @@ router.get('/api/admin/submissions', verifyAdmin, async (req, res) => {
 
 // 提交新技能（待审核）
 
-router.post('/api/admin/approve/:id', verifyAdmin, async (req, res) => {
+router.post('/api/admin/approve/:id', verifyUser, requirePermission('skill:edit'), async (req, res) => {
   try {
     const { id } = req.params;
     const reviewer = 'admin'; // 简化处理，实际可以从 token 中获取
@@ -334,7 +334,7 @@ router.post('/api/admin/approve/:id', verifyAdmin, async (req, res) => {
 });
 
 // 拒绝技能
-router.post('/api/admin/reject/:id', verifyAdmin, async (req, res) => {
+router.post('/api/admin/reject/:id', verifyUser, requirePermission('skill:edit'), async (req, res) => {
   try {
     const { id } = req.params;
     const { note } = req.body;
@@ -390,7 +390,7 @@ router.post('/api/admin/reject/:id', verifyAdmin, async (req, res) => {
 });
 
 // 获取审核历史（所有记录）
-router.get('/api/admin/submissions/all', verifyAdmin, async (req, res) => {
+router.get('/api/admin/submissions/all', verifyUser, requirePermission('skill:edit'), async (req, res) => {
   try {
     const { status } = req.query;
     let query = `
@@ -425,7 +425,7 @@ router.get('/api/admin/submissions/all', verifyAdmin, async (req, res) => {
 
 // 健康检查
 
-router.get('/api/admin/skills', verifyAdmin, async (req, res) => {
+router.get('/api/admin/skills', verifyUser, requirePermission('skill:view'), async (req, res) => {
   try {
     const { status = 'all', page = '1', limit = '20', search = '', category = 'all' } = req.query;
 
@@ -495,7 +495,7 @@ router.get('/api/admin/skills', verifyAdmin, async (req, res) => {
 });
 
 // 更新技能信息
-router.put('/api/admin/skills/:id', verifyAdmin, async (req, res) => {
+router.put('/api/admin/skills/:id', verifyUser, requirePermission('skill:edit'), async (req, res) => {
   try {
     const { id } = req.params;
     const {
@@ -540,7 +540,7 @@ router.put('/api/admin/skills/:id', verifyAdmin, async (req, res) => {
 });
 
 // 下架/上架技能
-router.post('/api/admin/skills/:id/toggle', verifyAdmin, async (req, res) => {
+router.post('/api/admin/skills/:id/toggle', verifyUser, requirePermission('skill:edit'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -598,7 +598,7 @@ router.post('/api/admin/skills/:id/toggle', verifyAdmin, async (req, res) => {
 });
 
 // 删除技能
-router.delete('/api/admin/skills/:id', verifyAdmin, async (req, res) => {
+router.delete('/api/admin/skills/:id', verifyUser, requirePermission('skill:delete'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -650,7 +650,7 @@ router.delete('/api/admin/skills/:id', verifyAdmin, async (req, res) => {
 // ============ 系统配置 API ============
 
 // 获取存储配置
-router.get('/api/admin/config', verifyAdmin, async (req, res) => {
+router.get('/api/admin/config', verifyUser, requirePermission('system:config'), async (req, res) => {
   try {
     res.json(storage.getConfig());
   } catch (err) {
@@ -660,7 +660,7 @@ router.get('/api/admin/config', verifyAdmin, async (req, res) => {
 });
 
 // 保存存储配置
-router.post('/api/admin/config', verifyAdmin, async (req, res) => {
+router.post('/api/admin/config', verifyUser, requirePermission('system:config'), async (req, res) => {
   try {
     const { storageType, cosSecretId, cosSecretKey, cosBucket, cosRegion, localPath } = req.body;
 
@@ -692,7 +692,7 @@ router.post('/api/admin/config', verifyAdmin, async (req, res) => {
 });
 
 // 测试 COS 连接
-router.post('/api/admin/config/test-cos', verifyAdmin, async (req, res) => {
+router.post('/api/admin/config/test-cos', verifyUser, requirePermission('system:config'), async (req, res) => {
   try {
     const { cosSecretId, cosSecretKey, cosBucket, cosRegion } = req.body;
 
@@ -730,7 +730,7 @@ router.post('/api/admin/config/test-cos', verifyAdmin, async (req, res) => {
 // ============ 1Panel 网关配置 API ============
 
 // 获取 1Panel 配置(含同步开关、间隔、最近一次同步时间)
-router.get('/api/admin/panel-config', verifyAdmin, async (req, res) => {
+router.get('/api/admin/panel-config', verifyUser, requirePermission('system:config'), async (req, res) => {
   try {
     const [cfgRes, syncRes, panelRoles] = await Promise.all([
       global.pool.query("SELECT key, value FROM system_config WHERE key LIKE 'panel_%'"),
@@ -788,7 +788,7 @@ router.get('/api/admin/panel-config', verifyAdmin, async (req, res) => {
 });
 
 // 获取「调用示例」配置(管理员视图,允许编辑)
-router.get('/api/admin/model-example', verifyAdmin, async (req, res) => {
+router.get('/api/admin/model-example', verifyUser, requirePermission('system:config'), async (req, res) => {
   try {
     const result = await global.pool.query(`
       SELECT key, value FROM system_config
@@ -807,7 +807,7 @@ router.get('/api/admin/model-example', verifyAdmin, async (req, res) => {
 });
 
 // 保存「调用示例」配置
-router.post('/api/admin/model-example', verifyAdmin, async (req, res) => {
+router.post('/api/admin/model-example', verifyUser, requirePermission('system:config'), async (req, res) => {
   try {
     const { endpoint, template } = req.body;
     // 简单校验:endpoint 非空且像 URL,template 非空
@@ -840,7 +840,7 @@ router.post('/api/admin/model-example', verifyAdmin, async (req, res) => {
 });
 
 // 保存 1Panel 配置
-router.post('/api/admin/panel-config', verifyAdmin, async (req, res) => {
+router.post('/api/admin/panel-config', verifyUser, requirePermission('system:config'), async (req, res) => {
   try {
     const {
       baseUrl, apiKey, timeout,
@@ -898,7 +898,7 @@ router.post('/api/admin/panel-config', verifyAdmin, async (req, res) => {
 });
 
 // 测试 1Panel 连接(用传入的配置临时测试,不持久化)
-router.post('/api/admin/panel-config/test', verifyAdmin, async (req, res) => {
+router.post('/api/admin/panel-config/test', verifyUser, requirePermission('system:config'), async (req, res) => {
   try {
     const { baseUrl, apiKey, timeout } = req.body;
     if (!baseUrl) {
@@ -933,7 +933,7 @@ router.post('/api/admin/panel-config/test', verifyAdmin, async (req, res) => {
 });
 
 // 立即同步(手动触发,不等定时器)
-router.post('/api/admin/panel-config/sync-now', verifyAdmin, async (req, res) => {
+router.post('/api/admin/panel-config/sync-now', verifyUser, requirePermission('system:config'), async (req, res) => {
   const startTime = Date.now();
   console.log('[admin] 管理员触发手动同步,userId=', req.user?.id, '|', new Date().toISOString());
   try {
@@ -990,7 +990,7 @@ router.post('/api/admin/panel-config/sync-now', verifyAdmin, async (req, res) =>
 // ============ 数据统计 API ============
 
 // 获取管理后台统计数据
-router.get('/api/admin/stats', verifyAdmin, async (req, res) => {
+router.get('/api/admin/stats', verifyUser, requirePermission('user:view'), async (req, res) => {
   try {
     // 5 个查询互相独立，并发执行可显著降低 P99
     const [
@@ -1071,7 +1071,7 @@ function extractDisplayName(pu) {
   if (desc.length > 0) return desc;
   return null;
 }
-router.get('/api/admin/portal-users/map', verifyAdmin, async (req, res) => {
+router.get('/api/admin/portal-users/map', verifyUser, requirePermission('user:view'), async (req, res) => {
   try {
     const result = await global.pool.query(
       `SELECT id, panel_user_id, COALESCE(NULLIF(display_name, ''), name) AS display_name
@@ -1092,7 +1092,7 @@ router.get('/api/admin/portal-users/map', verifyAdmin, async (req, res) => {
 });
 
 // 获取 1Panel AI 使用统计数据（代理透传）
-router.get('/api/admin/usage-statistics', verifyAdmin, async (req, res) => {
+router.get('/api/admin/usage-statistics', verifyUser, requirePermission('user:view'), async (req, res) => {
   try {
     const { days, userId } = req.query;
     // 1Panel usage/statistics 只支持 userId 服务端筛选，不支持时间过滤
@@ -1128,7 +1128,7 @@ router.get('/api/admin/usage-statistics', verifyAdmin, async (req, res) => {
 });
 
 // 分页查询本地门户用户
-router.get('/api/admin/portal-users', verifyAdmin, async (req, res) => {
+router.get('/api/admin/portal-users', verifyUser, requirePermission('user:view'), async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page || '1', 10));
     const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize || '20', 10)));
@@ -1167,7 +1167,7 @@ router.get('/api/admin/portal-users', verifyAdmin, async (req, res) => {
 });
 
 // 删除本地用户（同时删除远端用户和 API Key）
-router.delete('/api/admin/portal-users/:id', verifyAdmin, async (req, res) => {
+router.delete('/api/admin/portal-users/:id', verifyUser, requirePermission('user:delete'), async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
 
@@ -1239,7 +1239,7 @@ router.delete('/api/admin/portal-users/:id', verifyAdmin, async (req, res) => {
 
 // 从 1Panel 同步用户（异步任务模式）
 // 切 1Panel 实例时：旧 host 的 active 用户自动禁用，新 host 的用户增量导入
-router.post('/api/admin/portal-users/sync', verifyAdmin, async (req, res) => {
+router.post('/api/admin/portal-users/sync', verifyUser, requirePermission('user:edit'), async (req, res) => {
   const taskId = genTaskId();
   // 先落一条 running 任务
   await global.pool.query(
@@ -1416,7 +1416,7 @@ async function doSyncUsers() {
 }
 
 // 查询同步任务状态
-router.get('/api/admin/sync-tasks/:taskId', verifyAdmin, async (req, res) => {
+router.get('/api/admin/sync-tasks/:taskId', verifyUser, requirePermission('user:view'), async (req, res) => {
   try {
     const { taskId } = req.params;
     const result = await global.pool.query(
@@ -1434,7 +1434,7 @@ router.get('/api/admin/sync-tasks/:taskId', verifyAdmin, async (req, res) => {
 });
 
 // 管理员修改用户密码（支持批量，同时同步到 1Panel 远端）
-router.post('/api/admin/portal-users/password', verifyAdmin, async (req, res) => {
+router.post('/api/admin/portal-users/password', verifyUser, requirePermission('user:edit'), async (req, res) => {
   try {
     const { user_ids, new_password } = req.body;
 
@@ -1511,7 +1511,7 @@ router.post('/api/admin/portal-users/password', verifyAdmin, async (req, res) =>
 // ============ 1Panel 用户管理 (管理员) ============
 
 // 获取 1Panel 所有用户
-router.get('/api/admin/panel-users', verifyAdmin, async (req, res) => {
+router.get('/api/admin/panel-users', verifyUser, requirePermission('user:edit'), async (req, res) => {
   try {
     const { roleId } = req.query;
     const response = await panel.post('/api/v2/core/enterprise/users/search', {
@@ -1557,7 +1557,7 @@ router.get('/api/admin/panel-users', verifyAdmin, async (req, res) => {
 });
 
 // 批量修改面板用户密码
-router.post('/api/admin/panel-users/batch-password', verifyAdmin, async (req, res) => {
+router.post('/api/admin/panel-users/batch-password', verifyUser, requirePermission('user:edit'), async (req, res) => {
   try {
     const { password, roleId, userIds } = req.body;
 
@@ -1710,7 +1710,7 @@ function sanitizeAnnouncementHtml(html) {
 }
 
 // 获取站点品牌 (admin 视图)
-router.get('/api/admin/branding', verifyAdmin, async (req, res) => {
+router.get('/api/admin/branding', verifyUser, requirePermission('system:config'), async (req, res) => {
   try {
     const result = await global.pool.query(
       `SELECT key, value FROM system_config WHERE key IN ('site_name', 'site_logo', 'site_favicon')`
@@ -1729,7 +1729,7 @@ router.get('/api/admin/branding', verifyAdmin, async (req, res) => {
 });
 
 // 保存站点品牌
-router.post('/api/admin/branding', verifyAdmin, async (req, res) => {
+router.post('/api/admin/branding', verifyUser, requirePermission('system:config'), async (req, res) => {
   try {
     const { site_name, site_logo, site_favicon } = req.body || {};
     if (typeof site_name !== 'string' || !site_name.trim()) {
@@ -1761,7 +1761,7 @@ router.post('/api/admin/branding', verifyAdmin, async (req, res) => {
 
 // 上传 logo / favicon
 // 返回的 url 是站点绝对路径(/uploads/branding/...), 前端拼上 base 即可用
-router.post('/api/admin/branding/upload/:kind', verifyAdmin, (req, res) => {
+router.post('/api/admin/branding/upload/:kind', verifyUser, requirePermission('system:config'), (req, res) => {
   if (!['logo', 'favicon'].includes(req.params.kind)) {
     return res.status(400).json({ error: 'kind 仅支持 logo / favicon' });
   }
@@ -1778,7 +1778,7 @@ router.post('/api/admin/branding/upload/:kind', verifyAdmin, (req, res) => {
 });
 
 // 获取公告 (admin 视图)
-router.get('/api/admin/announcement', verifyAdmin, async (req, res) => {
+router.get('/api/admin/announcement', verifyUser, requirePermission('system:config'), async (req, res) => {
   try {
     const result = await global.pool.query(
       `SELECT key, value FROM system_config
@@ -1802,7 +1802,7 @@ router.get('/api/admin/announcement', verifyAdmin, async (req, res) => {
 
 // 保存公告
 // 注意: 保存时 dialog_version 自增, 让所有勾过「不再提示」的用户重新看到 dialog
-router.post('/api/admin/announcement', verifyAdmin, async (req, res) => {
+router.post('/api/admin/announcement', verifyUser, requirePermission('system:config'), async (req, res) => {
   try {
     const {
       banner_enabled, banner_html,
@@ -1847,7 +1847,7 @@ router.post('/api/admin/announcement', verifyAdmin, async (req, res) => {
 // 管理员新增本地用户(OAuth 启用关闭自助注册后的唯一录入入口之一)
 // 与 portal.js 的 /api/auth/register 保持同样的校验和 1Panel 同步逻辑
 // ============================================================
-router.post('/api/admin/portal-users', verifyAdmin, async (req, res) => {
+router.post('/api/admin/portal-users', verifyUser, requirePermission('user:edit'), async (req, res) => {
   try {
     const rawUsername = String(req.body.username || '').trim();
     const rawPassword = req.body.password;
@@ -1938,7 +1938,7 @@ function maskSecret(s) {
   return '***' + s.slice(-4);
 }
 
-router.get('/api/admin/oauth/providers', verifyAdmin, async (req, res) => {
+router.get('/api/admin/oauth/providers', verifyUser, requirePermission('system:config'), async (req, res) => {
   try {
     const r = await global.pool.query(
       'SELECT provider, display_name, enabled, config, sort_order, updated_at FROM oauth_providers ORDER BY sort_order ASC'
@@ -1971,7 +1971,7 @@ router.get('/api/admin/oauth/providers', verifyAdmin, async (req, res) => {
   }
 });
 
-router.put('/api/admin/oauth/providers/:provider', verifyAdmin, async (req, res) => {
+router.put('/api/admin/oauth/providers/:provider', verifyUser, requirePermission('system:config'), async (req, res) => {
   try {
     const provider = req.params.provider;
     const adapter = oauthRegistry.getAdapter(provider);
@@ -2044,7 +2044,7 @@ router.put('/api/admin/oauth/providers/:provider', verifyAdmin, async (req, res)
   }
 });
 
-router.post('/api/admin/oauth/providers/:provider/test', verifyAdmin, async (req, res) => {
+router.post('/api/admin/oauth/providers/:provider/test', verifyUser, requirePermission('system:config'), async (req, res) => {
   try {
     const provider = req.params.provider;
     const adapter = oauthRegistry.getAdapter(provider);

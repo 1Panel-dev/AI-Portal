@@ -5,7 +5,7 @@ const multer = require('multer');
 const storage = require('../lib/storage');
 const downloadCounter = require('../lib/downloadCounter');
 const { panel, getPanelPayload, getPanelItems, downloadPanelSkill } = require('../panel');
-const { downloadLimiter, uploadLimiter, verifyUser } = require('../auth');
+const { downloadLimiter, uploadLimiter, verifyUser, requirePermission, optionalUser } = require('../auth');
 
 const router = express.Router();
 
@@ -281,7 +281,7 @@ router.get('/api/health', async (req, res) => {
 });
 
 // 获取所有技能
-router.get('/api/skills', async (req, res) => {
+router.get('/api/skills', optionalUser, async (req, res) => {
   try {
     const {
       category,
@@ -323,6 +323,18 @@ router.get('/api/skills', async (req, res) => {
     const params = [];
     let paramIndex = 1;
 
+    // RBAC Phase 2: 登录非超管用户按资源组过滤 Skill（访客/超管/未授权全公开兜底）
+    let visibleSkillSlugs = null;
+    if (req.portalUser && !req.portalUser.is_portal_admin) {
+      const { getVisibleResourcesForUser } = require('../lib/permission');
+      const visible = await getVisibleResourcesForUser(req.portalUser.id);
+      // 全公开兜底时 visible.skill 是 listAll() 返回的行对象数组（含 slug/title），
+      // 资源组已勾选时是 slug 字符串数组。只有后者才需要过滤。
+      if (Array.isArray(visible.skill) && typeof visible.skill[0] === 'string') {
+        visibleSkillSlugs = visible.skill;
+      }
+    }
+
     if (category && category !== 'all') {
       whereClause += ` AND category = $${paramIndex}`;
       params.push(category);
@@ -339,6 +351,12 @@ router.get('/api/skills', async (req, res) => {
     if (search) {
       whereClause += ` AND (title ILIKE $${paramIndex} OR description ILIKE $${paramIndex})`;
       params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    if (visibleSkillSlugs) {
+      whereClause += ` AND slug = ANY($${paramIndex})`;
+      params.push(visibleSkillSlugs);
       paramIndex++;
     }
 
@@ -473,7 +491,7 @@ router.post('/api/skills/:id/download', downloadLimiter, async (req, res) => {
 // ============ Skill 包上传/下载 API ============
 
 // 上传 Skill 包（zip）
-router.post('/api/skills/upload', verifyUser, uploadLimiter, upload.single('file'), async (req, res) => {
+router.post('/api/skills/upload', verifyUser, requirePermission('skill:create'), uploadLimiter, upload.single('file'), async (req, res) => {
   try {
     if (!(await isSkillSubmitEnabled())) {
       return res.status(403).json({

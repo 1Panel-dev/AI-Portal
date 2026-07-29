@@ -617,7 +617,40 @@ async function syncPanelGroups() {
     }
   }
 
-  return { userGroups: userGroups.length, modelGroups: modelGroups.length, skipped: false };
+  // 第三路: 同步 api-keys 的 groupId 到 portal_api_keys（按 panel_key_id 严格匹配, 匹配不上不更新）
+  // 现有 155 个 key 的 group_id 全是默认值 1, 这里写真实值供三层 JOIN 用
+  let apiKeysUpdated = 0;
+  const keys = await searchAll('/api/v2/core/enterprise/ai-proxy/api-keys/search', {});
+  for (const k of keys) {
+    // k.id = 1Panel 的 key id(panel_key_id), k.groupId = 真实用户组 id
+    if (k.groupId == null) continue;
+    const upd = await global.pool.query(
+      'UPDATE portal_api_keys SET group_id = $1, synced_at = CURRENT_TIMESTAMP WHERE panel_key_id = $2',
+      [k.groupId, k.id]
+    );
+    apiKeysUpdated += upd.rowCount;
+  }
+
+  // 软删: 1Panel 不再返回的组本地置 is_active=FALSE（只对本次有返回时才软删, 防空响应误删）
+  const userGroupIds = userGroups.map(g => g.id);
+  const modelGroupIds = modelGroups.map(g => g.id);
+  const softDeletedUserGroups = (await global.pool.query(
+    'UPDATE panel_user_groups SET is_active = FALSE WHERE NOT (panel_group_id = ANY($1)) AND is_active = TRUE',
+    [userGroupIds]
+  )).rowCount;
+  const softDeletedModelGroups = (await global.pool.query(
+    'UPDATE panel_model_groups SET is_active = FALSE WHERE NOT (panel_group_id = ANY($1)) AND is_active = TRUE',
+    [modelGroupIds]
+  )).rowCount;
+
+  return {
+    userGroups: userGroups.length,
+    modelGroups: modelGroups.length,
+    apiKeysUpdated,
+    softDeletedUserGroups,
+    softDeletedModelGroups,
+    skipped: false,
+  };
 }
 
 /**
