@@ -66,9 +66,13 @@ router.beforeEach((to, from, next) => {
   }
 
   if (to.meta.requiresAuth) {
-    const token = localStorage.getItem('admin_token')
-    if (!token) return next('/admin/login')
-    if (isTokenExpired(token)) return clearAndRedirect('/admin/login')
+    const adminToken = localStorage.getItem('admin_token')
+    const token = localStorage.getItem('token')
+    if (!adminToken && !token) return next('/admin/login')
+    // 两个 token 都查过期, 任一有效即放行
+    const at = adminToken ? isTokenExpired(adminToken) : true
+    const ut = token ? isTokenExpired(token) : true
+    if (at && ut) return clearAndRedirect('/admin/login')
   }
   if (to.meta.requiresUserAuth) {
     if (isInsideWecomUA()) {
