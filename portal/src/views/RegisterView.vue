@@ -1,6 +1,6 @@
 ﻿<template>
   <div class="relative z-10 min-h-screen">
-    <NavBar />
+    <SimpleHeader right="register" />
 
     <main class="max-w-[400px] mx-auto px-6 pt-[160px] pb-20 animate-fade-up">
       <div class="text-center mb-8">
@@ -103,7 +103,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import NavBar from '../components/NavBar.vue'
+import SimpleHeader from '../components/SimpleHeader.vue'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 

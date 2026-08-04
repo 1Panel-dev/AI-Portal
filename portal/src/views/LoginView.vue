@@ -1,6 +1,6 @@
 ﻿<template>
   <div class="relative z-10 min-h-screen">
-    <NavBar />
+    <SimpleHeader right="login-page" />
 
     <main class="max-w-[400px] mx-auto px-6 pt-[160px] pb-20 animate-fade-up">
       <!-- 企微客户端内自动登录:显示 loading,不渲染表单,避免页面闪现 -->
@@ -90,7 +90,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import NavBar from '../components/NavBar.vue'
+import SimpleHeader from '../components/SimpleHeader.vue'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 
