@@ -9,7 +9,7 @@
         查找可调用的 AI 模型
       </h1>
       <p class="text-[18px] text-text-secondary font-normal mb-8 leading-relaxed">复制模型名称与调用地址，快速接入企业 AI 能力</p>
-      <router-link :to="ctaLink"
+      <router-link v-if="!isLoggedIn || canCreateKey" :to="ctaLink"
         class="inline-flex items-center gap-2 px-5 py-2.5 bg-accent text-white text-[14px] font-medium rounded-xl hover:bg-accent-hover transition-all no-underline shadow-[0_4px_12px_rgba(0,0,0,0.15)] mb-6">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
         {{ isLoggedIn ? '申请 API Key' : (oauthEnabled ? '登录后申请 API Key' : '申请 API Key 快速体验') }}
@@ -136,6 +136,7 @@ import NavBar from '../components/NavBar.vue'
 import FilterItem from '../components/FilterItem.vue'
 import { providerLabels } from '../data/categories.js'
 import { bannerEnabled, bannerHtml, bannerVisible } from '../composables/useAnnouncement.js'
+import { loadPermissions, can } from '../composables/usePermissions.js'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const baseUrl = ref('')
@@ -190,6 +191,7 @@ const copiedTarget = ref(null)
 const loading = ref(true)
 const oauthEnabled = ref(false)
 const isLoggedIn = computed(() => !!(localStorage.getItem('token') || localStorage.getItem('admin_token')))
+const canCreateKey = ref(false)
 const hasVisibleBanner = computed(() => bannerEnabled.value && bannerVisible.value && !!bannerHtml.value)
 const ctaLink = computed(() => {
   if (isLoggedIn.value) return '/profile?tab=api-keys'
@@ -296,9 +298,11 @@ async function checkOAuth() {
   } catch { /* 忽略 */ }
 }
 
-onMounted(() => {
+onMounted(async () => {
   fetchModels()
   fetchExampleConfig()
   checkOAuth()
+  await loadPermissions()
+  canCreateKey.value = can('key:create')
 })
 </script>

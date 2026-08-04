@@ -4,6 +4,9 @@
 
     <main class="max-w-[600px] mx-auto px-6 pt-[132px] pb-20">
       <h1 class="text-[32px] font-bold text-text text-center mb-1.5 tracking-[-0.5px]">提交技能</h1>
+      <div v-if="!canSubmit" class="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm text-center">
+        你没有提交技能的权限（skill:create）。
+      </div>
       <p class="text-[15px] text-text-secondary text-center mb-9">分享你的 AI 技能，帮助更多开发者</p>
 
       <div class="bg-white rounded-modal border border-[rgba(0,0,0,0.04)] p-10 shadow-card">
@@ -124,7 +127,7 @@
         <!-- Submit -->
         <button
           @click="submit"
-          :disabled="submitting"
+          :disabled="submitting || !canSubmit"
           class="w-full h-12 bg-accent text-white border-none rounded-xl text-[15px] font-semibold cursor-pointer transition-colors duration-150 hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {{ submitting ? '上传中...' : '提交技能' }}
@@ -173,6 +176,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
 import { categories } from '../data/categories.js'
+import { loadPermissions, can } from '../composables/usePermissions.js'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const router = useRouter()
@@ -192,6 +196,7 @@ const showSuccess = ref(false)
 const showError = ref(false)
 const errorMessage = ref('')
 const submitInstallCmd = ref('')
+const canSubmit = ref(false)
 
 const validateField = (field) => {
   const val = form.value[field]
@@ -300,5 +305,8 @@ const submit = async () => {
   } finally { submitting.value = false }
 }
 
-onMounted(() => {})
+onMounted(async () => {
+  await loadPermissions()
+  canSubmit.value = can('skill:create')
+})
 </script>
