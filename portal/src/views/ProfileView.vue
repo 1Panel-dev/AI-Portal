@@ -64,7 +64,7 @@
               </div>
             </div>
             <div class="mt-3 flex justify-end gap-3">
-              <button v-if="isAdmin" @click="goToAdmin" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors">进入管理后台</button>
+              <button v-if="showAdminEntry" @click="goToAdmin" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors">进入管理后台</button>
               <button @click="openChangePasswordDialog" class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.12)] text-text-secondary rounded-lg hover:bg-surface-secondary transition-colors">修改密码</button>
             </div>
             <div class="mt-8 pt-5 border-t border-[rgba(0,0,0,0.06)] flex justify-end">
@@ -280,18 +280,18 @@
           </div>
 
           <div v-if="activeTab === 'skills'" class="space-y-6">
-            <SkillctlGuide v-if="!isAdmin" />
+            <SkillctlGuide v-if="!isPortalAdmin" />
             <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
               <div class="flex items-center justify-between gap-3 mb-6">
-                <h2 class="text-lg font-semibold text-text">{{ isAdmin ? '技能审核' : '我的技能' }}</h2>
-                <router-link v-if="!isAdmin && featureFlags.skillSubmitEnabled" to="/submit" class="shrink-0 px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all no-underline">提交技能</router-link>
+                <h2 class="text-lg font-semibold text-text">{{ can('skill:edit') ? '技能审核' : '我的技能' }}</h2>
+                <router-link v-if="can('skill:create') && featureFlags.skillSubmitEnabled" to="/submit" class="shrink-0 px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all no-underline">提交技能</router-link>
               </div>
               <div v-if="mySkillsLoading" class="py-10 text-center text-text-secondary text-sm">加载中...</div>
               <div v-else-if="mySkills.length === 0" class="py-12 text-center">
                 <div class="w-12 h-12 bg-surface-secondary rounded-full mx-auto mb-3 flex items-center justify-center">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="1.5"><path d="M12 2l7 4v6c0 5-3 8-7 10-4-2-7-5-7-10V6l7-4z"/><path d="M9 12l2 2 4-4"/></svg>
                 </div>
-                <p class="text-text-secondary text-sm">{{ isAdmin ? '暂无待审核的技能' : '暂未提交任何技能' }}</p>
+                <p class="text-text-secondary text-sm">{{ can('skill:edit') ? '暂无待审核的技能' : '暂未提交任何技能' }}</p>
               </div>
               <div v-else class="space-y-3">
                 <div v-for="skill in mySkills" :key="skill.id" class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 border border-[rgba(0,0,0,0.06)] rounded-xl">
@@ -527,7 +527,7 @@ import NavBar from '../components/NavBar.vue'
 import SkillDetailModal from '../components/SkillDetailModal.vue'
 import AppDialog from '../components/AppDialog.vue'
 import SkillctlGuide from '../components/SkillctlGuide.vue'
-import { loadPermissions, can, isPortalAdmin } from '../composables/usePermissions.js'
+import { loadPermissions, can, isPortalAdmin, showAdminEntry } from '../composables/usePermissions.js'
 import * as echarts from 'echarts/core'
 import { BarChart, LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
@@ -817,7 +817,7 @@ const tabs = computed(() => {
   // 管理员看到"技能审核"，普通用户看到"我的技能"
   tabsList.push({
     id: 'skills',
-    label: isAdmin.value ? '技能审核' : '我的技能',
+    label: can('skill:edit') ? '技能审核' : '我的技能',
   })
 
   return tabsList
@@ -830,7 +830,6 @@ const showNewPassword = ref(false)
 const showConfirmPassword = ref(false)
 const changingPassword = ref(false)
 const passwordError = ref('')
-const isAdmin = computed(() => user.value.role === 'admin')
 const fetchUser = async () => {
   try {
     const token = localStorage.getItem('token')
