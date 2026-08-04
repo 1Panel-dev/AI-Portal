@@ -4,13 +4,22 @@ import App from './App.vue'
 import './style.css'
 import { getRouterBase, isTokenExpired, clearAuth } from './lib/apiBase.js'
 
-// 首屏直出：模型广场是默认首页，eager 加载避免一次额外的网络往返
-import ModelsView from './views/ModelsView.vue'
+// 首屏直出：落地页是默认首页，eager 加载避免一次额外的网络往返
+import LandingView from './views/LandingView.vue'
 
 // 其余视图按需懒加载，由 Vite 自动 code-split
 const routes = [
-  { path: '/', component: ModelsView, meta: { public: true } },
-  { path: '/models', redirect: '/' },
+  {
+    path: '/',
+    component: LandingView,
+    meta: { public: true },
+    // 已登录用户访问 / 在挂载前直接跳模型广场，零闪烁
+    beforeEnter: (_to, _from, next) => {
+      const t = localStorage.getItem('token') || localStorage.getItem('admin_token')
+      next(t ? '/models' : undefined)
+    },
+  },
+  { path: '/models', component: () => import('./views/ModelsView.vue'), meta: { public: true } },
   { path: '/skills', component: () => import('./views/HomeView.vue') },
   { path: '/mcp', component: () => import('./views/McpPlazaView.vue'), meta: { public: true } },
   { path: '/skill/:slug', component: () => import('./views/SkillDetailView.vue') },
