@@ -6,7 +6,7 @@
 //       保证后台页面在 /api/my/permissions 异常时仍可访问。
 //
 // Phase 2 才接入 AdminLayout 菜单显隐 / 按钮禁用；Phase 1 仅提供 can() 供页面按需调用。
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { API_BASE } from '../lib/apiBase'
 
 export const permissions = ref([])
@@ -46,3 +46,19 @@ export function can(key) {
   if (isPortalAdmin.value) return true
   return permissions.value.includes(key)
 }
+
+// 管理类权限位清单(用于判断是否显示「管理后台」入口)
+export const ADMIN_PERMS = [
+  'role:view','role:create','role:edit','role:delete',
+  'group:view','group:create','group:edit','group:delete',
+  'user:view','user:edit','user:create','user:delete',
+  'skill:edit','skill:delete','system:config',
+]
+
+// 是否显示「管理后台」入口:超管或持有任一管理权限位
+// isPortalAdmin/admin_token 短路保证超管首屏不闪(权限未加载完也返 true)
+export const showAdminEntry = computed(() => {
+  if (isPortalAdmin.value) return true
+  if (localStorage.getItem('admin_token')) return true
+  return ADMIN_PERMS.some(k => permissions.value.includes(k))
+})

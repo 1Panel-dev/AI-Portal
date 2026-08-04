@@ -60,27 +60,23 @@
           </button>
           <div v-if="showDropdown"
             class="absolute right-0 top-full mt-2 w-[160px] bg-white border border-[rgba(0,0,0,0.08)] rounded-xl shadow-card-hover py-1 z-[265]">
-            <!-- 管理员菜单 -->
-            <template v-if="showAdminEntry">
-              <router-link to="/admin" @click="showDropdown = false"
-                class="flex items-center gap-2 px-4 py-2.5 text-sm text-text hover:bg-black/5 no-underline transition-colors">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
-                管理后台
-              </router-link>
-            </template>
-            <!-- 普通用户菜单 -->
-            <template v-else>
-              <router-link to="/profile" @click="showDropdown = false"
-                class="flex items-center gap-2 px-4 py-2.5 text-sm text-text hover:bg-black/5 no-underline transition-colors">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                个人中心
-              </router-link>
-              <router-link to="/profile?tab=api-keys" @click="showDropdown = false"
-                class="flex items-center gap-2 px-4 py-2.5 text-sm text-text hover:bg-black/5 no-underline transition-colors">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+            <!-- 管理后台:超管 + 管理角色 -->
+            <router-link v-if="showAdminEntry" to="/admin" @click="showDropdown = false"
+              class="flex items-center gap-2 px-4 py-2.5 text-sm text-text hover:bg-black/5 no-underline transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+              管理后台
+            </router-link>
+            <!-- 个人中心/API Key:有 token 的用户(管理角色 + 普通用户;超管无 token 不显) -->
+            <router-link v-if="hasPortalToken" to="/profile" @click="showDropdown = false"
+              class="flex items-center gap-2 px-4 py-2.5 text-sm text-text hover:bg-black/5 no-underline transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              个人中心
+            </router-link>
+            <router-link v-if="hasPortalToken" to="/profile?tab=api-keys" @click="showDropdown = false"
+              class="flex items-center gap-2 px-4 py-2.5 text-sm text-text hover:bg-black/5 no-underline transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
               API Key 管理
             </router-link>
-            </template>
             <div class="my-1 border-t border-[rgba(0,0,0,0.06)]"></div>
             <button @click="logout"
               class="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors">
@@ -105,7 +101,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { siteName, siteLogo, siteLogoIsDefault } from '../composables/useSiteBranding.js'
 import { bannerEnabled, bannerHtml, bannerVisible } from '../composables/useAnnouncement.js'
-import { loadPermissions, isPortalAdmin, permissions } from '../composables/usePermissions.js'
+import { loadPermissions, isPortalAdmin, showAdminEntry } from '../composables/usePermissions.js'
 import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
@@ -135,13 +131,7 @@ const isActive = (path) => {
 }
 
 const isLoggedIn = computed(() => !!localStorage.getItem('token') || !!localStorage.getItem('admin_token'))
-const isAdmin = computed(() => !!localStorage.getItem('admin_token'))
-const ADMIN_PERMS = ['role:view','role:create','role:edit','role:delete','group:view','group:create','group:edit','group:delete','user:view','user:edit','user:create','user:delete','skill:edit','skill:delete','system:config']
-const showAdminEntry = computed(() => {
-  if (localStorage.getItem('admin_token')) return true
-  if (isPortalAdmin.value) return true
-  return ADMIN_PERMS.some(k => permissions.value.includes(k))
-})
+const hasPortalToken = computed(() => !!localStorage.getItem('token'))
 const userInitial = computed(() => {
   try {
     const user = JSON.parse(localStorage.getItem('user') || '{}')
