@@ -50,10 +50,13 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import NavBar from '../components/NavBar.vue'
 import { Sun, Puzzle, LayoutGrid } from 'lucide-vue-next'
 import { siteName } from '../composables/useSiteBranding.js'
-import { hasVisibleBanner } from '../composables/useAnnouncement.js'
+import { bannerEnabled, bannerHtml, bannerVisible } from '../composables/useAnnouncement.js'
+
+const hasVisibleBanner = computed(() => bannerEnabled.value && bannerVisible.value && !!bannerHtml.value)
 
 const plazas = [
   { to: '/models', title: '模型广场', desc: '查找可调用的 AI 模型，复制模型名称与调用地址快速接入', icon: Sun, bg: 'bg-[rgba(0,94,235,0.08)]', color: 'text-accent' },
