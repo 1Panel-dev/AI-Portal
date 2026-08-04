@@ -45,10 +45,10 @@
           <div class="text-text-secondary">{{ user.api_key_count || 0 }}</div>
           <div class="text-text-secondary">{{ user.submission_count || 0 }}</div>
           <div class="text-xs text-text-tertiary">{{ formatDate(user.created_at) }}</div>
-          <div class="text-right flex items-center justify-end gap-1.5">
-            <button v-if="user.role !== 'admin'" @click="openRoleDialog(user)" class="px-2.5 py-1 text-xs text-text-secondary border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary transition-all">分配角色</button>
-            <button v-if="user.role !== 'admin'" @click="openPasswordDialog(user)" class="px-2.5 py-1 text-xs text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-all">改密</button>
-            <button v-if="user.role !== 'admin'" @click="confirmDelete(user)" class="px-2.5 py-1 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-all">删除</button>
+          <div class="flex items-center justify-end gap-2">
+            <button v-if="user.role !== 'admin'" @click="openRoleDialog(user)" class="p-2 text-text-secondary hover:text-accent transition-all" title="分配角色"><UserCog class="w-4 h-4" /></button>
+            <button v-if="user.role !== 'admin'" @click="openPasswordDialog(user)" class="p-2 text-text-secondary hover:text-accent transition-all" title="修改密码"><KeyRound class="w-4 h-4" /></button>
+            <button v-if="user.role !== 'admin'" @click="confirmDelete(user)" class="p-2 text-text-secondary hover:text-red-500 transition-all" title="删除"><Trash2 class="w-4 h-4" /></button>
             <span v-else class="text-xs text-text-tertiary">不可操作</span>
           </div>
         </div>
@@ -151,7 +151,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { RefreshCw, UserPlus, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-vue-next'
+import { RefreshCw, UserPlus, UserCog, KeyRound, Trash2, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-vue-next'
 import NewUserDialog from '../components/admin/NewUserDialog.vue'
 import AppDialog from '../components/AppDialog.vue'
 

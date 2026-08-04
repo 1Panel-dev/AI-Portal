@@ -43,9 +43,9 @@
           <span v-if="!hasResource(g.resource_counts)" class="text-xs text-text-tertiary">—</span>
         </div>
         <div class="text-xs text-text-tertiary">{{ formatDate(g.created_at) }}</div>
-        <div class="text-right flex items-center justify-end gap-1.5">
-          <button class="px-2.5 py-1 text-xs text-accent border border-[rgba(0,94,235,0.3)] rounded-lg hover:bg-[rgba(0,94,235,0.05)]" @click.stop="$router.push(`/admin/groups/${g.id}`)">编辑</button>
-          <button class="px-2.5 py-1 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50" @click.stop="confirmDelete(g)">删除</button>
+        <div class="flex items-center justify-end gap-2">
+          <button class="p-2 text-text-secondary hover:text-accent transition-all" title="编辑" @click.stop="$router.push(`/admin/groups/${g.id}`)"><Pencil class="w-4 h-4" /></button>
+          <button class="p-2 text-text-secondary hover:text-red-500 transition-all" title="删除" @click.stop="confirmDelete(g)"><Trash2 class="w-4 h-4" /></button>
         </div>
       </div>
     </div>
@@ -99,7 +99,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { RefreshCw, Plus } from 'lucide-vue-next'
+import { RefreshCw, Plus, Pencil, Trash2 } from 'lucide-vue-next'
 import { API_BASE } from '../../lib/apiBase'
 import AppDialog from '../../components/AppDialog.vue'
 

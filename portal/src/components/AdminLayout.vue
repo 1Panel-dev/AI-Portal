@@ -57,12 +57,12 @@
         </section>
         <div class="mx-3 h-px bg-[rgba(0,0,0,0.04)]"></div>
 
-        <!-- 资源管理（资源组排第一） -->
+        <!-- 资源管理（模型/技能/MCP 等资源本身的管理） -->
         <section>
           <p v-if="!collapsed" class="px-2.5 mb-1.5 text-[10px] font-medium text-text-tertiary tracking-[0.12em] uppercase select-none">资源管理</p>
           <div class="space-y-0.5">
-            <SideItem v-if="can('group:view')" to="/admin/groups" :active="isActive('/admin/groups')" :collapsed="collapsed" title="资源组管理">
-              <FolderKanban class="w-5 h-5" /><template #label>资源组管理</template>
+            <SideItem v-if="can('model:view')" to="/admin/models" :active="isActive('/admin/models')" :collapsed="collapsed" title="模型管理">
+              <Sun class="w-5 h-5" /><template #label>模型管理</template>
             </SideItem>
             <SideItem v-if="can('skill:view')" to="/admin/skills" :active="isActive('/admin/skills')" :collapsed="collapsed" title="技能管理">
               <Puzzle class="w-5 h-5" /><template #label>技能管理</template>
@@ -70,8 +70,19 @@
             <SideItem v-if="can('mcp:view')" to="/admin/mcps" :active="isActive('/admin/mcps')" :collapsed="collapsed" title="MCP 管理">
               <LayoutGrid class="w-5 h-5" /><template #label>MCP 管理</template>
             </SideItem>
-            <SideItem v-if="can('model:view')" to="/admin/models" :active="isActive('/admin/models')" :collapsed="collapsed" title="模型管理">
-              <Sun class="w-5 h-5" /><template #label>模型管理</template>
+          </div>
+        </section>
+        <div class="mx-3 h-px bg-[rgba(0,0,0,0.04)]"></div>
+
+        <!-- 授权管理（资源组 + 用户授权：把资源授权给用户） -->
+        <section>
+          <p v-if="!collapsed" class="px-2.5 mb-1.5 text-[10px] font-medium text-text-tertiary tracking-[0.12em] uppercase select-none">授权管理</p>
+          <div class="space-y-0.5">
+            <SideItem v-if="can('group:view')" to="/admin/groups" :active="isActive('/admin/groups')" :collapsed="collapsed" title="资源组管理">
+              <FolderKanban class="w-5 h-5" /><template #label>资源组管理</template>
+            </SideItem>
+            <SideItem v-if="can('group:view')" to="/admin/resource-assignments" :active="isActive('/admin/resource-assignments')" :collapsed="collapsed" title="资源授权">
+              <UserCheck class="w-5 h-5" /><template #label>资源授权</template>
             </SideItem>
           </div>
         </section>
@@ -95,14 +106,14 @@
         <section>
           <p v-if="!collapsed" class="px-2.5 mb-1.5 text-[10px] font-medium text-text-tertiary tracking-[0.12em] uppercase select-none">系统设置</p>
           <div class="space-y-0.5">
-            <SideItem v-if="can('system:config')" to="/admin/config" :active="isActive('/admin/config')" :collapsed="collapsed" title="系统配置">
-              <Sliders class="w-5 h-5" /><template #label>系统配置</template>
+            <SideItem v-if="can('system:config')" to="/admin/config" :active="isActive('/admin/config')" :collapsed="collapsed" title="基础配置">
+              <Sliders class="w-5 h-5" /><template #label>基础配置</template>
             </SideItem>
             <SideItem v-if="can('system:config')" to="/admin/oauth" :active="isActive('/admin/oauth')" :collapsed="collapsed" title="第三方登录">
               <KeyRound class="w-5 h-5" /><template #label>第三方登录</template>
             </SideItem>
-            <SideItem v-if="can('group:view')" to="/admin/panel-groups" :active="isActive('/admin/panel-groups')" :collapsed="collapsed" title="1Panel 授权信息">
-              <Boxes class="w-5 h-5" /><template #label>1Panel 授权信息</template>
+            <SideItem v-if="can('group:view')" to="/admin/panel-groups" :active="isActive('/admin/panel-groups')" :collapsed="collapsed" title="1Panel AI 网关同步信息">
+              <Boxes class="w-5 h-5" /><template #label>AI 网关同步</template>
             </SideItem>
           </div>
         </section>
@@ -151,7 +162,7 @@ import SideItem from './admin/SideItem.vue'
 import { siteName, siteLogo, siteLogoIsDefault } from '../composables/useSiteBranding.js'
 import { bannerVisible } from '../composables/useAnnouncement.js'
 import { loadPermissions, permissions, isPortalAdmin, can } from '../composables/usePermissions.js'
-import { BarChart3, ClipboardCheck, Puzzle, UserCog, Sliders, KeyRound, PanelLeftClose, PanelLeftOpen, FolderKanban, LayoutGrid, Sun, ShieldCheck, Boxes } from 'lucide-vue-next'
+import { BarChart3, ClipboardCheck, Puzzle, UserCog, Sliders, KeyRound, PanelLeftClose, PanelLeftOpen, FolderKanban, LayoutGrid, Sun, ShieldCheck, Boxes, UserCheck } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()

@@ -2,7 +2,7 @@
   <div>
     <div class="flex items-center justify-between mb-6">
       <div>
-        <h1 class="text-2xl font-bold text-text">1Panel 授权信息</h1>
+        <h1 class="text-2xl font-bold text-text">AI 网关同步信息</h1>
         <p class="text-text-secondary text-sm mt-1">同步 1Panel 用户组 / 模型组作只读参考；交集数据从成员 key 的 allowedModels 实时取</p>
       </div>
       <button @click="syncPanelGroups" :disabled="syncing" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50">

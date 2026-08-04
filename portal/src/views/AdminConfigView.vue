@@ -2,7 +2,7 @@
   <div>
       <div class="flex items-center justify-between mb-6">
         <div>
-          <h1 class="text-2xl font-bold text-text">系统配置</h1>
+          <h1 class="text-2xl font-bold text-text">基础配置</h1>
           <p class="text-text-secondary text-sm mt-1">
             配置 1Panel 与站点品牌
           </p>

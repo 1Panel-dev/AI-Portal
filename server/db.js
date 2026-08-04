@@ -83,7 +83,7 @@ async function ensureDefaultAdmin() {
   try {
     // 检查是否存在 admin 用户
     const result = await global.pool.query(
-      "SELECT id, username, role FROM portal_users WHERE username = $1",
+      "SELECT id, username, role, is_portal_admin FROM portal_users WHERE username = $1",
       ['admin']
     );
 
@@ -106,13 +106,16 @@ async function ensureDefaultAdmin() {
       const bcrypt = require('bcrypt');
       const passwordHash = await bcrypt.hash(initPwd, 12);
 
+      // admin 按设计即超级管理员:is_portal_admin=TRUE,requirePermission 走超管旁路放行。
+      // 不能只写 role='admin'——031 在空表上跑 0 行,ensureDefaultAdmin 又在迁移之后,
+      // 否则新初始化的 admin 会因 is_portal_admin=FALSE 且无 user_roles 被锁死在所有后台路由外。
       await global.pool.query(
-        `INSERT INTO portal_users (username, name, password_hash, role, status, created_at)
-         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)`,
+        `INSERT INTO portal_users (username, name, password_hash, role, status, is_portal_admin, created_at)
+         VALUES ($1, $2, $3, $4, $5, TRUE, CURRENT_TIMESTAMP)`,
         ['admin', '系统管理员', passwordHash, 'admin', 'active']
       );
 
-      console.log('✅ 默认管理员账号已创建 (username: admin)');
+      console.log('✅ 默认管理员账号已创建 (username: admin, 超级管理员)');
       console.log('⚠️  请登录后立即修改管理员密码！');
     } else {
       const user = result.rows[0];
@@ -125,6 +128,17 @@ async function ensureDefaultAdmin() {
         console.log('✅ admin 用户角色已修正');
       } else {
         console.log('✅ 管理员账号已存在 (username: admin)');
+      }
+
+      // admin 按设计即超级管理员:存量 admin 若 is_portal_admin 不是 TRUE(如早期 ensureDefaultAdmin
+      // 未设、或迁移 031 在空表上跑导致漏设)则自愈为 TRUE,避免被锁死在所有 requirePermission 路由外。
+      if (!user.is_portal_admin) {
+        console.log('⚠️  检测到 admin 未标记为超级管理员(is_portal_admin=FALSE),正在修正...');
+        await global.pool.query(
+          "UPDATE portal_users SET is_portal_admin = TRUE, updated_at = CURRENT_TIMESTAMP WHERE username = $1",
+          ['admin']
+        );
+        console.log('✅ admin 已标记为超级管理员');
       }
 
       // 确保只有一个管理员
@@ -173,6 +187,7 @@ module.exports = {
   initDatabase,
   createDatabase,
   initSchema,
+  ensureDefaultAdmin,
   DB_HOST,
   DB_PORT,
   DB_NAME,

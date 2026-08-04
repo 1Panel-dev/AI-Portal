@@ -5,6 +5,7 @@ const express = require('express');
 const { verifyUser, requirePermission } = require('../auth');
 const { syncPanelGroups } = require('../panel');
 const { getResourceType, getAllResourceTypes } = require('../lib/resource-types');
+const { getVisibleResourcesForUser } = require('../lib/permission');
 
 const router = express.Router();
 const pool = () => global.pool;
@@ -219,5 +220,156 @@ router.put('/api/admin/users/:id/roles', verifyUser, requirePermission('user:edi
     client.release();
   }
 });
+
+// ---- 资源授权查询（按用户维度反向看：每个用户被授权了哪些资源组，只读）----
+// 与「资源组管理」(按组维度) 互为反向视角。复用 group:view 守卫。
+router.get('/api/admin/resource-assignments', verifyUser, requirePermission('group:view'), async (req, res) => {
+  try {
+    // portal_users LEFT JOIN resource_group_members JOIN resource_groups
+    // 聚合成 每用户 -> 授权组列表(组id/组名/描述)。超管标 is_portal_admin 供前端区分(超管看全量无需授权)。
+    const r = await pool().query(`
+      SELECT u.id, u.username, u.name, u.is_portal_admin,
+        COALESCE(
+          (SELECT json_agg(json_build_object('id', g.id, 'name', g.name, 'description', g.description) ORDER BY g.name)
+           FROM resource_group_members m
+           JOIN resource_groups g ON g.id = m.group_id
+           WHERE m.user_id = u.id),
+          '[]'::json
+        ) AS groups
+      FROM portal_users u
+      WHERE u.status = 'active'
+      ORDER BY u.is_portal_admin DESC, u.username
+    `);
+    res.json({ data: r.rows });
+  } catch (e) {
+    res.status(500).json({ error: '获取资源授权失败', reason: e.message });
+  }
+});
+
+// ---- 授权关系增删（资源授权页：把用户加入/移出资源组）----
+// 增量语义：POST 只加不清原有，DELETE 删单条。与「资源组管理」的 PUT /groups/:id/members(全量覆盖) 区别：
+// 那个是按组维度重置整组成员，这两个是按授权关系维度单条增删，供「资源授权」页用。
+
+// 添加授权：给某资源组增量加多个用户
+router.post('/api/admin/assignments', verifyUser, requirePermission('group:edit'), async (req, res) => {
+  const groupId = Number(req.body.groupId);
+  const userIds = Array.isArray(req.body.userIds) ? req.body.userIds.map(Number) : [];
+  if (!Number.isInteger(groupId) || groupId <= 0) return res.status(400).json({ error: '无效的资源组 id' });
+  if (!userIds.length) return res.status(400).json({ error: '至少选择一个用户' });
+  const client = await pool().connect();
+  try {
+    await client.query('BEGIN');
+    let added = 0;
+    for (const uid of userIds) {
+      if (!Number.isInteger(uid) || uid <= 0) continue;
+      const r = await client.query(
+        `INSERT INTO resource_group_members (group_id, user_id) VALUES ($1, $2)
+         ON CONFLICT DO NOTHING RETURNING user_id`,
+        [groupId, uid]
+      );
+      if (r.rowCount) added++;
+    }
+    await client.query('COMMIT');
+    res.json({ ok: true, added });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    // FK 违反(组/用户不存在)报 400 更友好
+    if (e.code === '23503') return res.status(400).json({ error: '资源组或用户不存在' });
+    res.status(500).json({ error: '添加授权失败', reason: e.message });
+  } finally {
+    client.release();
+  }
+});
+
+// 移除授权：把某用户从资源组移除（单条）
+router.delete('/api/admin/assignments', verifyUser, requirePermission('group:edit'), async (req, res) => {
+  const groupId = Number(req.query.groupId);
+  const userId = Number(req.query.userId);
+  if (!Number.isInteger(groupId) || groupId <= 0) return res.status(400).json({ error: '无效的资源组 id' });
+  if (!Number.isInteger(userId) || userId <= 0) return res.status(400).json({ error: '无效的用户 id' });
+  try {
+    await pool().query(
+      'DELETE FROM resource_group_members WHERE group_id = $1 AND user_id = $2',
+      [groupId, userId]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: '移除授权失败', reason: e.message });
+  }
+});
+
+// ---- 用户资源预览（某用户实际可见的资源清单，带标题）----
+// 复用 getVisibleResourcesForUser 的交集/兜底逻辑，再把裸 id 归一化成 {title, subtitle}。
+// getVisibleResourcesForUser 的返回 shape 混合：全公开类型返对象数组(listAll)，过滤类型返字符串数组。
+// 这里统一转成带标题对象，前端直接渲染。
+router.get('/api/admin/users/:id/resource-preview', verifyUser, requirePermission('group:view'), async (req, res) => {
+  const userId = Number(req.params.id);
+  if (!Number.isInteger(userId) || userId <= 0) return res.status(400).json({ error: '无效的用户 id' });
+  try {
+    // 用户不存在/超管 -> getVisibleResourcesForUser 内部返全量；被授权 -> 过滤后；未授权 -> 全公开兜底全量
+    const visible = await getVisibleResourcesForUser(userId);
+    const data = {};
+    for (const type of getAllResourceTypes()) {
+      const adapter = getResourceType(type.key);
+      const visibleList = visible[type.key] || [];
+      // 全量带标题列表（用于把字符串 id 映射回标题，或直接作为全公开来源）
+      const allWithTitle = await mapAllWithType(type.key, adapter);
+      // 元素是字符串 = 过滤态，按 id 过滤全量；元素是对象 = 全公开态，直接用全量
+      const isStringFilter = visibleList.length > 0 && typeof visibleList[0] === 'string';
+      if (isStringFilter) {
+        const idSet = new Set(visibleList.map(String));
+        data[type.key] = allWithTitle.filter(r => idSet.has(String(r.id)));
+      } else {
+        data[type.key] = allWithTitle;
+      }
+    }
+    res.json({ data });
+  } catch (e) {
+    res.status(500).json({ error: '获取资源预览失败', reason: e.message });
+  }
+});
+
+// ---- 组内资源预览（某资源组包含的资源清单，带标题，按类型聚合）----
+// 供「资源授权」页组列表行的「预览」用：看这个组授权了哪些模型/技能/MCP（组内 items，不含成员交集）。
+router.get('/api/admin/groups/:id/resources-preview', verifyUser, requirePermission('group:view'), async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: '无效的资源组 id' });
+  try {
+    // 组不存在 -> 404
+    const g = await pool().query('SELECT id FROM resource_groups WHERE id = $1', [id]);
+    if (!g.rowCount) return res.status(404).json({ error: '资源组不存在' });
+    // 该组 items，按类型分组
+    const items = await pool().query(
+      'SELECT resource_type, resource_id FROM resource_group_items WHERE group_id = $1', [id]
+    );
+    const byType = {};
+    for (const it of items.rows) {
+      (byType[it.resource_type] ??= new Set()).add(String(it.resource_id));
+    }
+    // 每类型拿全量带标题，再按组 items 过滤
+    const data = {};
+    for (const type of getAllResourceTypes()) {
+      const adapter = getResourceType(type.key);
+      const allWithTitle = await mapAllWithType(type.key, adapter);
+      const idSet = byType[type.key];
+      data[type.key] = idSet
+        ? allWithTitle.filter(r => idSet.has(String(r.id)))
+        : [];
+    }
+    res.json({ data });
+  } catch (e) {
+    res.status(500).json({ error: '获取组资源预览失败', reason: e.message });
+  }
+});
+
+// 各资源类型 listAll -> 统一 {id, title, subtitle} 映射
+async function mapAllWithType(key, adapter) {
+  if (!adapter?.listAll) return [];
+  const rows = await adapter.listAll();
+  if (key === 'model') return rows.map(r => ({ id: r.model_name, title: r.model_name, subtitle: `${r.group_name || ''} · ${r.provider || ''}`.trim() }));
+  if (key === 'skill') return rows.map(r => ({ id: r.slug, title: r.title, subtitle: r.slug }));
+  if (key === 'mcp') return rows.map(r => ({ id: String(r.id), title: r.name || '未命名', subtitle: r.type || '' }));
+  return rows.map(r => ({ id: String(r.id ?? ''), title: String(r.title ?? r.name ?? r.id ?? ''), subtitle: '' }));
+}
 
 module.exports = router;
