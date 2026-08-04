@@ -13,11 +13,6 @@ const routes = [
     path: '/',
     component: LandingView,
     meta: { public: true },
-    // 已登录用户访问 / 在挂载前直接跳模型广场，零闪烁
-    beforeEnter: (_to, _from, next) => {
-      const t = localStorage.getItem('token') || localStorage.getItem('admin_token')
-      next(t ? '/models' : undefined)
-    },
   },
   { path: '/models', component: () => import('./views/ModelsView.vue'), meta: { public: true } },
   { path: '/skills', component: () => import('./views/HomeView.vue') },

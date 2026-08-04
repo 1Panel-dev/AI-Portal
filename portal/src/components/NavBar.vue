@@ -17,9 +17,14 @@
       </router-link>
 
       <div class="flex items-center gap-1 ml-6 md:ml-0 md:justify-self-center">
-        <router-link to="/models"
+        <router-link to="/"
           class="px-3 py-1.5 text-[14px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
           :class="isActive('/') ? 'font-semibold text-text' : 'text-text-secondary'">
+          首页
+        </router-link>
+        <router-link to="/models"
+          class="px-3 py-1.5 text-[14px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
+          :class="isActive('/models') ? 'font-semibold text-text' : 'text-text-secondary'">
           模型广场
         </router-link>
         <router-link to="/skills"
@@ -110,7 +115,11 @@ const hasVisibleBanner = computed(() => bannerEnabled.value && bannerVisible.val
 
 const isActive = (path) => {
   if (path === '/') {
-    // 模型广场激活:/models 实体页(落地页 / 不算,避免落地页时模型广场误高亮)
+    // 首页激活:落地页 /
+    return route.path === '/'
+  }
+  if (path === '/models') {
+    // 模型广场激活:/models 实体页(落地页 / 不算)
     return route.path === '/models' || route.query.redirect?.startsWith('/models')
   }
   if (path === '/skills') {
