@@ -71,6 +71,20 @@ router.beforeEach((to, from, next) => {
     return next({ path, query: to.path !== '/' ? { redirect: to.fullPath } : {} })
   }
 
+  // 已登录用户访问登录/注册/管理员登录页 -> 跳模型广场
+  // 企微客户端内 /login 放行：LoginView 的 maybeAutoLoginInsideWecom 需清态重登（onMounted 触发，
+  // 若此处拦截跳走，组件不挂载，企微自动登录逻辑不会跑），故企微 UA 内 /login 不拦。
+  const guestOnly = to.path === '/login' || to.path === '/register' || to.path === '/admin/login'
+  if (guestOnly) {
+    const at = localStorage.getItem('admin_token')
+    const ut = localStorage.getItem('token')
+    const atValid = at && !isTokenExpired(at)
+    const utValid = ut && !isTokenExpired(ut)
+    const loggedIn = atValid || utValid
+    const wecomLogin = to.path === '/login' && isInsideWecomUA()
+    if (loggedIn && !wecomLogin) return next('/models')
+  }
+
   if (to.meta.requiresAuth) {
     const adminToken = localStorage.getItem('admin_token')
     const token = localStorage.getItem('token')
