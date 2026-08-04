@@ -1,6 +1,33 @@
 <template>
   <div>
-    <NavBar />
+    <!-- 简化顶栏（落地页不渲染完整 NavBar，只放 logo + 登录/注册） -->
+    <nav
+      class="fixed left-0 right-0 z-[260] h-[52px] border-b border-[rgba(0,0,0,0.06)] bg-white shadow-[0_1px_10px_rgba(15,23,42,0.04)]"
+      :class="hasVisibleBanner ? 'top-10' : 'top-0'"
+    >
+      <div class="max-w-[1024px] mx-auto px-6 h-full flex items-center justify-between">
+        <router-link to="/" class="flex min-w-0 items-center text-[18px] text-text no-underline">
+          <img v-if="siteLogoIsDefault"
+            :src="siteLogo"
+            alt="1Panel"
+            class="h-[24px] w-[88px] mr-[8px] shrink-0 block object-contain object-left" />
+          <div v-else class="h-[24px] flex shrink-0 items-center mr-[8px]">
+            <img :src="siteLogo" alt="logo" class="h-full w-auto" />
+          </div>
+          <span class="min-w-0 truncate font-[900] [-webkit-text-stroke:0.5px_currentColor]">{{ siteName }}</span>
+        </router-link>
+        <div class="flex items-center gap-2">
+          <router-link v-if="!isLoggedIn" to="/login"
+            class="px-4 py-1.5 text-[13px] bg-accent text-white rounded-lg hover:bg-accent-hover transition-all no-underline">
+            登录
+          </router-link>
+          <router-link v-else to="/models"
+            class="px-4 py-1.5 text-[13px] bg-accent text-white rounded-lg hover:bg-accent-hover transition-all no-underline">
+            进入广场
+          </router-link>
+        </div>
+      </div>
+    </nav>
 
     <!-- Hero -->
     <section
@@ -50,13 +77,15 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import NavBar from '../components/NavBar.vue'
+import { computed, ref } from 'vue'
 import { Sun, Puzzle, LayoutGrid } from 'lucide-vue-next'
-import { siteName } from '../composables/useSiteBranding.js'
+import { siteName, siteLogo, siteLogoIsDefault } from '../composables/useSiteBranding.js'
 import { bannerEnabled, bannerHtml, bannerVisible } from '../composables/useAnnouncement.js'
 
 const hasVisibleBanner = computed(() => bannerEnabled.value && bannerVisible.value && !!bannerHtml.value)
+
+// 落地页理论上只服务未登录（已登录被 / 路由 beforeEnter 跳 /models）；isLoggedIn 兜底已登录意外落此的情况
+const isLoggedIn = ref(!!(localStorage.getItem('token') || localStorage.getItem('admin_token')))
 
 const plazas = [
   { to: '/models', title: '模型广场', desc: '查找可调用的 AI 模型，复制模型名称与调用地址快速接入', icon: Sun, bg: 'bg-[rgba(0,94,235,0.08)]', color: 'text-accent' },
