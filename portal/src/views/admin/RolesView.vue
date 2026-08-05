@@ -233,7 +233,7 @@
                     class="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer transition-all"
                     :class="selectedMenuKey === m.key ? 'bg-accent/10 text-accent font-medium' : 'hover:bg-black/[0.02] text-text'"
                     :style="selectedRole.is_system ? 'opacity: 0.6;' : ''"
-                    @click="selectedRole.is_system ? null : (selectedMenuKey = m.key)"
+                    @click="selectedMenuKey = m.key"
                   >
                     <input type="checkbox" :checked="selectedRole.is_system || selectedPerms.has(m.key)" :disabled="selectedRole.is_system" @click.stop="!selectedRole.is_system && togglePerm(m.key)" class="accent-accent shrink-0" />
                     <span class="truncate">{{ m.name }}</span>
@@ -249,7 +249,7 @@
                     <div
                       v-for="perm in selectedMenuOps" :key="perm.key"
                       class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer select-none transition-all"
-                      :class="selectedPerms.has(perm.key) ? 'bg-accent text-white border border-transparent' : 'bg-white border border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
+                      :class="selectedPerms.has(perm.key) || selectedRole.is_system ? 'bg-accent text-white border border-transparent' : 'bg-white border border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
                       :style="selectedRole.is_system ? 'opacity: 0.5; pointer-events: none;' : ''"
                       @click="!selectedRole.is_system && togglePerm(perm.key)"
                     >
