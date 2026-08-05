@@ -24,8 +24,8 @@
         <div class="text-xs text-text-tertiary truncate">{{ formatPermissions(r.permissions) }}</div>
         <div class="text-text-secondary">{{ r.user_count }}</div>
         <div class="flex items-center justify-end gap-2">
-          <button class="p-2 text-text-secondary hover:text-accent transition-all" title="编辑" @click="openEdit(r)"><Pencil class="w-4 h-4" /></button>
-          <button v-if="!r.is_system" class="p-2 text-text-secondary hover:text-red-500 transition-all" title="删除" @click="confirmDelete(r)"><Trash2 class="w-4 h-4" /></button>
+          <button v-if="can('role:edit') && r.name !== 'admin'" class="p-2 text-text-secondary hover:text-accent transition-all" title="编辑" @click="openEdit(r)"><Pencil class="w-4 h-4" /></button>
+          <button v-if="can('role:delete') && !r.is_system" class="p-2 text-text-secondary hover:text-red-500 transition-all" title="删除" @click="confirmDelete(r)"><Trash2 class="w-4 h-4" /></button>
         </div>
       </div>
     </div>
