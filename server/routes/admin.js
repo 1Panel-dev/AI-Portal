@@ -1149,7 +1149,13 @@ router.get('/api/admin/portal-users', verifyUser, requirePermission('user:view')
         u.id, u.panel_user_id, u.username, u.name, u.role, u.status,
         u.last_login_at, u.created_at,
         COUNT(DISTINCT k.id)::int AS api_key_count,
-        COUNT(DISTINCT s.id)::int AS submission_count
+        COUNT(DISTINCT s.id)::int AS submission_count,
+        COALESCE(
+          (SELECT json_agg(json_build_object('id', r.id, 'name', r.name) ORDER BY r.id)
+           FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+           WHERE ur.user_id = u.id),
+          '[]'::json
+        ) AS user_roles
       FROM portal_users u
       LEFT JOIN portal_api_keys k ON k.user_id = u.id
       LEFT JOIN skill_submissions s ON s.submitted_by_user_id = u.id
@@ -1454,6 +1460,11 @@ router.post('/api/admin/portal-users/password', verifyUser, requirePermission('u
         const userRes = await global.pool.query('SELECT * FROM portal_users WHERE id = $1', [userId]);
         if (userRes.rowCount === 0) { failed++; continue; }
         const localUser = userRes.rows[0];
+
+        // 防提权:非超管不能重置超管的密码
+        if (localUser.is_portal_admin && !req.portalUser.is_portal_admin) {
+          failed++; continue;
+        }
 
         // 同步更新远端密码（1Panel 的 users/update 要求 name 等字段不能为空，先 search 拿全量信息）
         if (localUser.panel_user_id) {
@@ -1847,7 +1858,7 @@ router.post('/api/admin/announcement', verifyUser, requirePermission('system:con
 // 管理员新增本地用户(OAuth 启用关闭自助注册后的唯一录入入口之一)
 // 与 portal.js 的 /api/auth/register 保持同样的校验和 1Panel 同步逻辑
 // ============================================================
-router.post('/api/admin/portal-users', verifyUser, requirePermission('user:edit'), async (req, res) => {
+router.post('/api/admin/portal-users', verifyUser, requirePermission('user:create'), async (req, res) => {
   try {
     const rawUsername = String(req.body.username || '').trim();
     const rawPassword = req.body.password;

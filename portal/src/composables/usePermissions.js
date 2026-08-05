@@ -50,14 +50,13 @@ export function can(key) {
 }
 
 // 管理类权限位清单(用于判断是否显示「管理后台」入口)
+// 只含操作权限:进入后台需能实际执行某操作;菜单权限(menu:admin-*)只控制
+// 侧边栏单项可见性,不应单独授予进入后台的能力(否则进去每页 403)
 export const ADMIN_PERMS = [
   'role:view','role:create','role:edit','role:delete',
   'group:view','group:create','group:edit','group:delete',
   'user:view','user:edit','user:create','user:delete',
   'skill:edit','skill:delete','system:config',
-  'menu:admin-stats','menu:admin-review','menu:admin-models','menu:admin-skills','menu:admin-mcps',
-  'menu:admin-groups','menu:admin-assignments','menu:admin-users','menu:admin-roles',
-  'menu:admin-config','menu:admin-oauth','menu:admin-panel',
 ]
 
 // 是否显示「管理后台」入口:超管或持有任一管理权限位

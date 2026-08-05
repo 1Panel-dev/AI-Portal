@@ -330,8 +330,13 @@ router.get('/api/skills', optionalUser, async (req, res) => {
       const visible = await getVisibleResourcesForUser(req.portalUser.id);
       // 全公开兜底时 visible.skill 是 listAll() 返回的行对象数组（含 slug/title），
       // 资源组已勾选时是 slug 字符串数组。只有后者才需要过滤。
-      if (Array.isArray(visible.skill) && typeof visible.skill[0] === 'string') {
-        visibleSkillSlugs = visible.skill;
+      if (Array.isArray(visible.skill)) {
+        if (visible.skill.length > 0 && typeof visible.skill[0] === 'string') {
+          visibleSkillSlugs = visible.skill;
+        } else if (visible.skill.length === 0) {
+          // 空交集 → 无可见 Skill
+          visibleSkillSlugs = [];
+        }
       }
     }
 

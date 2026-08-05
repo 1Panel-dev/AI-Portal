@@ -303,9 +303,14 @@ router.get('/api/models', optionalUser, async (req, res) => {
       // visible.model 在「全公开兜底」时是 listAll() 返回的行对象数组（含 model_name 等字段），
       // 在「资源组已勾选」时是模型名字符串数组。只有后者才需要过滤；前者直接放行。
       // 用首元素是否为原始值（string）区分两种形态，避免把全公开误过滤成空。
-      if (Array.isArray(visible.model) && typeof visible.model[0] === 'string') {
-        const allowedNames = new Set(visible.model);
-        rows = rows.filter(r => allowedNames.has(r.model_name));
+      if (Array.isArray(visible.model)) {
+        if (visible.model.length > 0 && typeof visible.model[0] === 'string') {
+          const allowedNames = new Set(visible.model);
+          rows = rows.filter(r => allowedNames.has(r.model_name));
+        } else if (visible.model.length === 0) {
+          // 空交集 → 无可见模型,不返回任何数据
+          rows = [];
+        }
       }
       // 非数组 / 首元素为对象 -> 全公开（兜底），rows 不动
     }

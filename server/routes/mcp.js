@@ -31,8 +31,13 @@ router.get('/api/mcp/search', optionalUser, async (req, res) => {
       const visible = await getVisibleResourcesForUser(req.portalUser.id);
       // 全公开兜底时 visible.mcp 是 listAll() 返回的行对象数组（含 id/panel_mcp_id），
       // 资源组已勾选时是 panel_mcp_id 字符串数组。只有后者才需要过滤（按 panel_mcp_id）。
-      if (Array.isArray(visible.mcp) && typeof visible.mcp[0] === 'string') {
-        visibleMcpIds = visible.mcp;
+      if (Array.isArray(visible.mcp)) {
+        if (visible.mcp.length > 0 && typeof visible.mcp[0] === 'string') {
+          visibleMcpIds = visible.mcp;
+        } else if (visible.mcp.length === 0) {
+          // 空交集 → 无可见 MCP
+          visibleMcpIds = [];
+        }
       }
     }
 

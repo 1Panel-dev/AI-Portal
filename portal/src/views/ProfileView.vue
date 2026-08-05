@@ -1141,7 +1141,7 @@ const setPasswordForAutoUser = async () => {
   }
 }
 const formatDate = (d) => { if (!d) return '-'; return new Date(d).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) }
-const logout = () => { localStorage.removeItem('token'); localStorage.removeItem('user'); router.push('/login') }
+const logout = () => { localStorage.removeItem('token'); localStorage.removeItem('admin_token'); localStorage.removeItem('user'); router.push('/login') }
 const goToAdmin = () => { router.push('/admin') }
 const openChangePasswordDialog = () => {
   passwordError.value = ''

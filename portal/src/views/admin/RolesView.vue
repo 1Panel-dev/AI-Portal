@@ -348,7 +348,7 @@ const isAdminRole = computed(() => {
 
 // 后台/用户侧操作权限 key 清单
 const ADMIN_OP_KEYS = new Set([
-  'model:sync', 'skill:edit', 'skill:delete', 'mcp:sync',
+  'model:view', 'model:sync', 'skill:view', 'skill:edit', 'skill:delete', 'mcp:view', 'mcp:sync',
   'user:view', 'user:create', 'user:edit', 'user:delete',
   'role:view', 'role:create', 'role:edit', 'role:delete',
   'group:view', 'group:create', 'group:edit', 'group:delete',
@@ -362,17 +362,17 @@ const PORTAL_OP_KEYS = new Set([
 // 菜单→该菜单下操作权限映射
 const MENU_TO_OPS = {
   'menu:admin-stats': ['user:view'],
-  'menu:admin-review': ['skill:edit', 'skill:delete'],
-  'menu:admin-models': ['model:view', 'model:sync'],
+  'menu:admin-review': ['skill:edit', 'user:view'],
+  'menu:admin-models': ['model:view', 'system:config'],
   'menu:admin-skills': ['skill:view', 'skill:create', 'skill:edit', 'skill:delete'],
-  'menu:admin-mcps': ['mcp:view', 'mcp:sync'],
+  'menu:admin-mcps': ['mcp:view', 'system:config'],
   'menu:admin-groups': ['group:view', 'group:create', 'group:edit', 'group:delete'],
-  'menu:admin-assignments': ['group:view'],
+  'menu:admin-assignments': ['group:view', 'group:edit', 'user:view'],
   'menu:admin-users': ['user:view', 'user:create', 'user:edit', 'user:delete'],
   'menu:admin-roles': ['role:view', 'role:create', 'role:edit', 'role:delete'],
   'menu:admin-config': ['system:config'],
   'menu:admin-oauth': ['system:config'],
-  'menu:admin-panel': ['group:view'],
+  'menu:admin-panel': ['group:view', 'group:edit'],
   'menu:models': ['model:view'],
   'menu:skills': ['skill:view', 'skill:create'],
   'menu:mcp': ['mcp:view'],
