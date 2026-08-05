@@ -373,7 +373,8 @@ const MENU_TO_OPS = {
   'menu:skills': ['skill:view', 'skill:create'],
   'menu:mcp': ['mcp:view'],
   'menu:docs': [],
-  'menu:profile': ['key:view', 'key:create', 'key:edit', 'key:delete'],
+  'menu:profile': [],
+  'menu:api-keys': ['key:view', 'key:create', 'key:edit', 'key:delete'],
   'menu:my-skills': ['skill:view', 'skill:create'],
   'menu:submit': ['skill:create'],
 }
@@ -386,7 +387,7 @@ const MENU_ORDER = [
   'menu:admin-users', 'menu:admin-roles',
   'menu:admin-config', 'menu:admin-oauth', 'menu:admin-panel',
   'menu:models', 'menu:skills', 'menu:mcp', 'menu:docs',
-  'menu:profile', 'menu:my-skills', 'menu:submit',
+  'menu:profile', 'menu:api-keys', 'menu:my-skills', 'menu:submit',
 ]
 
 // 当前选中的菜单项 key（用于右侧显示操作权限）
