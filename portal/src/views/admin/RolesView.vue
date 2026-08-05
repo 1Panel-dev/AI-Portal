@@ -145,7 +145,14 @@
               <div class="flex-1 min-w-0">
                 <div class="text-xs font-semibold text-text mb-2">{{ isAdminRole ? '操作权限' : '功能权限' }}</div>
                 <div v-if="selectedMenuKey" class="border border-[rgba(0,0,0,0.06)] rounded-lg p-3 min-h-[100px]">
-                  <div v-if="selectedMenuOps.length" class="flex flex-wrap gap-2">
+                  <div v-if="selectedMenuOps.length" class="flex flex-wrap gap-2 items-center">
+                    <div
+                      class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer select-none transition-all border"
+                      :class="allOpsSelected ? 'bg-accent text-white border-accent' : allOpsSomeSelected ? 'bg-accent/10 text-accent border-accent/30' : 'bg-white border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
+                      @click="toggleAllOps"
+                    >
+                      全选
+                    </div>
                     <div
                       v-for="perm in selectedMenuOps" :key="perm.key"
                       class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer select-none transition-all"
@@ -245,7 +252,14 @@
               <div class="flex-1 min-w-0">
                 <div class="text-xs font-semibold text-text mb-2">{{ isAdminRole ? '操作权限' : '功能权限' }}</div>
                 <div v-if="selectedMenuKey" class="border border-[rgba(0,0,0,0.06)] rounded-lg p-3 min-h-[100px]">
-                  <div v-if="selectedMenuOps.length" class="flex flex-wrap gap-2">
+                  <div v-if="selectedMenuOps.length" class="flex flex-wrap gap-2 items-center">
+                    <div
+                      class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer select-none transition-all border"
+                      :class="selectedRole.is_system ? 'opacity-50 cursor-not-allowed' : allOpsSelected ? 'bg-accent text-white border-accent' : allOpsSomeSelected ? 'bg-accent/10 text-accent border-accent/30' : 'bg-white border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
+                      @click="!selectedRole.is_system && toggleAllOps"
+                    >
+                      全选
+                    </div>
                     <div
                       v-for="perm in selectedMenuOps" :key="perm.key"
                       class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer select-none transition-all"
@@ -436,6 +450,22 @@ function toggleAllMenus() {
   for (const m of orderedMenuList.value) {
     if (allMenusSelected.value) newSet.delete(m.key)
     else newSet.add(m.key)
+  }
+  selectedPerms.value = newSet
+}
+
+// 右侧操作/功能权限全选
+const allOpsSelected = computed(() => {
+  return selectedMenuOps.value.length > 0 && selectedMenuOps.value.every(p => selectedPerms.value.has(p.key))
+})
+const allOpsSomeSelected = computed(() => {
+  return selectedMenuOps.value.some(p => selectedPerms.value.has(p.key)) && !allOpsSelected.value
+})
+function toggleAllOps() {
+  const newSet = new Set(selectedPerms.value)
+  for (const p of selectedMenuOps.value) {
+    if (allOpsSelected.value) newSet.delete(p.key)
+    else newSet.add(p.key)
   }
   selectedPerms.value = newSet
 }
