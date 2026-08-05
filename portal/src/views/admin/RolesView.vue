@@ -500,8 +500,26 @@ function toggleGroupAll(group) {
 
 function togglePerm(key) {
   const newSet = new Set(selectedPerms.value)
-  if (newSet.has(key)) newSet.delete(key)
-  else newSet.add(key)
+  if (newSet.has(key)) {
+    newSet.delete(key)
+    // 移除菜单时,同步移除该菜单对应的操作权限(但保留其他勾选菜单仍引用的权限)
+    if (key.startsWith('menu:')) {
+      const linkedOps = MENU_TO_OPS[key] || []
+      for (const opKey of linkedOps) {
+        const stillReferenced = orderedMenuList.value.some(m =>
+          newSet.has(m.key) && (MENU_TO_OPS[m.key] || []).includes(opKey)
+        )
+        if (!stillReferenced) newSet.delete(opKey)
+      }
+    }
+  } else {
+    newSet.add(key)
+    // 添加菜单时,同步添加该菜单对应的操作权限
+    if (key.startsWith('menu:')) {
+      const linkedOps = MENU_TO_OPS[key] || []
+      for (const opKey of linkedOps) newSet.add(opKey)
+    }
+  }
   selectedPerms.value = newSet
 }
 
