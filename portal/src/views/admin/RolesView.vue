@@ -120,35 +120,24 @@
             <div class="space-y-3 max-h-[400px] overflow-y-auto">
               <div v-for="group in permissionGroups" :key="group.module" class="border border-[rgba(0,0,0,0.06)] rounded-lg p-3">
                 <div class="flex items-center gap-3 mb-2">
-                  <label
+                  <div
                     class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs cursor-pointer select-none transition-all border"
                     :class="groupAllSelected(group) ? 'bg-accent text-white border-accent' : groupSomeSelected(group) ? 'bg-accent/10 text-accent border-accent/30' : 'bg-white border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
                     @click="toggleGroupAll(group)"
                   >
-                    <input
-                      type="checkbox"
-                      :checked="groupAllSelected(group)"
-                      :indeterminate.prop="groupSomeSelected(group) && !groupAllSelected(group)"
-                      class="hidden"
-                    />
                     全选
-                  </label>
+                  </div>
                   <span class="text-xs font-semibold text-text-secondary">{{ groupLabel(group.module) }}</span>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                  <label
+                  <div
                     v-for="perm in group.permissions" :key="perm.key"
                     class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer select-none transition-all"
                     :class="selectedPerms.has(perm.key) ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
+                    @click="togglePerm(perm.key)"
                   >
-                    <input
-                      type="checkbox"
-                      :checked="selectedPerms.has(perm.key)"
-                      class="hidden"
-                      @change="togglePerm(perm.key)"
-                    />
                     {{ perm.name }}
-                  </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -204,38 +193,25 @@
             <div class="space-y-3 max-h-[400px] overflow-y-auto">
               <div v-for="group in permissionGroups" :key="group.module" class="border border-[rgba(0,0,0,0.06)] rounded-lg p-3">
                 <div class="flex items-center gap-3 mb-2">
-                  <label
+                  <div
                     class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs cursor-pointer select-none transition-all border"
                     :class="selectedRole.is_system ? 'opacity-50 cursor-not-allowed' : groupAllSelected(group) ? 'bg-accent text-white border-accent' : groupSomeSelected(group) ? 'bg-accent/10 text-accent border-accent/30' : 'bg-white border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
                     @click="!selectedRole.is_system && toggleGroupAll(group)"
                   >
-                    <input
-                      type="checkbox"
-                      :checked="groupAllSelected(group)"
-                      :indeterminate.prop="groupSomeSelected(group) && !groupAllSelected(group)"
-                      :disabled="selectedRole.is_system"
-                      class="hidden"
-                    />
                     全选
-                  </label>
+                  </div>
                   <span class="text-xs font-semibold text-text-secondary">{{ groupLabel(group.module) }}</span>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                  <label
+                  <div
                     v-for="perm in group.permissions" :key="perm.key"
                     class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer select-none transition-all"
                     :class="selectedPerms.has(perm.key) ? 'bg-accent text-white' : 'bg-white border border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
                     :style="selectedRole.is_system ? 'opacity: 0.5; pointer-events: none;' : ''"
+                    @click="!selectedRole.is_system && togglePerm(perm.key)"
                   >
-                    <input
-                      type="checkbox"
-                      :checked="selectedPerms.has(perm.key)"
-                      :disabled="selectedRole.is_system"
-                      class="hidden"
-                      @change="!selectedRole.is_system && togglePerm(perm.key)"
-                    />
                     {{ perm.name }}
-                  </label>
+                  </div>
                 </div>
               </div>
             </div>
