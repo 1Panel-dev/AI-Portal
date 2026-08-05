@@ -406,11 +406,24 @@ router.put('/api/admin/roles/:id/permissions', verifyUser, requirePermission('ro
       if (invalid.length) return res.status(400).json({ error: `未知权限位: ${invalid.join(', ')}` });
     }
 
-    // 非超管校验 keys ⊆ 操作者持有（C2）
+    // 非超管校验 C2：角色已有权限位 ⊆ 操作者 且 新 keys ⊆ 操作者
+    // （否则有 role:edit 的委派管理员可对含高权限位的自定义角色传 keys=[] 清空权限，横向撤销协作者访问）
     if (!req.portalUser.is_portal_admin) {
       const { getUserPermissions } = require('../lib/permission');
       const { permissions: myPerms } = await getUserPermissions(req.portalUser.id);
       const mySet = new Set(myPerms);
+      // 校验角色已有权限位 ⊆ 操作者
+      const existing = await pool().query(
+        `SELECT p.key FROM permissions p
+         JOIN role_permissions rp ON rp.permission_id = p.id
+         WHERE rp.role_id = $1`, [id]
+      );
+      const existingKeys = existing.rows.map(r => r.key);
+      const exceedExisting = existingKeys.filter(k => !mySet.has(k));
+      if (exceedExisting.length) {
+        return res.status(403).json({ error: `无权修改包含超出自己持有范围权限位的角色: 缺失 ${exceedExisting.join(', ')}` });
+      }
+      // 校验新 keys ⊆ 操作者
       const exceed = keys.filter(k => !mySet.has(k));
       if (exceed.length) return res.status(403).json({ error: `无权分配超出自己持有范围的权限位: ${exceed.join(', ')}` });
     }
