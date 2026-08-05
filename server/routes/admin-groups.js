@@ -395,8 +395,8 @@ router.put('/api/admin/roles/:id/permissions', verifyUser, requirePermission('ro
     if (!role.rowCount) return res.status(404).json({ error: '角色不存在' });
 
     const r = role.rows[0];
-    // admin 角色权限集不可改（bypass 走 is_portal_admin，配了也不生效）
-    if (r.name === 'admin') return res.status(400).json({ error: 'admin 角色权限集不可修改（超管走 is_portal_admin 标记）' });
+    // 内置角色权限集不可改（admin 走 is_portal_admin bypass，user 影响全体用户）
+    if (r.is_system) return res.status(400).json({ error: '内置角色权限集不可修改' });
 
     // 校验 keys 全存在（I3）
     if (keys.length > 0) {
