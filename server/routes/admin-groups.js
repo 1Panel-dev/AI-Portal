@@ -471,6 +471,22 @@ router.put('/api/admin/users/:id/roles', verifyUser, requirePermission('user:edi
       return res.status(400).json({ error: 'admin 为超管标记角色，不可分配' });
     }
   }
+  // 非超管校验分配的角色权限位 ⊆ 操作者持有（C2）
+  if (!req.portalUser.is_portal_admin && roleIds.length > 0) {
+    const { getUserPermissions } = require('../lib/permission');
+    const { permissions: myPerms } = await getUserPermissions(req.portalUser.id);
+    const rolePerms = await pool().query(`
+      SELECT DISTINCT p.key FROM permissions p
+      JOIN role_permissions rp ON rp.permission_id = p.id
+      WHERE rp.role_id = ANY($1)
+    `, [roleIds]);
+    const rolePermSet = new Set(rolePerms.rows.map(r => r.key));
+    const mySet = new Set(myPerms);
+    const exceed = [...rolePermSet].filter(k => !mySet.has(k));
+    if (exceed.length > 0) {
+      return res.status(403).json({ error: `无权分配超出自己持有范围权限位的角色: 缺失 ${exceed.join(', ')}` });
+    }
+  }
 
   const client = await pool().connect();
   try {

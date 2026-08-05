@@ -97,7 +97,6 @@ async function submit() {
           <select v-model="role"
             class="w-full px-3 py-2 border border-[rgba(0,0,0,0.08)] rounded-lg text-sm focus:outline-none focus:border-text bg-white">
             <option value="user">普通用户</option>
-            <option value="admin">管理员</option>
           </select>
         </div>
         <p v-if="error" class="text-sm text-red-500">{{ error }}</p>

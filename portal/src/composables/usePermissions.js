@@ -22,7 +22,7 @@ export async function loadPermissions() {
     return
   }
   try {
-    const res = await fetch(`${API_BASE}/api/my/permissions`, {
+    const res = await fetch(`${API_BASE}/my/permissions`, {
       headers: { Authorization: `Bearer ${token}` },
     })
     if (!res.ok) throw new Error(String(res.status))
