@@ -55,6 +55,9 @@ export const ADMIN_PERMS = [
   'group:view','group:create','group:edit','group:delete',
   'user:view','user:edit','user:create','user:delete',
   'skill:edit','skill:delete','system:config',
+  'menu:admin-stats','menu:admin-review','menu:admin-models','menu:admin-skills','menu:admin-mcps',
+  'menu:admin-groups','menu:admin-assignments','menu:admin-users','menu:admin-roles',
+  'menu:admin-config','menu:admin-oauth','menu:admin-panel',
 ]
 
 // 是否显示「管理后台」入口:超管或持有任一管理权限位

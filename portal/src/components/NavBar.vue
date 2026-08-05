@@ -22,17 +22,17 @@
           :class="isActive('/') ? 'font-semibold text-text' : 'text-text-secondary'">
           首页
         </router-link>
-        <router-link to="/models"
+        <router-link v-if="!isLoggedIn || can('menu:models')" to="/models"
           class="px-3 py-1.5 text-[14px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
           :class="isActive('/models') ? 'font-semibold text-text' : 'text-text-secondary'">
           模型广场
         </router-link>
-        <router-link to="/skills"
+        <router-link v-if="!isLoggedIn || can('menu:skills')" to="/skills"
           class="px-3 py-1.5 text-[14px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
           :class="isActive('/skills') ? 'font-semibold text-text' : 'text-text-secondary'">
           Skill 广场
         </router-link>
-        <router-link to="/mcp"
+        <router-link v-if="!isLoggedIn || can('menu:mcp')" to="/mcp"
           class="px-3 py-1.5 text-[14px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
           :class="isActive('/mcp') ? 'font-semibold text-text' : 'text-text-secondary'">
           MCP 广场
@@ -41,7 +41,7 @@
       </div>
 
       <div class="flex items-center gap-1 ml-auto md:ml-0 md:justify-self-end">
-        <router-link to="/docs"
+        <router-link v-if="!isLoggedIn || can('menu:docs')" to="/docs"
           class="flex items-center gap-1.5 px-2 py-1.5 text-[13px] text-text-secondary rounded-lg transition-colors hover:bg-black/5 hover:text-text no-underline">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
           在线文档
@@ -66,13 +66,13 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
               管理后台
             </router-link>
-            <!-- 个人中心/API Key:有 token 的用户(管理角色 + 普通用户;超管无 token 不显) -->
-            <router-link v-if="hasPortalToken" to="/profile" @click="showDropdown = false"
+            <!-- 个人中心/API Key:有 token + menu:profile 的用户(管理角色 + 普通用户;超管无 token 不显) -->
+            <router-link v-if="hasPortalToken && can('menu:profile')" to="/profile" @click="showDropdown = false"
               class="flex items-center gap-2 px-4 py-2.5 text-sm text-text hover:bg-black/5 no-underline transition-colors">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               个人中心
             </router-link>
-            <router-link v-if="hasPortalToken" to="/profile?tab=api-keys" @click="showDropdown = false"
+            <router-link v-if="hasPortalToken && can('menu:profile')" to="/profile?tab=api-keys" @click="showDropdown = false"
               class="flex items-center gap-2 px-4 py-2.5 text-sm text-text hover:bg-black/5 no-underline transition-colors">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
               API Key 管理
@@ -101,7 +101,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { siteName, siteLogo, siteLogoIsDefault } from '../composables/useSiteBranding.js'
 import { bannerEnabled, bannerHtml, bannerVisible } from '../composables/useAnnouncement.js'
-import { loadPermissions, isPortalAdmin, showAdminEntry } from '../composables/usePermissions.js'
+import { loadPermissions, isPortalAdmin, showAdminEntry, can } from '../composables/usePermissions.js'
 import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()

@@ -39,7 +39,7 @@
         <section>
           <p v-if="!collapsed" class="px-2.5 mb-1.5 text-[10px] font-medium text-text-tertiary tracking-[0.12em] uppercase select-none">概览</p>
           <div class="space-y-0.5">
-            <SideItem v-if="can('user:view')" to="/admin/stats" :active="isActive('/admin/stats')" :collapsed="collapsed" title="数据统计">
+            <SideItem v-if="can('menu:admin-stats')" to="/admin/stats" :active="isActive('/admin/stats')" :collapsed="collapsed" title="数据统计">
               <BarChart3 class="w-5 h-5" /><template #label>数据统计</template>
             </SideItem>
           </div>
@@ -50,7 +50,7 @@
         <section>
           <p v-if="!collapsed" class="px-2.5 mb-1.5 text-[10px] font-medium text-text-tertiary tracking-[0.12em] uppercase select-none">内容管理</p>
           <div class="space-y-0.5">
-            <SideItem v-if="can('skill:edit')" to="/admin" :active="isActive('/admin')" :collapsed="collapsed" title="审核管理">
+            <SideItem v-if="can('menu:admin-review')" to="/admin" :active="isActive('/admin')" :collapsed="collapsed" title="审核管理">
               <ClipboardCheck class="w-5 h-5" /><template #label>审核管理</template>
             </SideItem>
           </div>
@@ -61,13 +61,13 @@
         <section>
           <p v-if="!collapsed" class="px-2.5 mb-1.5 text-[10px] font-medium text-text-tertiary tracking-[0.12em] uppercase select-none">资源管理</p>
           <div class="space-y-0.5">
-            <SideItem v-if="can('model:view')" to="/admin/models" :active="isActive('/admin/models')" :collapsed="collapsed" title="模型管理">
+            <SideItem v-if="can('menu:admin-models')" to="/admin/models" :active="isActive('/admin/models')" :collapsed="collapsed" title="模型管理">
               <Sun class="w-5 h-5" /><template #label>模型管理</template>
             </SideItem>
-            <SideItem v-if="can('skill:view')" to="/admin/skills" :active="isActive('/admin/skills')" :collapsed="collapsed" title="技能管理">
+            <SideItem v-if="can('menu:admin-skills')" to="/admin/skills" :active="isActive('/admin/skills')" :collapsed="collapsed" title="技能管理">
               <Puzzle class="w-5 h-5" /><template #label>技能管理</template>
             </SideItem>
-            <SideItem v-if="can('mcp:view')" to="/admin/mcps" :active="isActive('/admin/mcps')" :collapsed="collapsed" title="MCP 管理">
+            <SideItem v-if="can('menu:admin-mcps')" to="/admin/mcps" :active="isActive('/admin/mcps')" :collapsed="collapsed" title="MCP 管理">
               <LayoutGrid class="w-5 h-5" /><template #label>MCP 管理</template>
             </SideItem>
           </div>
@@ -78,10 +78,10 @@
         <section>
           <p v-if="!collapsed" class="px-2.5 mb-1.5 text-[10px] font-medium text-text-tertiary tracking-[0.12em] uppercase select-none">授权管理</p>
           <div class="space-y-0.5">
-            <SideItem v-if="can('group:view')" to="/admin/groups" :active="isActive('/admin/groups')" :collapsed="collapsed" title="资源组管理">
+            <SideItem v-if="can('menu:admin-groups')" to="/admin/groups" :active="isActive('/admin/groups')" :collapsed="collapsed" title="资源组管理">
               <FolderKanban class="w-5 h-5" /><template #label>资源组管理</template>
             </SideItem>
-            <SideItem v-if="can('group:view')" to="/admin/resource-assignments" :active="isActive('/admin/resource-assignments')" :collapsed="collapsed" title="资源授权">
+            <SideItem v-if="can('menu:admin-assignments')" to="/admin/resource-assignments" :active="isActive('/admin/resource-assignments')" :collapsed="collapsed" title="资源授权">
               <UserCheck class="w-5 h-5" /><template #label>资源授权</template>
             </SideItem>
           </div>
@@ -92,10 +92,10 @@
         <section>
           <p v-if="!collapsed" class="px-2.5 mb-1.5 text-[10px] font-medium text-text-tertiary tracking-[0.12em] uppercase select-none">用户与权限</p>
           <div class="space-y-0.5">
-            <SideItem v-if="can('user:view')" to="/admin/users" :active="isActive('/admin/users')" :collapsed="collapsed" title="用户管理">
+            <SideItem v-if="can('menu:admin-users')" to="/admin/users" :active="isActive('/admin/users')" :collapsed="collapsed" title="用户管理">
               <UserCog class="w-5 h-5" /><template #label>用户管理</template>
             </SideItem>
-            <SideItem v-if="can('role:view')" to="/admin/roles" :active="isActive('/admin/roles')" :collapsed="collapsed" title="角色权限">
+            <SideItem v-if="can('menu:admin-roles')" to="/admin/roles" :active="isActive('/admin/roles')" :collapsed="collapsed" title="角色权限">
               <ShieldCheck class="w-5 h-5" /><template #label>角色权限</template>
             </SideItem>
           </div>
@@ -106,13 +106,13 @@
         <section>
           <p v-if="!collapsed" class="px-2.5 mb-1.5 text-[10px] font-medium text-text-tertiary tracking-[0.12em] uppercase select-none">系统设置</p>
           <div class="space-y-0.5">
-            <SideItem v-if="can('system:config')" to="/admin/config" :active="isActive('/admin/config')" :collapsed="collapsed" title="基础配置">
+            <SideItem v-if="can('menu:admin-config')" to="/admin/config" :active="isActive('/admin/config')" :collapsed="collapsed" title="基础配置">
               <Sliders class="w-5 h-5" /><template #label>基础配置</template>
             </SideItem>
-            <SideItem v-if="can('system:config')" to="/admin/oauth" :active="isActive('/admin/oauth')" :collapsed="collapsed" title="第三方登录">
+            <SideItem v-if="can('menu:admin-oauth')" to="/admin/oauth" :active="isActive('/admin/oauth')" :collapsed="collapsed" title="第三方登录">
               <KeyRound class="w-5 h-5" /><template #label>第三方登录</template>
             </SideItem>
-            <SideItem v-if="can('group:view')" to="/admin/panel-groups" :active="isActive('/admin/panel-groups')" :collapsed="collapsed" title="1Panel AI 网关同步信息">
+            <SideItem v-if="can('menu:admin-panel')" to="/admin/panel-groups" :active="isActive('/admin/panel-groups')" :collapsed="collapsed" title="1Panel AI 网关同步信息">
               <Boxes class="w-5 h-5" /><template #label>AI 网关同步</template>
             </SideItem>
           </div>
@@ -187,6 +187,9 @@ onMounted(async () => {
     'group:view','group:create','group:edit','group:delete',
     'user:view','user:edit','user:create','user:delete',
     'skill:edit','skill:delete','system:config',
+    'menu:admin-stats','menu:admin-review','menu:admin-models','menu:admin-skills','menu:admin-mcps',
+    'menu:admin-groups','menu:admin-assignments','menu:admin-users','menu:admin-roles',
+    'menu:admin-config','menu:admin-oauth','menu:admin-panel',
   ].some(k => can(k))
   if (!isAdmin && !hasAnyAdminPerm) {
     router.replace('/')
