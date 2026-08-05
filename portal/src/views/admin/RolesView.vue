@@ -119,10 +119,10 @@
             </div>
             <div class="space-y-4 max-h-[400px] overflow-y-auto">
               <!-- 菜单权限 -->
-              <div v-if="menuPermissionGroups.length">
+              <div v-if="visibleMenuGroups.length">
                 <div class="text-xs font-semibold text-text mb-2">菜单权限</div>
                 <div class="space-y-3">
-                  <div v-for="group in menuPermissionGroups" :key="group.id" class="border border-[rgba(0,0,0,0.06)] rounded-lg p-3">
+                  <div v-for="group in visibleMenuGroups" :key="group.id" class="border border-[rgba(0,0,0,0.06)] rounded-lg p-3">
                     <div class="flex items-center gap-3 mb-2">
                       <div
                         class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs cursor-pointer select-none transition-all border"
@@ -146,9 +146,9 @@
                   </div>
                 </div>
               </div>
-              <!-- 操作权限 -->
+              <!-- {{ isAdminRole ? '操作权限' : '功能权限' }} -->
               <div>
-                <div class="text-xs font-semibold text-text mb-2">操作权限</div>
+                <div class="text-xs font-semibold text-text mb-2">{{ isAdminRole ? '操作权限' : '功能权限' }}</div>
                 <div class="space-y-3">
                   <div v-for="group in operationPermissionGroups" :key="group.module" class="border border-[rgba(0,0,0,0.06)] rounded-lg p-3">
                     <div class="flex items-center gap-3 mb-2">
@@ -192,7 +192,11 @@
         <div v-else-if="selectedRole" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl shadow-card p-6">
           <div class="flex items-center justify-between mb-5">
             <h2 class="text-lg font-semibold text-text">{{ displayName(selectedRole) }}</h2>
-            <span v-if="selectedRole.is_system" class="px-2.5 py-1 rounded-full text-xs bg-amber-50 text-amber-600">内置角色</span>
+            <div class="flex items-center gap-2">
+              <span v-if="isAdminRole" class="px-2.5 py-1 rounded-full text-xs bg-indigo-50 text-indigo-600">后台角色</span>
+              <span v-else class="px-2.5 py-1 rounded-full text-xs bg-emerald-50 text-emerald-600">用户侧角色</span>
+              <span v-if="selectedRole.is_system" class="px-2.5 py-1 rounded-full text-xs bg-amber-50 text-amber-600">内置角色</span>
+            </div>
           </div>
 
           <div class="space-y-4">
@@ -226,10 +230,10 @@
             </div>
             <div class="space-y-4 max-h-[400px] overflow-y-auto">
               <!-- 菜单权限 -->
-              <div v-if="menuPermissionGroups.length">
+              <div v-if="visibleMenuGroups.length">
                 <div class="text-xs font-semibold text-text mb-2">菜单权限</div>
                 <div class="space-y-3">
-                  <div v-for="group in menuPermissionGroups" :key="group.id" class="border border-[rgba(0,0,0,0.06)] rounded-lg p-3">
+                  <div v-for="group in visibleMenuGroups" :key="group.id" class="border border-[rgba(0,0,0,0.06)] rounded-lg p-3">
                     <div class="flex items-center gap-3 mb-2">
                       <div
                         class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs cursor-pointer select-none transition-all border"
@@ -254,9 +258,9 @@
                   </div>
                 </div>
               </div>
-              <!-- 操作权限 -->
+              <!-- 操作/功能权限 -->
               <div>
-                <div class="text-xs font-semibold text-text mb-2">操作权限</div>
+                <div class="text-xs font-semibold text-text mb-2">{{ isAdminRole ? '操作权限' : '功能权限' }}</div>
                 <div class="space-y-3">
                   <div v-for="group in operationPermissionGroups" :key="group.module" class="border border-[rgba(0,0,0,0.06)] rounded-lg p-3">
                     <div class="flex items-center gap-3 mb-2">
@@ -355,6 +359,27 @@ const showToast = (message, type = 'success') => {
 const builtInRoles = computed(() => roles.value.filter(r => r.is_system))
 const customRoles = computed(() => roles.value.filter(r => !r.is_system))
 
+// 角色类型判定:有 menu:admin-* 权限或 name==='admin'→后台角色,否则用户侧角色
+const isAdminRole = computed(() => {
+  if (isCreating.value) return inheritFrom.value === 'admin'
+  if (!selectedRole.value) return false
+  if (selectedRole.value.name === 'admin') return true
+  return (selectedRole.value.permissions || []).some(k => k.startsWith('menu:admin-'))
+})
+
+// 后台/用户侧操作权限 key 清单
+const ADMIN_OP_KEYS = new Set([
+  'model:sync', 'skill:edit', 'skill:delete', 'mcp:sync',
+  'user:view', 'user:create', 'user:edit', 'user:delete',
+  'role:view', 'role:create', 'role:edit', 'role:delete',
+  'group:view', 'group:create', 'group:edit', 'group:delete',
+  'system:config',
+])
+const PORTAL_OP_KEYS = new Set([
+  'model:view', 'key:view', 'key:create', 'key:edit', 'key:delete',
+  'skill:view', 'skill:create', 'mcp:view',
+])
+
 // 菜单权限分组（按后台/用户侧两组）
 const menuPermissionGroups = computed(() => {
   const backend = { id: 'admin', label: '后台菜单', permissions: [] }
@@ -367,15 +392,23 @@ const menuPermissionGroups = computed(() => {
   return [backend, portal].filter(g => g.permissions.length)
 })
 
-// 操作权限按 module 分组
+// 操作权限按 module 分组, 按角色类型过滤后台/用户侧
 const operationPermissionGroups = computed(() => {
+  const allowKeys = isAdminRole.value ? ADMIN_OP_KEYS : PORTAL_OP_KEYS
   const map = {}
   for (const p of allPermissions.value) {
     if (p.module === 'menu') continue
+    if (!allowKeys.has(p.key)) continue
     if (!map[p.module]) map[p.module] = { module: p.module, permissions: [] }
     map[p.module].permissions.push(p)
   }
   return Object.values(map)
+})
+
+// 按角色类型只显示对应的菜单组
+const visibleMenuGroups = computed(() => {
+  const target = isAdminRole.value ? 'admin' : 'portal'
+  return menuPermissionGroups.value.filter(g => g.id === target)
 })
 
 function groupLabel(module) {
@@ -419,18 +452,17 @@ function togglePerm(key) {
 
 function applyInherit() {
   const newSet = new Set()
-  if (inheritFrom.value === 'admin') {
-    // 全部菜单 + 全部操作权限
-    for (const p of allPermissions.value) newSet.add(p.key)
-  } else if (inheritFrom.value === 'user') {
-    // 用户侧菜单 + 用户侧 8 项操作权限
-    const userKeys = [
-      'menu:models', 'menu:skills', 'menu:mcp', 'menu:docs',
-      'menu:profile', 'menu:my-skills', 'menu:submit',
-      'model:view', 'key:view', 'key:create', 'key:edit', 'key:delete',
-      'skill:view', 'skill:create', 'mcp:view',
-    ]
-    for (const k of userKeys) newSet.add(k)
+  for (const p of allPermissions.value) {
+    if (inheritFrom.value === 'admin') {
+      // 后台角色: 后台菜单 + 后台操作
+      if (p.module === 'menu' && p.action.startsWith('admin-')) newSet.add(p.key)
+      if (p.module !== 'menu' && ADMIN_OP_KEYS.has(p.key)) newSet.add(p.key)
+    } else if (inheritFrom.value === 'user') {
+      // 用户侧角色: 用户侧菜单 + 用户侧操作
+      if (p.module === 'menu' && !p.action.startsWith('admin-')) newSet.add(p.key)
+      if (p.module !== 'menu' && PORTAL_OP_KEYS.has(p.key)) newSet.add(p.key)
+    }
+    // 'custom': 保持为空，从零开始
   }
   selectedPerms.value = newSet
 }

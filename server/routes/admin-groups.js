@@ -469,9 +469,15 @@ router.get('/api/admin/users/:id/roles', verifyUser, requirePermission('user:edi
 });
 
 // 全量覆盖某用户的角色（事务, 跟 items/members 一个范式）
+// 单角色限制: 每个用户只能有一个角色（数组长度≤1，传多个返 400）
 router.put('/api/admin/users/:id/roles', verifyUser, requirePermission('user:edit'), async (req, res) => {
   const userId = Number(req.params.id);
   const roleIds = Array.isArray(req.body.roleIds) ? req.body.roleIds.map(Number) : [];
+
+  // 单角色限制
+  if (roleIds.length > 1) {
+    return res.status(400).json({ error: '每个用户只能分配一个角色' });
+  }
 
   // C2 校验：禁自分配（超管除外）
   if (req.portalUser.id === userId && !req.portalUser.is_portal_admin) {
