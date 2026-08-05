@@ -1363,11 +1363,20 @@ async function doSyncUsers() {
       const DEFAULT_PWD = process.env.SYNC_USER_DEFAULT_PASSWORD || '';
       const passwordHash = await bcrypt.hash(DEFAULT_PWD, 12);
       try {
-        await global.pool.query(`
+        const inserted = await global.pool.query(`
           INSERT INTO portal_users (panel_user_id, username, name, display_name, password_hash, role, status, panel_host, created_at)
           VALUES ($1, $2, $3, $4, $5, 'user', 'active', $6, CURRENT_TIMESTAMP)
           ON CONFLICT (username) DO NOTHING
+          RETURNING id
         `, [pu.id, name, pu.name, extractDisplayName(pu), passwordHash, currentHost]);
+        // 新同步用户默认分配内置 user 角色
+        if (inserted.rowCount) {
+          await global.pool.query(`
+            INSERT INTO user_roles (user_id, role_id)
+            SELECT $1, id FROM roles WHERE name = 'user' AND is_system = TRUE
+            ON CONFLICT DO NOTHING
+          `, [inserted.rows[0].id]);
+        }
         synced++;
       } catch (e) {
         console.error(`同步用户 ${pu.name} 失败:`, e.message);
@@ -1921,6 +1930,12 @@ router.post('/api/admin/portal-users', verifyUser, requirePermission('user:creat
     `, [panelUserId, rawUsername, rawName, rawName, passwordHash, sessionTimeout]);
 
     const user = result.rows[0];
+    // 新建用户默认分配内置 user 角色
+    await global.pool.query(`
+      INSERT INTO user_roles (user_id, role_id)
+      SELECT $1, id FROM roles WHERE name = 'user' AND is_system = TRUE
+      ON CONFLICT DO NOTHING
+    `, [user.id]);
     res.json({
       user: {
         id: user.id,

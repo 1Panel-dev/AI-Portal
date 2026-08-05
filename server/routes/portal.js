@@ -86,6 +86,12 @@ router.post('/api/auth/register', async (req, res) => {
     `, [panelUserId, rawUsername, rawName, passwordHash, sessionTimeout]);
 
     const user = result.rows[0];
+    // 新注册用户默认分配内置 user 角色
+    await global.pool.query(`
+      INSERT INTO user_roles (user_id, role_id)
+      SELECT $1, id FROM roles WHERE name = 'user' AND is_system = TRUE
+      ON CONFLICT DO NOTHING
+    `, [user.id]);
     const token = signPortalToken(user);
     res.json({ token, user: formatPortalUser(user) });
   } catch (err) {
