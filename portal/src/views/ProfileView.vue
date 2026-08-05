@@ -50,7 +50,8 @@
               <div class="flex items-center justify-between py-3 border-b border-[rgba(0,0,0,0.06)]">
                 <span class="text-sm text-text-secondary">角色</span>
                 <span class="text-sm text-text">
-                  <span v-if="user.role === 'admin'" class="text-indigo-600 font-medium">管理员</span>
+                  <span v-if="isPortalAdmin" class="text-indigo-600 font-medium">超级管理员</span>
+                  <span v-else-if="roles.length">{{ roles.join(' · ') }}</span>
                   <span v-else>普通用户</span>
                 </span>
               </div>
@@ -527,7 +528,7 @@ import NavBar from '../components/NavBar.vue'
 import SkillDetailModal from '../components/SkillDetailModal.vue'
 import AppDialog from '../components/AppDialog.vue'
 import SkillctlGuide from '../components/SkillctlGuide.vue'
-import { loadPermissions, can, isPortalAdmin, showAdminEntry } from '../composables/usePermissions.js'
+import { loadPermissions, can, isPortalAdmin, showAdminEntry, roles } from '../composables/usePermissions.js'
 import * as echarts from 'echarts/core'
 import { BarChart, LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
