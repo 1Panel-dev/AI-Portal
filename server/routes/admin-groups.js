@@ -459,6 +459,19 @@ router.get('/api/admin/users/:id/roles', verifyUser, requirePermission('user:edi
 router.put('/api/admin/users/:id/roles', verifyUser, requirePermission('user:edit'), async (req, res) => {
   const userId = Number(req.params.id);
   const roleIds = Array.isArray(req.body.roleIds) ? req.body.roleIds.map(Number) : [];
+
+  // C2 校验：禁自分配（超管除外）
+  if (req.portalUser.id === userId && !req.portalUser.is_portal_admin) {
+    return res.status(403).json({ error: '不能修改自己的角色' });
+  }
+  // 禁分配 admin 角色
+  if (roleIds.length > 0) {
+    const adminRoles = await pool().query('SELECT id FROM roles WHERE name = $1 AND id = ANY($2)', ['admin', roleIds]);
+    if (adminRoles.rowCount > 0) {
+      return res.status(400).json({ error: 'admin 为超管标记角色，不可分配' });
+    }
+  }
+
   const client = await pool().connect();
   try {
     await client.query('BEGIN');

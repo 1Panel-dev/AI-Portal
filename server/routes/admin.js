@@ -1863,8 +1863,9 @@ router.post('/api/admin/portal-users', verifyUser, requirePermission('user:edit'
     if (!rawPassword || rawPassword.length < 6) {
       return res.status(400).json({ error: '密码至少6位' });
     }
-    if (rawRole !== 'user' && rawRole !== 'admin') {
-      return res.status(400).json({ error: '角色只能是 user 或 admin' });
+    // RBAC 下 role='admin' 已失效（超管标记走 DB 设 is_portal_admin）
+    if (rawRole !== 'user') {
+      return res.status(400).json({ error: '角色只能是 user（RBAC 下超管标记请通过 DB 设置 is_portal_admin）' });
     }
 
     const existing = await global.pool.query(
@@ -1904,9 +1905,9 @@ router.post('/api/admin/portal-users', verifyUser, requirePermission('user:edit'
     const passwordHash = await bcrypt.hash(rawPassword, 12);
     const result = await global.pool.query(`
       INSERT INTO portal_users (panel_user_id, username, name, display_name, password_hash, session_timeout, status, role)
-      VALUES ($1, $2, $3, $4, $5, $6, 'active', $7)
+      VALUES ($1, $2, $3, $4, $5, $6, 'active', 'user')
       RETURNING id, panel_user_id, username, name, role, status, last_login_at, created_at
-    `, [panelUserId, rawUsername, rawName, rawName, passwordHash, sessionTimeout, rawRole]);
+    `, [panelUserId, rawUsername, rawName, rawName, passwordHash, sessionTimeout]);
 
     const user = result.rows[0];
     res.json({
@@ -1915,7 +1916,7 @@ router.post('/api/admin/portal-users', verifyUser, requirePermission('user:edit'
         panel_user_id: user.panel_user_id,
         username: user.username,
         name: user.name,
-        role: user.role,
+        role: 'user',
         status: user.status,
         last_login_at: user.last_login_at,
         created_at: user.created_at,
