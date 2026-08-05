@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
-const { verifyAdmin, verifyUser, requirePermission, optionalUser, signPortalToken } = require('../auth');
+const { verifyUser, requirePermission, optionalUser, signPortalToken } = require('../auth');
 const { panel, getPanelPayload, getPanelItems, findPanelUser, createPanelUser, syncModelsFromPanel } = require('../panel');
 const { isAnyProviderEnabled } = require('../oauth');
 const { inspectPanelBiz, listPanelKeysOfUser } = require('../lib/panel-biz');
@@ -337,7 +337,7 @@ router.get('/api/models', optionalUser, async (req, res) => {
   }
 });
 
-router.post('/api/models/sync', verifyAdmin, async (req, res) => {
+router.post('/api/models/sync', verifyUser, requirePermission('model:sync'), async (req, res) => {
   try {
     const result = await syncModelsFromPanel();
     res.json({ success: true, ...result });

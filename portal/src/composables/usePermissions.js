@@ -7,7 +7,7 @@
 //
 // Phase 2 才接入 AdminLayout 菜单显隐 / 按钮禁用；Phase 1 仅提供 can() 供页面按需调用。
 import { ref, computed } from 'vue'
-import { API_BASE } from '../lib/apiBase'
+import { API_BASE, isTokenExpired } from '../lib/apiBase'
 
 export const permissions = ref([])
 export const isPortalAdmin = ref(false)
@@ -31,8 +31,10 @@ export async function loadPermissions() {
     isPortalAdmin.value = !!data.is_portal_admin
     roles.value = data.roles || []
   } catch (e) {
-    // 兜底：接口不可用时，仅有 admin_token 视为超管（保证后台可访问）
-    if (localStorage.getItem('admin_token')) {
+    // 兜底：接口不可用时，admin_token 未过期才视为超管（保证后台可访问）
+    // 过期 token 不设 isPortalAdmin，避免误判超管展示空壳菜单（后端仍会 401 拒绝）
+    const adminToken = localStorage.getItem('admin_token')
+    if (adminToken && !isTokenExpired(adminToken)) {
       isPortalAdmin.value = true
       permissions.value = []
     } else {
