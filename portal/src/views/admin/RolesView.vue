@@ -225,7 +225,7 @@
                     :style="selectedRole.is_system ? 'opacity: 0.6;' : ''"
                     @click="!selectedRole.is_system && toggleAllMenus"
                   >
-                    <input type="checkbox" :checked="allMenusSelected" :disabled="selectedRole.is_system" @click.stop="!selectedRole.is_system && toggleAllMenus" class="accent-accent shrink-0" />
+                    <input type="checkbox" :checked="selectedRole.is_system || allMenusSelected" :disabled="selectedRole.is_system" @click.stop="!selectedRole.is_system && toggleAllMenus" class="accent-accent shrink-0" />
                     <span>全选</span>
                   </div>
                   <div
@@ -235,7 +235,7 @@
                     :style="selectedRole.is_system ? 'opacity: 0.6;' : ''"
                     @click="selectedRole.is_system ? null : (selectedMenuKey = m.key)"
                   >
-                    <input type="checkbox" :checked="selectedPerms.has(m.key)" :disabled="selectedRole.is_system" @click.stop="!selectedRole.is_system && togglePerm(m.key)" class="accent-accent shrink-0" />
+                    <input type="checkbox" :checked="selectedRole.is_system || selectedPerms.has(m.key)" :disabled="selectedRole.is_system" @click.stop="!selectedRole.is_system && togglePerm(m.key)" class="accent-accent shrink-0" />
                     <span class="truncate">{{ m.name }}</span>
                   </div>
                   <div v-if="!orderedMenuList.length" class="px-3 py-4 text-xs text-text-tertiary text-center">暂无菜单</div>
