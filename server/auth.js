@@ -47,46 +47,6 @@ const uploadLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// 统一验证中间件：验证 token 并附加用户信息
-const verifyAuth = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: '未登录' });
-  }
-
-  const token = authHeader.substring(7);
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.type !== 'admin' && decoded.type !== 'portal_user') {
-      return res.status(401).json({ error: 'Token 无效' });
-    }
-    req.user = decoded;
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: 'Token 无效或已过期' });
-  }
-};
-
-// 验证管理员权限（包含 token 验证）
-const verifyAdmin = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: '未授权' });
-  }
-
-  const token = authHeader.substring(7);
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.type !== 'admin' || decoded.role !== 'admin') {
-      return res.status(403).json({ error: '权限不足，需要管理员权限' });
-    }
-    req.user = decoded;
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: 'Token 无效或已过期' });
-  }
-};
-
 // 验证普通用户权限（Phase 2: 认 admin_token + SELECT 加 is_portal_admin）
 const verifyUser = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -140,7 +100,7 @@ const optionalUser = async (req, res, next) => {
   next();
 };
 
-// 权限中间件（Phase 1 就绪但不挂载; 依赖 verifyUser 设的 req.portalUser, 与 verifyAdmin 混用会 crash）
+// 权限中间件（依赖 verifyUser 设的 req.portalUser）
 function requirePermission(permissionKey) {
   return async (req, res, next) => {
     if (!req.portalUser) {
@@ -220,8 +180,6 @@ module.exports = {
   downloadLimiter,
   loginLimiter,
   uploadLimiter,
-  verifyAuth,
-  verifyAdmin,
   verifyUser,
   optionalUser,
   requirePermission,
