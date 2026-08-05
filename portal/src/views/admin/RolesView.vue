@@ -130,6 +130,14 @@
                     <span>全选</span>
                   </div>
                   <div
+                    class="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer transition-all border-b border-[rgba(0,0,0,0.06)]"
+                    :class="!selectedMenuKey ? 'bg-accent/10 text-accent font-medium' : 'hover:bg-black/[0.02] text-text'"
+                    @click="selectedMenuKey = null"
+                  >
+                    <span class="shrink-0 w-4"></span>
+                    <span>全部权限</span>
+                  </div>
+                  <div
                     v-for="m in orderedMenuList" :key="m.key"
                     class="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer transition-all"
                     :class="selectedMenuKey === m.key ? 'bg-accent/10 text-accent font-medium' : 'hover:bg-black/[0.02] text-text'"
@@ -144,6 +152,30 @@
               <!-- 右栏：操作/功能权限 -->
               <div class="flex-1 min-w-0">
                 <div class="text-xs font-semibold text-text mb-2">{{ isAdminRole ? '操作权限' : '功能权限' }}</div>
+                <!-- 全部权限模式 -->
+                <div v-if="!selectedMenuKey" class="border border-[rgba(0,0,0,0.06)] rounded-lg p-3 min-h-[100px]">
+                  <div v-if="allOperationGroups.length" class="space-y-3">
+                    <div v-for="group in allOperationGroups" :key="group.module" class="flex flex-wrap items-center gap-2">
+                      <div
+                        class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs cursor-pointer select-none transition-all border"
+                        :class="groupAllSelected(group) ? 'bg-accent text-white border-accent' : groupSomeSelected(group) ? 'bg-accent/10 text-accent border-accent/30' : 'bg-white border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
+                        @click="toggleGroupAll(group)"
+                      >
+                        全选 {{ groupLabel(group.module) }}
+                      </div>
+                      <div
+                        v-for="perm in group.permissions" :key="perm.key"
+                        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer select-none transition-all"
+                        :class="selectedPerms.has(perm.key) ? 'bg-accent text-white border border-transparent' : 'bg-white border border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
+                        @click="togglePerm(perm.key)"
+                      >
+                        {{ perm.name }}
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else class="text-xs text-text-tertiary py-6 text-center">暂无权限</div>
+                </div>
+                <!-- 选中菜单模式 -->
                 <div v-if="selectedMenuKey" class="border border-[rgba(0,0,0,0.06)] rounded-lg p-3 min-h-[100px]">
                   <div v-if="selectedMenuOps.length" class="flex flex-wrap gap-2 items-center">
                     <div
@@ -163,9 +195,6 @@
                     </div>
                   </div>
                   <div v-else class="text-xs text-text-tertiary py-6 text-center">该菜单无操作权限</div>
-                </div>
-                <div v-else class="border border-[rgba(0,0,0,0.06)] rounded-lg p-3 min-h-[100px]">
-                  <div class="text-xs text-text-tertiary py-6 text-center">请从左侧选择一个菜单</div>
                 </div>
               </div>
             </div>
@@ -236,6 +265,15 @@
                     <span>全选</span>
                   </div>
                   <div
+                    class="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer transition-all border-b border-[rgba(0,0,0,0.06)]"
+                    :class="!selectedMenuKey ? 'bg-accent/10 text-accent font-medium' : 'hover:bg-black/[0.02] text-text'"
+                    :style="selectedRole.is_system ? 'opacity: 0.6;' : ''"
+                    @click="selectedMenuKey = null"
+                  >
+                    <span class="shrink-0 w-4"></span>
+                    <span>全部权限</span>
+                  </div>
+                  <div
                     v-for="m in orderedMenuList" :key="m.key"
                     class="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer transition-all"
                     :class="selectedMenuKey === m.key ? 'bg-accent/10 text-accent font-medium' : 'hover:bg-black/[0.02] text-text'"
@@ -251,6 +289,31 @@
               <!-- 右栏：操作/功能权限 -->
               <div class="flex-1 min-w-0">
                 <div class="text-xs font-semibold text-text mb-2">{{ isAdminRole ? '操作权限' : '功能权限' }}</div>
+                <!-- 全部权限模式 -->
+                <div v-if="!selectedMenuKey" class="border border-[rgba(0,0,0,0.06)] rounded-lg p-3 min-h-[100px]">
+                  <div v-if="allOperationGroups.length" class="space-y-3">
+                    <div v-for="group in allOperationGroups" :key="group.module" class="flex flex-wrap items-center gap-2">
+                      <div
+                        class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs cursor-pointer select-none transition-all border"
+                        :class="selectedRole.is_system ? 'opacity-50 cursor-not-allowed' : groupAllSelected(group) ? 'bg-accent text-white border-accent' : groupSomeSelected(group) ? 'bg-accent/10 text-accent border-accent/30' : 'bg-white border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
+                        @click="!selectedRole.is_system && toggleGroupAll(group)"
+                      >
+                        全选 {{ groupLabel(group.module) }}
+                      </div>
+                      <div
+                        v-for="perm in group.permissions" :key="perm.key"
+                        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer select-none transition-all"
+                        :class="selectedPerms.has(perm.key) || selectedRole.is_system ? 'bg-accent text-white border border-transparent' : 'bg-white border border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
+                        :style="selectedRole.is_system ? 'opacity: 0.5; pointer-events: none;' : ''"
+                        @click="!selectedRole.is_system && togglePerm(perm.key)"
+                      >
+                        {{ perm.name }}
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else class="text-xs text-text-tertiary py-6 text-center">暂无权限</div>
+                </div>
+                <!-- 选中菜单模式 -->
                 <div v-if="selectedMenuKey" class="border border-[rgba(0,0,0,0.06)] rounded-lg p-3 min-h-[100px]">
                   <div v-if="selectedMenuOps.length" class="flex flex-wrap gap-2 items-center">
                     <div
@@ -477,6 +540,42 @@ const selectedMenuOps = computed(() => {
   return allPermissions.value.filter(p => opKeys.includes(p.key))
 })
 
+// 全部权限分组（按 module 分组，按角色类型过滤后台/用户侧）
+const allOperationGroups = computed(() => {
+  const allowKeys = isAdminRole.value ? ADMIN_OP_KEYS : PORTAL_OP_KEYS
+  const map = {}
+  for (const p of allPermissions.value) {
+    if (p.module === 'menu') continue
+    if (!allowKeys.has(p.key)) continue
+    if (!map[p.module]) map[p.module] = { module: p.module, permissions: [] }
+    map[p.module].permissions.push(p)
+  }
+  return Object.values(map)
+})
+function groupAllSelected(group) {
+  return group.permissions.length > 0 && group.permissions.every(p => selectedPerms.value.has(p.key))
+}
+function groupSomeSelected(group) {
+  return group.permissions.some(p => selectedPerms.value.has(p.key))
+}
+function toggleGroupAll(group) {
+  const newSet = new Set(selectedPerms.value)
+  const allSel = groupAllSelected(group)
+  for (const p of group.permissions) {
+    if (allSel) newSet.delete(p.key)
+    else newSet.add(p.key)
+  }
+  selectedPerms.value = newSet
+}
+
+function groupLabel(module) {
+  const labels = {
+    model: '模型', key: 'API Key', skill: '技能', mcp: 'MCP',
+    user: '用户', role: '角色', group: '资源组', system: '系统',
+  }
+  return labels[module] || module
+}
+
 function displayName(role) {
   if (role.name === 'admin') return '超级管理员'
   if (role.name === 'user') return '普通用户'
@@ -551,8 +650,8 @@ function selectRole(role) {
   selectedRole.value = role
   formDesc.value = role.description || ''
   selectedPerms.value = new Set(role.permissions || [])
-  // 默认选中第一个菜单
-  selectedMenuKey.value = orderedMenuList.value[0]?.key || null
+  // 默认「全部权限」视图,让用户能一眼看到完整权限清单
+  selectedMenuKey.value = null
 }
 
 function startNewRole() {
