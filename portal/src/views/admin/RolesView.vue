@@ -123,6 +123,13 @@
                 <div class="text-xs font-semibold text-text mb-2">菜单权限</div>
                 <div class="border border-[rgba(0,0,0,0.06)] rounded-lg overflow-hidden">
                   <div
+                    class="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer transition-all border-b border-[rgba(0,0,0,0.06)] bg-surface-secondary text-text font-medium"
+                    @click="toggleAllMenus"
+                  >
+                    <input type="checkbox" :checked="allMenusSelected" @click.stop="toggleAllMenus" class="accent-accent shrink-0" />
+                    <span>全选</span>
+                  </div>
+                  <div
                     v-for="m in orderedMenuList" :key="m.key"
                     class="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer transition-all"
                     :class="selectedMenuKey === m.key ? 'bg-accent/10 text-accent font-medium' : 'hover:bg-black/[0.02] text-text'"
@@ -213,6 +220,14 @@
               <div class="w-[200px] shrink-0">
                 <div class="text-xs font-semibold text-text mb-2">菜单权限</div>
                 <div class="border border-[rgba(0,0,0,0.06)] rounded-lg overflow-hidden">
+                  <div
+                    class="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer transition-all border-b border-[rgba(0,0,0,0.06)] bg-surface-secondary text-text font-medium"
+                    :style="selectedRole.is_system ? 'opacity: 0.6;' : ''"
+                    @click="!selectedRole.is_system && toggleAllMenus"
+                  >
+                    <input type="checkbox" :checked="allMenusSelected" :disabled="selectedRole.is_system" @click.stop="!selectedRole.is_system && toggleAllMenus" class="accent-accent shrink-0" />
+                    <span>全选</span>
+                  </div>
                   <div
                     v-for="m in orderedMenuList" :key="m.key"
                     class="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer transition-all"
@@ -410,6 +425,19 @@ const orderedMenuList = computed(() => {
     return perm || { key, name: key, module: 'menu', action: key.replace('menu:', '') }
   })
 })
+
+// 菜单全选/全不选
+const allMenusSelected = computed(() => {
+  return orderedMenuList.value.length > 0 && orderedMenuList.value.every(m => selectedPerms.value.has(m.key))
+})
+function toggleAllMenus() {
+  const newSet = new Set(selectedPerms.value)
+  for (const m of orderedMenuList.value) {
+    if (allMenusSelected.value) newSet.delete(m.key)
+    else newSet.add(m.key)
+  }
+  selectedPerms.value = newSet
+}
 
 // 当前选中菜单的操作权限列表
 const selectedMenuOps = computed(() => {
