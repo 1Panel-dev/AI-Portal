@@ -141,7 +141,7 @@
 
             <!-- 操作权限 -->
             <div>
-              <div class="text-sm font-medium text-text mb-2">{{ isAdminRole ? '操作权限' : '功能权限' }}</div>
+              <div class="text-sm font-medium text-text mb-2">{{ isAdminRole ? '操作权限' : '功能权限' }}<span class="ml-2 text-xs font-normal text-text-tertiary">随上方勾选的菜单联动</span></div>
               <div v-if="allOperationGroups.length" class="space-y-3">
                 <div v-for="group in allOperationGroups" :key="group.module" class="flex flex-wrap items-center gap-2">
                   <div
@@ -161,7 +161,7 @@
                   </div>
                 </div>
               </div>
-              <div v-else class="text-xs text-text-tertiary">暂无操作权限</div>
+              <div v-else class="text-xs text-text-tertiary">请先勾选上方菜单，这里会显示对应菜单下的操作权限</div>
             </div>
           </div>
 
@@ -244,7 +244,7 @@
 
             <!-- 操作权限 -->
             <div>
-              <div class="text-sm font-medium text-text mb-2">{{ isAdminRole ? '操作权限' : '功能权限' }}</div>
+              <div class="text-sm font-medium text-text mb-2">{{ isAdminRole ? '操作权限' : '功能权限' }}<span v-if="!selectedRole.is_system" class="ml-2 text-xs font-normal text-text-tertiary">随上方勾选的菜单联动</span></div>
               <div v-if="allOperationGroups.length" class="space-y-3">
                 <div v-for="group in allOperationGroups" :key="group.module" class="flex flex-wrap items-center gap-2">
                   <div
@@ -265,7 +265,7 @@
                   </div>
                 </div>
               </div>
-              <div v-else class="text-xs text-text-tertiary">暂无操作权限</div>
+              <div v-else class="text-xs text-text-tertiary">请先勾选上方菜单，这里会显示对应菜单下的操作权限</div>
             </div>
           </div>
 
@@ -359,6 +359,30 @@ const PORTAL_OP_KEYS = new Set([
   'skill:view', 'skill:create', 'mcp:view',
 ])
 
+// 菜单→该菜单下操作权限映射
+const MENU_TO_OPS = {
+  'menu:admin-stats': ['user:view'],
+  'menu:admin-review': ['skill:edit', 'skill:delete'],
+  'menu:admin-models': ['model:view', 'model:sync'],
+  'menu:admin-skills': ['skill:view', 'skill:create', 'skill:edit', 'skill:delete'],
+  'menu:admin-mcps': ['mcp:view', 'mcp:sync'],
+  'menu:admin-groups': ['group:view', 'group:create', 'group:edit', 'group:delete'],
+  'menu:admin-assignments': ['group:view'],
+  'menu:admin-users': ['user:view', 'user:create', 'user:edit', 'user:delete'],
+  'menu:admin-roles': ['role:view', 'role:create', 'role:edit', 'role:delete'],
+  'menu:admin-config': ['system:config'],
+  'menu:admin-oauth': ['system:config'],
+  'menu:admin-panel': ['group:view'],
+  'menu:models': ['model:view'],
+  'menu:skills': ['skill:view', 'skill:create'],
+  'menu:mcp': ['mcp:view'],
+  'menu:docs': [],
+  'menu:profile': [],
+  'menu:api-keys': ['key:view', 'key:create', 'key:edit', 'key:delete'],
+  'menu:my-skills': ['skill:view', 'skill:create'],
+  'menu:submit': ['skill:create'],
+}
+
 // 菜单展示顺序
 const MENU_ORDER = [
   'menu:admin-stats', 'menu:admin-review',
@@ -403,12 +427,24 @@ const orderedMenuList = computed(() => {
 })
 
 // 全部权限分组（按 module 分组，按角色类型过滤后台/用户侧）
+// 与菜单权限联动:只展示已勾选菜单对应的操作权限;内置角色不联动展示全部
 const allOperationGroups = computed(() => {
   const allowKeys = isAdminRole.value ? ADMIN_OP_KEYS : PORTAL_OP_KEYS
+  const isSystem = !isCreating.value && selectedRole.value?.is_system
+  // 汇总已勾选菜单对应的操作权限 key（内置角色跳过联动，展示全部）
+  const linkedOpKeys = new Set()
+  if (!isSystem) {
+    for (const m of orderedMenuList.value) {
+      if (selectedPerms.value.has(m.key)) {
+        for (const k of (MENU_TO_OPS[m.key] || [])) linkedOpKeys.add(k)
+      }
+    }
+  }
   const map = {}
   for (const p of allPermissions.value) {
     if (p.module === 'menu') continue
     if (!allowKeys.has(p.key)) continue
+    if (!isSystem && !linkedOpKeys.has(p.key)) continue
     if (!map[p.module]) map[p.module] = { module: p.module, permissions: [] }
     map[p.module].permissions.push(p)
   }
