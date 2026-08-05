@@ -166,16 +166,275 @@ router.post('/api/admin/panel-groups/sync', verifyUser, requirePermission('group
   }
 });
 
-// ---- 角色列表（供角色分配区动态拉, 为后续自定义角色铺路）----
-// 返回全部角色（含 is_system 标记）, 前端按 name !== 'admin' 排除超管标记角色不可分配
+// ---- 角色 CRUD + 权限配置 ----
+
+// 返回全部角色（含 is_system 标记 + 权限位列表 + 用户数）
 router.get('/api/admin/roles', verifyUser, requirePermission('role:view'), async (req, res) => {
   try {
-    const r = await pool().query(
-      'SELECT id, name, description, is_system FROM roles ORDER BY id'
-    );
+    const r = await pool().query(`
+      SELECT r.id, r.name, r.description, r.is_system,
+        COALESCE(
+          (SELECT json_agg(p.key ORDER BY p.key)
+           FROM role_permissions rp
+           JOIN permissions p ON p.id = rp.permission_id
+           WHERE rp.role_id = r.id),
+          '[]'::json
+        ) AS permissions,
+        (SELECT COUNT(*) FROM user_roles ur WHERE ur.role_id = r.id)::int AS user_count
+      FROM roles r
+      ORDER BY r.id
+    `);
     res.json({ data: r.rows });
   } catch (e) {
     res.status(500).json({ error: '获取角色列表失败', reason: e.message });
+  }
+});
+
+// 全部权限位清单（供前端勾选树渲染）
+router.get('/api/admin/permissions', verifyUser, requirePermission('role:view'), async (req, res) => {
+  try {
+    const r = await pool().query('SELECT id, module, action, key, name FROM permissions ORDER BY module, action');
+    res.json({ data: r.rows });
+  } catch (e) {
+    res.status(500).json({ error: '获取权限位列表失败', reason: e.message });
+  }
+});
+
+// 新建角色（含 name 唯一校验 + 保留名 admin/user 禁用）
+router.post('/api/admin/roles', verifyUser, requirePermission('role:create'), async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim();
+    const description = String(req.body.description || '').trim();
+    const keys = Array.isArray(req.body.keys) ? req.body.keys : [];
+
+    if (!name) return res.status(400).json({ error: '角色名不能为空' });
+    if (name.length > 50) return res.status(400).json({ error: '角色名不能超过50个字符' });
+    if (description.length > 200) return res.status(400).json({ error: '描述不能超过200个字符' });
+    // 保留名禁用
+    if (name === 'admin' || name === 'user') {
+      return res.status(400).json({ error: `角色名「${name}」为系统保留名，不可创建` });
+    }
+
+    // 校验 keys 全存在
+    if (keys.length > 0) {
+      const valid = await pool().query('SELECT key FROM permissions WHERE key = ANY($1)', [keys]);
+      const validSet = new Set(valid.rows.map(r => r.key));
+      const invalid = keys.filter(k => !validSet.has(k));
+      if (invalid.length) return res.status(400).json({ error: `未知权限位: ${invalid.join(', ')}` });
+    }
+
+    // 非超管校验 keys ⊆ 操作者持有（C2）
+    if (!req.portalUser.is_portal_admin) {
+      const { getUserPermissions } = require('../lib/permission');
+      const { permissions: myPerms } = await getUserPermissions(req.portalUser.id);
+      const mySet = new Set(myPerms);
+      const exceed = keys.filter(k => !mySet.has(k));
+      if (exceed.length) return res.status(403).json({ error: `无权分配超出自己持有范围的权限位: ${exceed.join(', ')}` });
+    }
+
+    const client = await pool().connect();
+    try {
+      await client.query('BEGIN');
+      const r = await client.query(
+        `INSERT INTO roles (name, description, is_system) VALUES ($1, $2, FALSE) RETURNING id, name, description, is_system`,
+        [name, description]
+      );
+      const role = r.rows[0];
+      // 插权限关联
+      for (const k of keys) {
+        await client.query(
+          `INSERT INTO role_permissions (role_id, permission_id) SELECT $1, id FROM permissions WHERE key = $2 ON CONFLICT DO NOTHING`,
+          [role.id, k]
+        );
+      }
+      await client.query('COMMIT');
+      // 返回完整角色信息（含权限位）
+      const full = await pool().query(`
+        SELECT r.id, r.name, r.description, r.is_system,
+          COALESCE(
+            (SELECT json_agg(p.key ORDER BY p.key)
+             FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id
+             WHERE rp.role_id = r.id), '[]'::json
+          ) AS permissions, 0 AS user_count
+        FROM roles r WHERE r.id = $1
+      `, [role.id]);
+      res.status(201).json({ data: full.rows[0] });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      if (e.code === '23505') return res.status(409).json({ error: '角色名已存在' });
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (e) {
+    res.status(500).json({ error: '新建角色失败', reason: e.message });
+  }
+});
+
+// 单角色详情（含权限位列表）
+router.get('/api/admin/roles/:id', verifyUser, requirePermission('role:view'), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: '无效的角色 id' });
+    const r = await pool().query(`
+      SELECT r.id, r.name, r.description, r.is_system,
+        COALESCE(
+          (SELECT json_agg(p.key ORDER BY p.key)
+           FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id
+           WHERE rp.role_id = r.id), '[]'::json
+        ) AS permissions,
+        (SELECT COUNT(*) FROM user_roles ur WHERE ur.role_id = r.id)::int AS user_count
+      FROM roles r WHERE r.id = $1
+    `, [id]);
+    if (!r.rowCount) return res.status(404).json({ error: '角色不存在' });
+    res.json({ data: r.rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: '获取角色详情失败', reason: e.message });
+  }
+});
+
+// 改角色基本信息（is_system 角色禁改 name；admin 角色禁改 name+description）
+router.put('/api/admin/roles/:id', verifyUser, requirePermission('role:edit'), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: '无效的角色 id' });
+    const role = await pool().query('SELECT id, name, is_system FROM roles WHERE id = $1', [id]);
+    if (!role.rowCount) return res.status(404).json({ error: '角色不存在' });
+
+    const r = role.rows[0];
+    const name = req.body.name !== undefined ? String(req.body.name).trim() : undefined;
+    const description = req.body.description !== undefined ? String(req.body.description).trim() : undefined;
+
+    // is_system 角色禁改 name
+    if (r.is_system && name !== undefined) {
+      return res.status(400).json({ error: '内置角色不可修改名称' });
+    }
+    // admin 角色禁止修改任何信息
+    if (r.name === 'admin' && (name !== undefined || description !== undefined)) {
+      return res.status(400).json({ error: 'admin 为系统标记角色，不可修改' });
+    }
+
+    // 校验 name 长度
+    if (name !== undefined) {
+      if (!name) return res.status(400).json({ error: '角色名不能为空' });
+      if (name.length > 50) return res.status(400).json({ error: '角色名不能超过50个字符' });
+    }
+    if (description !== undefined && description.length > 200) {
+      return res.status(400).json({ error: '描述不能超过200个字符' });
+    }
+
+    const sets = [];
+    const vals = [];
+    let idx = 1;
+    if (name !== undefined) { sets.push(`name = $${idx++}`); vals.push(name); }
+    if (description !== undefined) { sets.push(`description = $${idx++}`); vals.push(description); }
+    if (sets.length === 0) return res.status(400).json({ error: '没有需要更新的字段' });
+
+    vals.push(id);
+    try {
+      await pool().query(`UPDATE roles SET ${sets.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = $${idx}`, vals);
+      res.json({ ok: true });
+    } catch (e) {
+      if (e.code === '23505') return res.status(409).json({ error: '角色名已存在' });
+      throw e;
+    }
+  } catch (e) {
+    res.status(500).json({ error: '更新角色失败', reason: e.message });
+  }
+});
+
+// 删角色（is_system 禁删；有 user_roles 引用返 409）
+router.delete('/api/admin/roles/:id', verifyUser, requirePermission('role:delete'), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: '无效的角色 id' });
+    const role = await pool().query('SELECT id, name, is_system FROM roles WHERE id = $1', [id]);
+    if (!role.rowCount) return res.status(404).json({ error: '角色不存在' });
+
+    const r = role.rows[0];
+    // 内置角色禁删
+    if (r.is_system) return res.status(409).json({ error: '内置角色不可删除' });
+
+    // 预检查引用（防 DB CASCADE 致用户丢权限）
+    const refs = await pool().query('SELECT COUNT(*)::int AS cnt FROM user_roles WHERE role_id = $1', [id]);
+    if (refs.rows[0].cnt > 0) {
+      return res.status(409).json({ error: `该角色被 ${refs.rows[0].cnt} 个用户引用，请先移除或给用户换角色` });
+    }
+
+    await pool().query('DELETE FROM roles WHERE id = $1', [id]);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: '删除角色失败', reason: e.message });
+  }
+});
+
+// 查某角色的权限位 key 列表
+router.get('/api/admin/roles/:id/permissions', verifyUser, requirePermission('role:view'), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: '无效的角色 id' });
+    const r = await pool().query(
+      `SELECT p.key FROM permissions p
+       JOIN role_permissions rp ON rp.permission_id = p.id
+       WHERE rp.role_id = $1 ORDER BY p.key`, [id]
+    );
+    res.json({ data: r.rows.map(row => row.key) });
+  } catch (e) {
+    res.status(500).json({ error: '获取角色权限位失败', reason: e.message });
+  }
+});
+
+// 全量覆盖角色权限位（事务：DELETE + INSERT，跟 items/members 范式一致）
+router.put('/api/admin/roles/:id/permissions', verifyUser, requirePermission('role:edit'), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: '无效的角色 id' });
+    const keys = Array.isArray(req.body.keys) ? req.body.keys : [];
+
+    const role = await pool().query('SELECT id, name, is_system FROM roles WHERE id = $1', [id]);
+    if (!role.rowCount) return res.status(404).json({ error: '角色不存在' });
+
+    const r = role.rows[0];
+    // admin 角色权限集不可改（bypass 走 is_portal_admin，配了也不生效）
+    if (r.name === 'admin') return res.status(400).json({ error: 'admin 角色权限集不可修改（超管走 is_portal_admin 标记）' });
+
+    // 校验 keys 全存在（I3）
+    if (keys.length > 0) {
+      const valid = await pool().query('SELECT key FROM permissions WHERE key = ANY($1)', [keys]);
+      const validSet = new Set(valid.rows.map(r => r.key));
+      const invalid = keys.filter(k => !validSet.has(k));
+      if (invalid.length) return res.status(400).json({ error: `未知权限位: ${invalid.join(', ')}` });
+    }
+
+    // 非超管校验 keys ⊆ 操作者持有（C2）
+    if (!req.portalUser.is_portal_admin) {
+      const { getUserPermissions } = require('../lib/permission');
+      const { permissions: myPerms } = await getUserPermissions(req.portalUser.id);
+      const mySet = new Set(myPerms);
+      const exceed = keys.filter(k => !mySet.has(k));
+      if (exceed.length) return res.status(403).json({ error: `无权分配超出自己持有范围的权限位: ${exceed.join(', ')}` });
+    }
+
+    const client = await pool().connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM role_permissions WHERE role_id = $1', [id]);
+      for (const k of keys) {
+        await client.query(
+          `INSERT INTO role_permissions (role_id, permission_id) SELECT $1, id FROM permissions WHERE key = $2 ON CONFLICT DO NOTHING`,
+          [id, k]
+        );
+      }
+      await client.query('COMMIT');
+      res.json({ ok: true });
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  } catch (e) {
+    res.status(500).json({ error: '更新角色权限位失败', reason: e.message });
   }
 });
 
