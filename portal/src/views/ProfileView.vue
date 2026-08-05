@@ -808,19 +808,17 @@ const modelPct = (m) => {
 }
 const fetchUsage = async () => { if (!apiKeyData.value) return; usageLoading.value = true; usageError.value = ''; try { const t = localStorage.getItem('token'); const r = await fetch(`${API_BASE}/usage/statistics`,{headers:{Authorization:`Bearer ${t}`}}); const j = await r.json(); usageData.value = j.data || null } catch { usageError.value = '加载失败'; usageData.value = null } finally { usageLoading.value = false } }
 
-// 根据角色动态生成标签页
+// 根据角色动态生成标签页（按菜单权限过滤：基础信息/API Key 管理/我的技能）
 const tabs = computed(() => {
-  const tabsList = [
-    { id: 'info', label: '基础信息' },
-    { id: 'keys', label: 'API Key 管理' },
-  ]
-
-  // 管理员看到"技能审核"，普通用户看到"我的技能"
-  tabsList.push({
-    id: 'skills',
-    label: can('skill:edit') ? '技能审核' : '我的技能',
-  })
-
+  const tabsList = []
+  if (can('menu:profile')) tabsList.push({ id: 'info', label: '基础信息' })
+  if (can('menu:api-keys')) tabsList.push({ id: 'keys', label: 'API Key 管理' })
+  if (can('menu:my-skills')) {
+    tabsList.push({
+      id: 'skills',
+      label: can('skill:edit') ? '技能审核' : '我的技能',
+    })
+  }
   return tabsList
 })
 const showChangePasswordDialog = ref(false)
@@ -1229,4 +1227,10 @@ watch(activeTab, (v) => {
   }
   if (v === 'skills') fetchMySkills()
 })
+// 当权限变化导致 tab 被过滤时,自动切换到第一个可用 tab
+watch(tabs, (newTabs) => {
+  if (!newTabs.find(t => t.id === activeTab.value) && newTabs.length > 0) {
+    activeTab.value = newTabs[0].id
+  }
+}, { deep: true })
 </script>

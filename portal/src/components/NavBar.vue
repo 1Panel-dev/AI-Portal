@@ -67,7 +67,7 @@
               管理后台
             </router-link>
             <!-- 个人中心/API Key:有 token + menu:profile 的用户(管理角色 + 普通用户;超管无 token 不显) -->
-            <router-link v-if="hasPortalToken && can('menu:profile')" to="/profile" @click="showDropdown = false"
+            <router-link v-if="hasPortalToken && (can('menu:profile') || can('menu:api-keys') || can('menu:my-skills'))" to="/profile" @click="showDropdown = false"
               class="flex items-center gap-2 px-4 py-2.5 text-sm text-text hover:bg-black/5 no-underline transition-colors">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               个人中心
@@ -98,7 +98,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { siteName, siteLogo, siteLogoIsDefault } from '../composables/useSiteBranding.js'
 import { bannerEnabled, bannerHtml, bannerVisible } from '../composables/useAnnouncement.js'
 import { loadPermissions, isPortalAdmin, showAdminEntry, can } from '../composables/usePermissions.js'
@@ -150,6 +150,11 @@ const logout = () => {
 const handleKeydown = (e) => { if (e.key === 'Escape') showDropdown.value = false }
 onMounted(() => {
   document.addEventListener('keydown', handleKeydown)
+  loadPermissions()
+})
+// 登录/登出后 token 变化,但 NavBar 是全局组件不重新挂载,
+// 这里监听路由变化重新加载权限,确保 can()/showAdminEntry 反映最新角色
+watch(() => route.path, () => {
   loadPermissions()
 })
 onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
