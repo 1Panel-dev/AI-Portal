@@ -406,6 +406,12 @@ router.post('/api/auth/oauth/bind/skip', express.json(), async (req, res) => {
       [panelUserId, username, displayName, passwordHash, sessionTimeout, decoded.provider]
     );
     const user = ins.rows[0];
+    // 默认分配内置 user 角色
+    await global.pool.query(`
+      INSERT INTO user_roles (user_id, role_id)
+      SELECT $1, id FROM roles WHERE name = 'user' AND is_system = TRUE
+      ON CONFLICT DO NOTHING
+    `, [user.id]);
     await global.pool.query(
       `INSERT INTO user_identities (user_id, provider, external_id, profile)
        VALUES ($1, $2, $3, $4)`,

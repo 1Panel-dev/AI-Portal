@@ -1184,6 +1184,14 @@ router.delete('/api/admin/portal-users/:id', verifyUser, requirePermission('user
     }
     const localUser = userRes.rows[0];
 
+    // 防超管被删除:非超管不能删除超管;不能删除自己
+    if (localUser.is_portal_admin && !req.portalUser.is_portal_admin) {
+      return res.status(403).json({ error: '不能删除超管' });
+    }
+    if (req.portalUser.id === userId) {
+      return res.status(403).json({ error: '不能删除自己' });
+    }
+
     // 2. 删除远端 API Key —— 并发删除,各 key 互不依赖
     // 单 key 失败不阻塞其他 key 和后续流程(语义与旧版串行 try/catch 一致)
     const keyRes = await global.pool.query('SELECT panel_key_id FROM portal_api_keys WHERE user_id = $1', [userId]);
@@ -1487,6 +1495,11 @@ router.post('/api/admin/portal-users/password', verifyUser, requirePermission('u
             const panelUser = panelUsers.find(u => String(u.id) === String(localUser.panel_user_id));
 
             if (panelUser) {
+              // 额外检查:1Panel 超管用户也不可被非 Portal 超管重置
+              if (panelUser.isSuperAdmin && !req.portalUser.is_portal_admin) {
+                console.warn(`[panel-password] 跳过 1Panel 超管用户 ${localUser.username}`);
+                failed++; continue;
+              }
               const encodedPassword = Buffer.from(new_password, 'utf-8').toString('base64');
               const panelRes = await panel.post('/api/v2/core/enterprise/users/update', {
                 id: localUser.panel_user_id,
@@ -1641,6 +1654,11 @@ router.post('/api/admin/panel-users/batch-password', verifyUser, requirePermissi
 
     const runOne = async (user) => {
       try {
+        // 防提权:非超管不能重置 1Panel 超管的密码
+        if (user.isSuperAdmin && !req.portalUser.is_portal_admin) {
+          console.warn(`[panel-batch-password] 跳过 1Panel 超管用户 ${user.id} (${user.name})`);
+          return { id: user.id, name: user.name, success: false, error: '跳过超管用户' };
+        }
         const updateRes = await panel.post('/api/v2/core/enterprise/users/update', {
           id: user.id,
           name: user.name,
