@@ -188,7 +188,9 @@ onMounted(async () => {
     'user:view','user:edit','user:create','user:delete',
     'skill:edit','skill:delete','system:config',
   ].some(k => can(k))
+  console.log(`[AdminLayout] 守卫检查: isPortalAdmin=${isPortalAdmin.value}, isAdmin=${isAdmin}, hasAnyAdminPerm=${hasAnyAdminPerm}, 权限数=${permissions.value.length}`)
   if (!isAdmin && !hasAnyAdminPerm) {
+    console.warn(`[AdminLayout] 无后台权限,踢回首页, 权限列表: ${permissions.value.join(',')}`)
     router.replace('/')
     return
   }

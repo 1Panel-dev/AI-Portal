@@ -30,10 +30,13 @@ export async function loadPermissions() {
     // 304 时 res.ok 为 false,但 res.json() 可读取缓存 body
     if (!res.ok && res.status !== 304) throw new Error(String(res.status))
     const data = await res.json()
+    const count = (data.permissions || []).length
+    console.log(`[permissions] 加载成功, 权限数: ${count}, is_portal_admin: ${!!data.is_portal_admin}, 角色: ${(data.roles||[]).join(',')}`)
     permissions.value = data.permissions || []
     isPortalAdmin.value = !!data.is_portal_admin
     roles.value = data.roles || []
   } catch (e) {
+    console.warn(`[permissions] 加载失败: ${e.message}, 保留旧权限(${permissions.value.length}条)`)
     // 接口异常时不覆盖 permissions(保留上次成功加载的值),避免闪退
     // 仅兜底: admin_token 未过期时视为超管(保证后台可访问)
     const adminToken = localStorage.getItem('admin_token')
