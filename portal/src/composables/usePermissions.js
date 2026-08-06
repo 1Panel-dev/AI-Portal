@@ -52,6 +52,12 @@ export function can(key) {
   return permissions.value.includes(key)
 }
 
+// 用户是否是后台角色(有 menu:admin-* 菜单权限)
+export const isAdminRoleUser = computed(() => {
+  if (isPortalAdmin.value) return true
+  return permissions.value.some(k => k.startsWith('menu:admin-'))
+})
+
 // 管理类权限位清单(用于判断是否显示「管理后台」入口)
 // 只含操作权限:进入后台需能实际执行某操作;菜单权限(menu:admin-*)只控制
 // 侧边栏单项可见性,不应单独授予进入后台的能力(否则进去每页 403)
