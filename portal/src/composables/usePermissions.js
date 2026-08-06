@@ -24,22 +24,22 @@ export async function loadPermissions() {
   try {
     const res = await fetch(`${API_BASE}/my/permissions`, {
       headers: { Authorization: `Bearer ${token}` },
+      // 每次请求都去服务器验证,不读浏览器缓存(避免旧权限导致判定错乱)
+      cache: 'no-cache',
     })
-    if (!res.ok) throw new Error(String(res.status))
+    // 304 时 res.ok 为 false,但 res.json() 可读取缓存 body
+    if (!res.ok && res.status !== 304) throw new Error(String(res.status))
     const data = await res.json()
     permissions.value = data.permissions || []
     isPortalAdmin.value = !!data.is_portal_admin
     roles.value = data.roles || []
   } catch (e) {
-    // 兜底：接口不可用时，admin_token 未过期才视为超管（保证后台可访问）
-    // 过期 token 不设 isPortalAdmin，避免误判超管展示空壳菜单（后端仍会 401 拒绝）
+    // 接口异常时不覆盖 permissions(保留上次成功加载的值),避免闪退
+    // 仅兜底: admin_token 未过期时视为超管(保证后台可访问)
     const adminToken = localStorage.getItem('admin_token')
     if (adminToken && !isTokenExpired(adminToken)) {
       isPortalAdmin.value = true
-      permissions.value = []
-    } else {
-      isPortalAdmin.value = false
-      permissions.value = []
+      if (!permissions.value.length) permissions.value = []
     }
   }
 }
