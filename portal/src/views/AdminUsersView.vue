@@ -32,23 +32,35 @@
         <div v-if="users.length === 0" class="py-14 text-center text-sm text-text-secondary">暂无用户</div>
         <div v-for="user in users" :key="user.id" class="grid grid-cols-[36px_1.2fr_1fr_0.8fr_0.8fr_0.8fr_120px] gap-3 px-4 py-3 items-center border-b border-[rgba(0,0,0,0.04)] last:border-b-0 text-sm">
           <div class="flex items-center">
-            <input v-if="user.role !== 'admin'" type="checkbox" :checked="selectedUsers.has(user.id)" @change="toggleUser(user.id)" class="h-4 w-4 accent-accent cursor-pointer" />
+            <input v-if="user.role !== 'admin' && !user.is_portal_admin" type="checkbox" :checked="selectedUsers.has(user.id)" @change="toggleUser(user.id)" class="h-4 w-4 accent-accent cursor-pointer" />
           </div>
           <div class="min-w-0">
             <div class="font-medium text-text truncate">{{ user.name || user.username }}</div>
             <div class="text-xs text-text-tertiary truncate">{{ user.username }} · Panel ID: {{ user.panel_user_id || '-' }}</div>
           </div>
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="px-2 py-0.5 rounded-full text-xs" :class="user.role === 'admin' ? 'bg-indigo-50 text-indigo-600' : 'bg-slate-100 text-slate-600'">{{ user.role === 'admin' ? '管理员' : '普通用户' }}</span>
+            <template v-if="user.role === 'admin' || user.is_portal_admin">
+              <span class="px-2 py-0.5 rounded-full text-xs bg-indigo-50 text-indigo-600">管理员</span>
+            </template>
+            <template v-else-if="(user.user_roles || []).length">
+              <span
+                v-for="r in user.user_roles" :key="r.id"
+                class="px-2 py-0.5 rounded-full text-xs"
+                :class="r.name === 'user' ? 'bg-slate-100 text-slate-600' : 'bg-accent/10 text-accent'"
+              >{{ r.name === 'user' ? '普通用户' : r.name }}</span>
+            </template>
+            <template v-else>
+              <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">未分配角色</span>
+            </template>
             <span class="px-2 py-0.5 rounded-full text-xs" :class="user.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'">{{ user.status }}</span>
           </div>
           <div class="text-text-secondary">{{ user.api_key_count || 0 }}</div>
           <div class="text-text-secondary">{{ user.submission_count || 0 }}</div>
           <div class="text-xs text-text-tertiary">{{ formatDate(user.created_at) }}</div>
           <div class="flex items-center justify-end gap-2">
-            <button v-if="user.role !== 'admin'" @click="openRoleDialog(user)" class="p-2 text-text-secondary hover:text-accent transition-all" title="分配角色"><UserCog class="w-4 h-4" /></button>
-            <button v-if="user.role !== 'admin'" @click="openPasswordDialog(user)" class="p-2 text-text-secondary hover:text-accent transition-all" title="修改密码"><KeyRound class="w-4 h-4" /></button>
-            <button v-if="user.role !== 'admin'" @click="confirmDelete(user)" class="p-2 text-text-secondary hover:text-red-500 transition-all" title="删除"><Trash2 class="w-4 h-4" /></button>
+            <button v-if="user.role !== 'admin' && !user.is_portal_admin" @click="openRoleDialog(user)" class="p-2 text-text-secondary hover:text-accent transition-all" title="分配角色"><UserCog class="w-4 h-4" /></button>
+            <button v-if="user.role !== 'admin' && !user.is_portal_admin" @click="openPasswordDialog(user)" class="p-2 text-text-secondary hover:text-accent transition-all" title="修改密码"><KeyRound class="w-4 h-4" /></button>
+            <button v-if="user.role !== 'admin' && !user.is_portal_admin" @click="confirmDelete(user)" class="p-2 text-text-secondary hover:text-red-500 transition-all" title="删除"><Trash2 class="w-4 h-4" /></button>
             <span v-else class="text-xs text-text-tertiary">不可操作</span>
           </div>
         </div>

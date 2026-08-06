@@ -1146,7 +1146,7 @@ router.get('/api/admin/portal-users', verifyUser, requirePermission('user:view')
     params.push(pageSize, offset);
     const result = await global.pool.query(`
       SELECT
-        u.id, u.panel_user_id, u.username, u.name, u.role, u.status,
+        u.id, u.panel_user_id, u.username, u.name, u.role, u.status, u.is_portal_admin,
         u.last_login_at, u.created_at,
         COUNT(DISTINCT k.id)::int AS api_key_count,
         COUNT(DISTINCT s.id)::int AS submission_count,
