@@ -30,6 +30,14 @@
         class="absolute right-0 top-full mt-2 w-[160px] bg-white border border-[rgba(0,0,0,0.08)] rounded-xl shadow-card-hover py-1 z-[265]"
       >
         <button
+          @click="openPasswordDialog"
+          class="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-text hover:bg-black/5 transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          修改密码
+        </button>
+        <div class="my-1 border-t border-[rgba(0,0,0,0.06)]"></div>
+        <button
           @click="logout"
           class="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
         >
@@ -38,6 +46,25 @@
         </button>
       </div>
     </div>
+
+    <!-- 修改密码弹框 -->
+    <AppDialog :open="showPasswordDialog" title="修改密码" size="sm" @close="closePasswordDialog">
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm text-text mb-1">当前密码</label>
+          <input v-model="oldPassword" type="password" class="w-full px-3 py-2 border border-[rgba(0,0,0,0.1)] rounded-lg text-sm outline-none focus:border-text bg-surface-secondary" placeholder="输入当前密码" />
+        </div>
+        <div>
+          <label class="block text-sm text-text mb-1">新密码</label>
+          <input v-model="newPassword" type="password" class="w-full px-3 py-2 border border-[rgba(0,0,0,0.1)] rounded-lg text-sm outline-none focus:border-text bg-surface-secondary" placeholder="至少 6 位" />
+        </div>
+        <p v-if="error" class="text-xs text-red-500">{{ error }}</p>
+      </div>
+      <template #footer>
+        <button class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary" @click="closePasswordDialog">取消</button>
+        <button class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50" :disabled="changing || !oldPassword || !newPassword || newPassword.length < 6" @click="doChangePassword">{{ changing ? '修改中...' : '确认修改' }}</button>
+      </template>
+    </AppDialog>
   </header>
   <!-- 点击外部关闭下拉 -->
   <div v-if="showDropdown" class="fixed inset-0 z-[250]" @click="showDropdown = false"></div>
@@ -47,9 +74,16 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft } from 'lucide-vue-next'
+import { API_BASE } from '../../lib/apiBase'
+import AppDialog from '../AppDialog.vue'
 
 const router = useRouter()
 const showDropdown = ref(false)
+const showPasswordDialog = ref(false)
+const oldPassword = ref('')
+const newPassword = ref('')
+const changing = ref(false)
+const error = ref('')
 
 const userInitial = computed(() => {
   try {
@@ -59,6 +93,43 @@ const userInitial = computed(() => {
     return 'A'
   }
 })
+
+function openPasswordDialog() {
+  showDropdown.value = false
+  oldPassword.value = ''
+  newPassword.value = ''
+  error.value = ''
+  showPasswordDialog.value = true
+}
+function closePasswordDialog() { showPasswordDialog.value = false }
+
+async function doChangePassword() {
+  changing.value = true
+  error.value = ''
+  try {
+    const token = localStorage.getItem('admin_token') || localStorage.getItem('token')
+    const res = await fetch(`${API_BASE}/auth/password`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ new_password: newPassword.value }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || '修改失败')
+    }
+    showPasswordDialog.value = false
+    // 简洁 toast 提示成功
+    const hint = document.createElement('div')
+    hint.className = 'fixed top-24 left-1/2 -translate-x-1/2 z-[400] px-6 py-3 rounded-xl text-sm font-medium shadow-lg bg-green-600 text-white animate-fade-up'
+    hint.textContent = '密码已修改'
+    document.body.appendChild(hint)
+    setTimeout(() => hint.remove(), 2000)
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    changing.value = false
+  }
+}
 
 const logout = () => {
   showDropdown.value = false
