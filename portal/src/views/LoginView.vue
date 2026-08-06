@@ -204,22 +204,13 @@ const login = async () => {
     }
     localStorage.setItem('user', JSON.stringify(data.user))
 
-    // 跳转:超管直接进后台;普通用户根据 RBAC 权限判断是否可进后台
-    let canEnterAdmin = data.user.role === 'admin'
-    if (!canEnterAdmin) {
-      try {
-        const permRes = await fetch(`${API_BASE}/my/permissions`, { headers: { Authorization: `Bearer ${data.token}` } })
-        if (permRes.ok) {
-          const perm = await permRes.json()
-          // 有任一后台操作权限即可进后台(后台菜单权限只控制显隐,不作为进后台依据)
-          const adminOps = ['user:view','role:view','group:view','skill:edit','system:config']
-          canEnterAdmin = adminOps.some(k => (perm.permissions || []).includes(k))
-        }
-      } catch { /* 接口异常时按无后台权限处理 */ }
-    }
-    if (canEnterAdmin) {
+    // 跳转:超管直接进后台,普通用户先进 profile 由页面自己判断权限
+    // 不在此处串行调 /api/my/permissions(避免接口慢时登录卡住)
+    if (data.user.role === 'admin') {
       router.push('/admin/stats')
     } else {
+      // 标记"刚登录",ProfileView 加载权限后若有后台权限自动跳后台
+      sessionStorage.setItem('login_just_now', '1')
       router.push('/profile')
     }
   } catch (err) {
