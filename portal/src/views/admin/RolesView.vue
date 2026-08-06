@@ -84,7 +84,7 @@
           </div>
 
           <div class="space-y-4">
-            <div class="grid grid-cols-3 gap-4">
+            <div class="grid grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-medium text-text mb-1.5">角色名 <span class="text-red-500">*</span></label>
                 <input
@@ -104,14 +104,6 @@
                   <option value="admin">管理员（后台角色）</option>
                   <option value="user">普通用户（用户侧角色）</option>
                 </select>
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-text mb-1.5">描述</label>
-                <input
-                  v-model="formDesc"
-                  class="w-full h-10 px-3 border border-[rgba(0,0,0,0.1)] rounded-lg text-sm outline-none focus:border-text bg-surface-secondary"
-                  placeholder="描述（可选）"
-                />
               </div>
             </div>
           </div>
@@ -192,24 +184,13 @@
           </div>
 
           <div class="space-y-4">
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-text mb-1.5">角色名</label>
-                <input
-                  :value="selectedRole.name"
-                  disabled
-                  class="w-full h-10 px-3 border border-[rgba(0,0,0,0.1)] rounded-lg text-sm outline-none bg-surface-secondary text-text-secondary cursor-not-allowed"
-                />
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-text mb-1.5">描述</label>
-                <input
-                  v-model="formDesc"
-                  :disabled="selectedRole.name === 'admin'"
-                  class="w-full h-10 px-3 border border-[rgba(0,0,0,0.1)] rounded-lg text-sm outline-none focus:border-text bg-surface-secondary disabled:bg-surface-secondary disabled:text-text-secondary disabled:cursor-not-allowed"
-                  placeholder="描述"
-                />
-              </div>
+            <div>
+              <label class="block text-sm font-medium text-text mb-1.5">角色名</label>
+              <input
+                :value="selectedRole.name"
+                disabled
+                class="w-full h-10 px-3 border border-[rgba(0,0,0,0.1)] rounded-lg text-sm outline-none bg-surface-secondary text-text-secondary cursor-not-allowed"
+              />
             </div>
           </div>
 
@@ -616,7 +597,7 @@ async function saveNewRole() {
     const res = await fetch(`${API_BASE}/admin/roles`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: formName.value, description: formDesc.value, keys }),
+      body: JSON.stringify({ name: formName.value, keys }),
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
@@ -646,17 +627,6 @@ async function saveEditRole() {
     const isSystem = selectedRole.value.is_system
     const keys = [...selectedPerms.value]
 
-    // 更新基本信息（描述）
-    const body = { description: formDesc.value }
-    const baseRes = await fetch(`${API_BASE}/admin/roles/${id}`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    if (!baseRes.ok) {
-      const err = await baseRes.json().catch(() => ({}))
-      throw new Error(err.error || '更新角色失败')
-    }
     // 更新权限集（内置角色跳过——后端也会拒）
     if (!isSystem) {
       const permRes = await fetch(`${API_BASE}/admin/roles/${id}/permissions`, {
