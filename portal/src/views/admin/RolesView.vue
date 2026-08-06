@@ -95,15 +95,20 @@
               </div>
               <div>
                 <label class="block text-sm font-medium text-text mb-1.5">继承自</label>
-                <select
-                  v-model="inheritFrom"
-                  class="w-full h-10 px-3 border border-[rgba(0,0,0,0.1)] rounded-lg text-sm outline-none focus:border-text bg-surface-secondary cursor-pointer"
-                  @change="applyInherit"
-                >
-                  <option value="custom">自定义（从零开始）</option>
-                  <option value="admin">管理员（后台角色）</option>
-                  <option value="user">普通用户（用户侧角色）</option>
-                </select>
+                <div class="flex items-center gap-2">
+                  <select
+                    v-model="inheritFrom"
+                    :disabled="inheritFrom !== 'custom'"
+                    class="w-full h-10 px-3 border border-[rgba(0,0,0,0.1)] rounded-lg text-sm outline-none focus:border-text bg-surface-secondary cursor-pointer disabled:bg-surface-secondary disabled:text-text-secondary disabled:cursor-not-allowed"
+                    @change="applyInherit"
+                  >
+                    <option value="custom">自定义（从零开始）</option>
+                    <option value="admin">管理员（后台角色）</option>
+                    <option value="user">普通用户（用户侧角色）</option>
+                  </select>
+                  <span v-if="inheritFrom === 'admin'" class="shrink-0 px-2.5 py-1 rounded-full text-xs bg-indigo-50 text-indigo-600">继承自管理员</span>
+                  <span v-else-if="inheritFrom === 'user'" class="shrink-0 px-2.5 py-1 rounded-full text-xs bg-emerald-50 text-emerald-600">继承自普通用户</span>
+                </div>
               </div>
             </div>
           </div>
@@ -362,7 +367,6 @@ const MENU_TO_OPS = {
   'menu:skills': ['skill:view', 'skill:create'],
   'menu:mcp': ['mcp:view'],
   'menu:docs': [],
-  'menu:profile': [],
   'menu:api-keys': ['key:view', 'key:create', 'key:edit', 'key:delete'],
   'menu:my-skills': ['skill:view', 'skill:create'],
   'menu:submit': ['skill:create'],
@@ -376,7 +380,7 @@ const MENU_ORDER = [
   'menu:admin-users', 'menu:admin-roles',
   'menu:admin-config', 'menu:admin-oauth', 'menu:admin-panel',
   'menu:models', 'menu:skills', 'menu:mcp', 'menu:docs',
-  'menu:profile', 'menu:api-keys', 'menu:my-skills', 'menu:submit',
+  'menu:api-keys', 'menu:my-skills', 'menu:submit',
 ]
 
 // 菜单权限分组（按后台/用户侧两组）
@@ -398,10 +402,14 @@ const visibleMenuGroups = computed(() => {
 })
 
 // 按顺序排列的当前角色菜单列表（flat，用于菜单权限区渲染）
+// menu:profile(基础信息) 是默认权限,不纳入菜单权限配置,故过滤掉
 const orderedMenuList = computed(() => {
   const keys = new Set()
   for (const g of visibleMenuGroups.value) {
-    for (const p of g.permissions) keys.add(p.key)
+    for (const p of g.permissions) {
+      if (p.key === 'menu:profile') continue
+      keys.add(p.key)
+    }
   }
   const ordered = MENU_ORDER.filter(k => keys.has(k))
   const remaining = [...keys].filter(k => !MENU_ORDER.includes(k))
@@ -516,8 +524,8 @@ function applyInherit() {
       if (p.module === 'menu' && p.action.startsWith('admin-')) newSet.add(p.key)
       if (p.module !== 'menu' && ADMIN_OP_KEYS.has(p.key)) newSet.add(p.key)
     } else if (inheritFrom.value === 'user') {
-      // 用户侧角色: 用户侧菜单 + 用户侧操作
-      if (p.module === 'menu' && !p.action.startsWith('admin-')) newSet.add(p.key)
+      // 用户侧角色: 用户侧菜单 + 用户侧操作(menu:profile 为默认权限,不纳入配置)
+      if (p.module === 'menu' && p.key !== 'menu:profile' && !p.action.startsWith('admin-')) newSet.add(p.key)
       if (p.module !== 'menu' && PORTAL_OP_KEYS.has(p.key)) newSet.add(p.key)
     }
     // 'custom': 保持为空，从零开始
