@@ -63,6 +63,8 @@ export const ADMIN_PERMS = [
 // isPortalAdmin/admin_token 短路保证超管首屏不闪(权限未加载完也返 true)
 export const showAdminEntry = computed(() => {
   if (isPortalAdmin.value) return true
-  if (localStorage.getItem('admin_token')) return true
+  // 残留的 admin_token 若已过期则不应给入口(否则点进去被守卫踢回造成"闪退")
+  const adminToken = localStorage.getItem('admin_token')
+  if (adminToken && !isTokenExpired(adminToken)) return true
   return ADMIN_PERMS.some(k => permissions.value.includes(k))
 })
