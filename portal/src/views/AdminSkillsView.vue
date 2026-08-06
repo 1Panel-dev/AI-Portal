@@ -383,7 +383,7 @@ watchEffect(() => {
   sortedSkills.value = clone
 })
 
-const getToken = () => localStorage.getItem('admin_token')
+const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
 
 const syncing = ref(false)
 const toast = ref({ show: false, message: '', type: 'success' })

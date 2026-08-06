@@ -162,7 +162,7 @@ import { API_BASE } from '../../lib/apiBase'
 
 const route = useRoute()
 const router = useRouter()
-const getToken = () => localStorage.getItem('admin_token')
+const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
 const groupId = Number(route.params.id)
 
 const group = ref(null)

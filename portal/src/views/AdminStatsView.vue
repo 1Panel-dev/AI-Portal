@@ -278,7 +278,7 @@ const rankedUsers = computed(() => {
 const topUsers = computed(() => rankedUsers.value.slice(0, 10))
 const bottomUsers = computed(() => rankedUsers.value.slice(-10).reverse())
 
-const getToken = () => localStorage.getItem('admin_token')
+const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
 
 const fmt = (n) => {
   if (!n && n !== 0) return '0'

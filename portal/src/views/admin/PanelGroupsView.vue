@@ -76,7 +76,7 @@ import { RefreshCw } from 'lucide-vue-next'
 import { API_BASE } from '../../lib/apiBase'
 
 const router = useRouter()
-const getToken = () => localStorage.getItem('admin_token')
+const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
 
 const activeTab = ref('userGroups')
 const userGroups = ref([])

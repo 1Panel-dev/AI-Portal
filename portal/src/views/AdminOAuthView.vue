@@ -35,7 +35,7 @@ async function load() {
   const scrollY = window.scrollY  // 保存滚动位置,防止 loading 切换导致页面上滑
   loading.value = true
   try {
-    const token = localStorage.getItem('admin_token')
+    const token = localStorage.getItem('admin_token') || localStorage.getItem('token')
     if (!token) {
       router.push('/admin/login')
       return

@@ -109,7 +109,7 @@ import { API_BASE } from '../../lib/apiBase'
 import AppDialog from '../../components/AppDialog.vue'
 
 const router = useRouter()
-const getToken = () => localStorage.getItem('admin_token')
+const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
 
 const groups = ref([])
 const loading = ref(false)

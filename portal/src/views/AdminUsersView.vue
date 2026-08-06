@@ -231,7 +231,7 @@ const pageNumbers = computed(() => {
   if (end < tp) out.push(tp)
   return out
 })
-const getToken = () => localStorage.getItem('admin_token')
+const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
 const toggleSort = () => {
   sortOrder.value = sortOrder.value === 'desc' ? 'asc' : 'desc'
   fetchUsers(1)

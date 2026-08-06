@@ -944,7 +944,7 @@ const cosConfigured = computed(() => {
   return !!(form.value.cosSecretId && form.value.cosBucket)
 })
 
-const getToken = () => localStorage.getItem('admin_token')
+const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
 
 const fetchConfig = async () => {
   try {

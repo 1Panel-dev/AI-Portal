@@ -235,7 +235,7 @@ const emptyText = computed(() => {
   return map[currentTab.value] || '暂无记录'
 })
 
-const getToken = () => localStorage.getItem('admin_token')
+const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
 
 const statusClass = (status) => {
   const map = {

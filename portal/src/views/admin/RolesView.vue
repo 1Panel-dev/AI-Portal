@@ -310,7 +310,7 @@ import AppDialog from '../../components/AppDialog.vue'
 import { loadPermissions, can } from '../../composables/usePermissions.js'
 
 const router = useRouter()
-const getToken = () => localStorage.getItem('admin_token')
+const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
 
 const roles = ref([])
 const allPermissions = ref([])  // { id, module, action, key, name }
