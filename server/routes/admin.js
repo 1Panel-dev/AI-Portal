@@ -1483,6 +1483,19 @@ router.post('/api/admin/portal-users/password', verifyUser, requirePermission('u
           failed++; continue;
         }
 
+        // 非超管操作者只能重置目标用户角色权限 ⊆ 自己权限的用户的密码
+        if (!req.portalUser.is_portal_admin) {
+          const { getUserPermissions } = require('../lib/permission');
+          const { permissions: myPerms } = await getUserPermissions(req.portalUser.id);
+          const mySet = new Set(myPerms);
+          const targetPerms = await getUserPermissions(userId);
+          const exceed = targetPerms.permissions.filter(k => !mySet.has(k));
+          if (exceed.length > 0) {
+            console.warn(`[password] 用户 ${userId} 的权限超出操作者范围, 跳过`);
+            failed++; continue;
+          }
+        }
+
         // 同步更新远端密码（1Panel 的 users/update 要求 name 等字段不能为空，先 search 拿全量信息）
         if (localUser.panel_user_id) {
           try {
@@ -1658,6 +1671,19 @@ router.post('/api/admin/panel-users/batch-password', verifyUser, requirePermissi
         if (user.isSuperAdmin && !req.portalUser.is_portal_admin) {
           console.warn(`[panel-batch-password] 跳过 1Panel 超管用户 ${user.id} (${user.name})`);
           return { id: user.id, name: user.name, success: false, error: '跳过超管用户' };
+        }
+        // 检查本地 portal_users 是否是超管(防 Portal 超管的 1Panel 账号被改)
+        try {
+          const localUser = await global.pool.query(
+            'SELECT id, is_portal_admin FROM portal_users WHERE panel_user_id = $1',
+            [user.id]
+          );
+          if (localUser.rowCount && localUser.rows[0].is_portal_admin && !req.portalUser.is_portal_admin) {
+            console.warn(`[panel-batch-password] 跳过 Portal 超管对应的 1Panel 用户 ${user.id}`);
+            return { id: user.id, name: user.name, success: false, error: '跳过 Portal 超管对应的 1Panel 用户' };
+          }
+        } catch (e) {
+          console.warn(`[panel-batch-password] 查询本地用户失败: ${e.message}`);
         }
         const updateRes = await panel.post('/api/v2/core/enterprise/users/update', {
           id: user.id,
