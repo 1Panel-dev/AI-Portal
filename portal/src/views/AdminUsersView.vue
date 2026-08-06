@@ -58,9 +58,9 @@
           <div class="text-text-secondary">{{ user.submission_count || 0 }}</div>
           <div class="text-xs text-text-tertiary">{{ formatDate(user.created_at) }}</div>
           <div class="flex items-center justify-end gap-2">
-            <button v-if="user.role !== 'admin' && !user.is_portal_admin" @click="openRoleDialog(user)" class="p-2 text-text-secondary hover:text-accent transition-all" title="分配角色"><UserCog class="w-4 h-4" /></button>
-            <button v-if="user.role !== 'admin' && !user.is_portal_admin" @click="openPasswordDialog(user)" class="p-2 text-text-secondary hover:text-accent transition-all" title="修改密码"><KeyRound class="w-4 h-4" /></button>
-            <button v-if="user.role !== 'admin' && !user.is_portal_admin" @click="confirmDelete(user)" class="p-2 text-text-secondary hover:text-red-500 transition-all" title="删除"><Trash2 class="w-4 h-4" /></button>
+            <button v-if="user.role !== 'admin' && !user.is_portal_admin && can('user:edit')" @click="openRoleDialog(user)" class="p-2 text-text-secondary hover:text-accent transition-all" title="分配角色"><UserCog class="w-4 h-4" /></button>
+            <button v-if="user.role !== 'admin' && !user.is_portal_admin && can('user:edit')" @click="openPasswordDialog(user)" class="p-2 text-text-secondary hover:text-accent transition-all" title="修改密码"><KeyRound class="w-4 h-4" /></button>
+            <button v-if="user.role !== 'admin' && !user.is_portal_admin && can('user:delete')" @click="confirmDelete(user)" class="p-2 text-text-secondary hover:text-red-500 transition-all" title="删除"><Trash2 class="w-4 h-4" /></button>
             <span v-else class="text-xs text-text-tertiary">不可操作</span>
           </div>
         </div>
@@ -164,6 +164,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { RefreshCw, UserPlus, UserCog, KeyRound, Trash2, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-vue-next'
+import { can } from '../composables/usePermissions.js'
 import NewUserDialog from '../components/admin/NewUserDialog.vue'
 import AppDialog from '../components/AppDialog.vue'
 
@@ -185,6 +186,7 @@ const syncing = ref(false)
 const showNewUserDialog = ref(false)
 const onUserCreated = () => { fetchUsers(1) }
 const selectedUsers = ref(new Set())
+const isBatchPassword = ref(false)
 const allSelected = computed(() => {
   const selectable = users.value.filter(u => u.role !== 'admin')
   return selectable.length > 0 && selectable.every(u => selectedUsers.value.has(u.id))
@@ -202,6 +204,7 @@ const openBatchPassword = () => {
   const first = users.value.find(u => selectedUsers.value.has(u.id))
   passwordUser.value = first
   passwordForm.value = { newPassword: '', confirmPassword: '', showNew: false, showConfirm: false }
+  isBatchPassword.value = true
 }
 const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimer = null
@@ -325,6 +328,7 @@ const refreshUsers = () => fetchUsers(page.value)
 const openPasswordDialog = (user) => {
   passwordUser.value = user
   passwordForm.value = { newPassword: '', confirmPassword: '', showNew: false, showConfirm: false }
+  isBatchPassword.value = false
 }
 const closePasswordDialog = () => { passwordUser.value = null }
 
@@ -332,7 +336,7 @@ const changePassword = async () => {
   if (!passwordUser.value) return
   changingPassword.value = true
   try {
-    const ids = selectedUsers.value.size > 1
+    const ids = isBatchPassword.value
       ? [...selectedUsers.value]
       : [passwordUser.value.id]
     const res = await fetch(`${API_BASE}/admin/portal-users/password`, {
