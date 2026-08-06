@@ -184,6 +184,8 @@
             <div class="flex items-center gap-2">
               <span v-if="isAdminRole" class="px-2.5 py-1 rounded-full text-xs bg-indigo-50 text-indigo-600">后台角色</span>
               <span v-else class="px-2.5 py-1 rounded-full text-xs bg-emerald-50 text-emerald-600">用户侧角色</span>
+              <span v-if="roleInheritMap[selectedRole.id] === 'admin'" class="px-2.5 py-1 rounded-full text-xs bg-indigo-50/50 text-indigo-500">继承自管理员</span>
+              <span v-else-if="roleInheritMap[selectedRole.id] === 'user'" class="px-2.5 py-1 rounded-full text-xs bg-emerald-50/50 text-emerald-600">继承自普通用户</span>
               <span v-if="selectedRole.is_system" class="px-2.5 py-1 rounded-full text-xs bg-amber-50 text-amber-600">内置角色</span>
             </div>
           </div>
@@ -308,6 +310,7 @@ const allPermissions = ref([])  // { id, module, action, key, name }
 const loading = ref(false)
 const selectedRole = ref(null)
 const isCreating = ref(false)
+const roleInheritMap = ref({})  // roleId → 'admin'|'user'|'custom' 记录继承来源
 const formName = ref('')
 const formDesc = ref('')
 const selectedPerms = ref(new Set())
@@ -573,7 +576,8 @@ async function fetchPermissions() {
 }
 
 function selectRole(role) {
-  if (isCreating.value) return
+  // 新建模式时点击左侧角色列表,退出新建并进入编辑
+  isCreating.value = false
   selectedRole.value = role
   formDesc.value = role.description || ''
   selectedPerms.value = new Set(role.permissions || [])
@@ -613,6 +617,10 @@ async function saveNewRole() {
     }
     const data = await res.json()
     showToast('角色已创建', 'success')
+    // 记录继承来源,便于新建完成后展示「继承自」信息
+    if (data.data && data.data.id) {
+      roleInheritMap.value[data.data.id] = inheritFrom.value
+    }
     isCreating.value = false
     await fetchRoles()
     // 选中新创建的角色
