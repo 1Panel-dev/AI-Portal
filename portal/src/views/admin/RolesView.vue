@@ -116,26 +116,34 @@
           <div class="mt-6 space-y-5">
             <!-- 菜单权限 -->
             <div>
-              <div class="flex items-center justify-between mb-2">
-                <label class="text-sm font-medium text-text">菜单权限</label>
-                <div
-                  class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs cursor-pointer select-none transition-all border"
-                  :class="allMenusSelected ? 'bg-accent text-white border-accent' : allMenusSomeSelected ? 'bg-accent/10 text-accent border-accent/30' : 'bg-white border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
-                  @click="toggleAllMenus"
-                >
-                  全选菜单
+              <div class="text-sm font-medium text-text mb-2">菜单权限</div>
+              <div class="space-y-3">
+                <div v-for="group in visibleMenuGroups" :key="group.id" class="border border-[rgba(0,0,0,0.06)] rounded-lg p-3">
+                  <div class="flex items-center gap-2 mb-2">
+                    <span class="text-xs font-semibold text-text-secondary">{{ group.label }}</span>
+                    <span class="text-[11px] text-text-tertiary">{{ group.permissions.length }} 项</span>
+                    <div class="flex-1"></div>
+                    <div
+                      class="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs cursor-pointer select-none transition-all border"
+                      :class="groupAllSelected(group) ? 'bg-accent text-white border-accent' : groupSomeSelected(group) ? 'bg-accent/10 text-accent border-accent/30' : 'bg-white border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
+                      @click="toggleGroupAll(group)"
+                    >
+                      全选
+                    </div>
+                  </div>
+                  <div class="flex flex-wrap gap-2">
+                    <div
+                      v-for="m in group.permissions" :key="m.key"
+                      class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer select-none transition-all"
+                      :class="selectedPerms.has(m.key) ? 'bg-accent text-white border border-transparent' : 'bg-white border border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
+                      @click="togglePerm(m.key)"
+                    >
+                      {{ m.name }}
+                    </div>
+                    <div v-if="!group.permissions.length" class="text-xs text-text-tertiary">暂无菜单</div>
+                  </div>
                 </div>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <div
-                  v-for="m in orderedMenuList" :key="m.key"
-                  class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer select-none transition-all"
-                  :class="selectedPerms.has(m.key) ? 'bg-accent text-white border border-transparent' : 'bg-white border border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
-                  @click="togglePerm(m.key)"
-                >
-                  {{ m.name }}
-                </div>
-                <div v-if="!orderedMenuList.length" class="text-xs text-text-tertiary">暂无菜单</div>
+                <div v-if="!visibleMenuGroups.length" class="text-xs text-text-tertiary">暂无菜单</div>
               </div>
             </div>
 
@@ -215,29 +223,37 @@
               <span v-if="selectedRole.is_system" class="text-xs text-amber-600">内置角色权限集不可修改</span>
             </div>
 
-            <!-- 菜单权限 -->
+            <!-- 菜单权限（按分类分组:后台菜单/用户侧菜单,各自全选） -->
             <div>
-              <div class="flex items-center justify-between mb-2">
-                <label class="text-sm font-medium text-text">菜单权限</label>
-                <div
-                  class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs cursor-pointer select-none transition-all border"
-                  :class="selectedRole.is_system ? 'opacity-50 cursor-not-allowed' : allMenusSelected ? 'bg-accent text-white border-accent' : allMenusSomeSelected ? 'bg-accent/10 text-accent border-accent/30' : 'bg-white border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
-                  @click="!selectedRole.is_system && toggleAllMenus"
-                >
-                  全选菜单
+              <div class="text-sm font-medium text-text mb-2">菜单权限</div>
+              <div class="space-y-3">
+                <div v-for="group in visibleMenuGroups" :key="group.id" class="border border-[rgba(0,0,0,0.06)] rounded-lg p-3">
+                  <div class="flex items-center gap-2 mb-2">
+                    <span class="text-xs font-semibold text-text-secondary">{{ group.label }}</span>
+                    <span class="text-[11px] text-text-tertiary">{{ group.permissions.length }} 项</span>
+                    <div class="flex-1"></div>
+                    <div
+                      class="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs cursor-pointer select-none transition-all border"
+                      :class="selectedRole.is_system ? 'opacity-50 cursor-not-allowed' : groupAllSelected(group) ? 'bg-accent text-white border-accent' : groupSomeSelected(group) ? 'bg-accent/10 text-accent border-accent/30' : 'bg-white border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
+                      @click="!selectedRole.is_system && toggleGroupAll(group)"
+                    >
+                      全选
+                    </div>
+                  </div>
+                  <div class="flex flex-wrap gap-2">
+                    <div
+                      v-for="m in group.permissions" :key="m.key"
+                      class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer select-none transition-all"
+                      :class="selectedPerms.has(m.key) || selectedRole.is_system ? 'bg-accent text-white border border-transparent' : 'bg-white border border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
+                      :style="selectedRole.is_system ? 'opacity: 0.5; pointer-events: none;' : ''"
+                      @click="!selectedRole.is_system && togglePerm(m.key)"
+                    >
+                      {{ m.name }}
+                    </div>
+                    <div v-if="!group.permissions.length" class="text-xs text-text-tertiary">暂无菜单</div>
+                  </div>
                 </div>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <div
-                  v-for="m in orderedMenuList" :key="m.key"
-                  class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer select-none transition-all"
-                  :class="selectedPerms.has(m.key) || selectedRole.is_system ? 'bg-accent text-white border border-transparent' : 'bg-white border border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
-                  :style="selectedRole.is_system ? 'opacity: 0.5; pointer-events: none;' : ''"
-                  @click="!selectedRole.is_system && togglePerm(m.key)"
-                >
-                  {{ m.name }}
-                </div>
-                <div v-if="!orderedMenuList.length" class="text-xs text-text-tertiary">暂无菜单</div>
+                <div v-if="!visibleMenuGroups.length" class="text-xs text-text-tertiary">暂无菜单</div>
               </div>
             </div>
 
@@ -467,21 +483,6 @@ function displayName(role) {
   return role.name
 }
 
-// 菜单全选/半选
-const allMenusSelected = computed(() => {
-  return orderedMenuList.value.length > 0 && orderedMenuList.value.every(m => selectedPerms.value.has(m.key))
-})
-const allMenusSomeSelected = computed(() => {
-  return orderedMenuList.value.some(m => selectedPerms.value.has(m.key)) && !allMenusSelected.value
-})
-function toggleAllMenus() {
-  const newSet = new Set(selectedPerms.value)
-  for (const m of orderedMenuList.value) {
-    if (allMenusSelected.value) newSet.delete(m.key)
-    else newSet.add(m.key)
-  }
-  selectedPerms.value = newSet
-}
 
 // 操作权限分组全选/半选
 function groupAllSelected(group) {
