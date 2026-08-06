@@ -183,9 +183,11 @@
             <div class="flex items-center gap-2">
               <span v-if="isAdminRole" class="px-2.5 py-1 rounded-full text-xs bg-indigo-50 text-indigo-600">后台角色</span>
               <span v-else class="px-2.5 py-1 rounded-full text-xs bg-emerald-50 text-emerald-600">用户侧角色</span>
-              <span v-if="selectedRole.inherit_from === 'admin'" class="px-2.5 py-1 rounded-full text-xs bg-indigo-50/50 text-indigo-500">继承自管理员</span>
-              <span v-else-if="selectedRole.inherit_from === 'user'" class="px-2.5 py-1 rounded-full text-xs bg-emerald-50/50 text-emerald-600">继承自普通用户</span>
-              <span v-else-if="selectedRole.inherit_from === 'custom'" class="px-2.5 py-1 rounded-full text-xs bg-gray-50 text-text-tertiary">继承自自定义</span>
+              <template v-if="!selectedRole.is_system">
+                <span v-if="selectedRole.inherit_from === 'admin'" class="px-2.5 py-1 rounded-full text-xs bg-indigo-50/50 text-indigo-500">继承自管理员</span>
+                <span v-else-if="selectedRole.inherit_from === 'user'" class="px-2.5 py-1 rounded-full text-xs bg-emerald-50/50 text-emerald-600">继承自普通用户</span>
+                <span v-else-if="selectedRole.inherit_from === 'custom'" class="px-2.5 py-1 rounded-full text-xs bg-gray-50 text-text-tertiary">继承自自定义</span>
+              </template>
               <span v-if="selectedRole.is_system" class="px-2.5 py-1 rounded-full text-xs bg-amber-50 text-amber-600">内置角色</span>
             </div>
           </div>
@@ -198,9 +200,11 @@
                 disabled
                 class="w-full h-10 px-3 border border-[rgba(0,0,0,0.1)] rounded-lg text-sm outline-none bg-surface-secondary text-text-secondary cursor-not-allowed"
               />
+              <template v-if="!selectedRole.is_system">
               <p v-if="selectedRole.inherit_from === 'admin'" class="mt-1.5 text-xs text-indigo-500">继承自：管理员（后台角色）</p>
               <p v-else-if="selectedRole.inherit_from === 'user'" class="mt-1.5 text-xs text-emerald-600">继承自：普通用户（用户侧角色）</p>
               <p v-else-if="selectedRole.inherit_from === 'custom'" class="mt-1.5 text-xs text-text-tertiary">继承自：自定义（从零开始）</p>
+            </template>
             </div>
           </div>
 
