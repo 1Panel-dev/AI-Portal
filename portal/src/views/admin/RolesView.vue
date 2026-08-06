@@ -76,7 +76,11 @@
         <div v-else-if="isCreating" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl shadow-card p-6">
           <div class="flex items-center justify-between mb-5">
             <h2 class="text-lg font-semibold text-text">新建角色</h2>
-            <button @click="cancelNewRole" class="text-sm text-text-tertiary hover:text-text transition-colors">取消</button>
+            <div class="flex items-center gap-2">
+              <span v-if="isAdminRole" class="px-2.5 py-1 rounded-full text-xs bg-indigo-50 text-indigo-600">后台角色</span>
+              <span v-else class="px-2.5 py-1 rounded-full text-xs bg-emerald-50 text-emerald-600">用户侧角色</span>
+              <button @click="cancelNewRole" class="text-sm text-text-tertiary hover:text-text transition-colors">取消</button>
+            </div>
           </div>
 
           <div class="space-y-4">
