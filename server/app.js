@@ -102,6 +102,12 @@ app.use('/downloads', (req, res, next) => {
 });
 
 // API 路由
+// 全部 API 响应禁用缓存:权限/用户等动态数据不能进浏览器缓存,
+// 否则返回 304 时前端拿到旧权限(如用户角色变更后闪退)
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 app.use(require('./routes/admin'));
 app.use(require('./routes/admin-groups'));
 app.use(require('./routes/marketplace'));
