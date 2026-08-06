@@ -197,6 +197,8 @@
                 disabled
                 class="w-full h-10 px-3 border border-[rgba(0,0,0,0.1)] rounded-lg text-sm outline-none bg-surface-secondary text-text-secondary cursor-not-allowed"
               />
+              <p v-if="roleInheritMap[selectedRole.id] === 'admin'" class="mt-1.5 text-xs text-indigo-500">继承自：管理员（后台角色）</p>
+              <p v-else-if="roleInheritMap[selectedRole.id] === 'user'" class="mt-1.5 text-xs text-emerald-600">继承自：普通用户（用户侧角色）</p>
             </div>
           </div>
 
