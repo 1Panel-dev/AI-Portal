@@ -199,6 +199,7 @@
               />
               <p v-if="roleInheritMap[selectedRole.id] === 'admin'" class="mt-1.5 text-xs text-indigo-500">继承自：管理员（后台角色）</p>
               <p v-else-if="roleInheritMap[selectedRole.id] === 'user'" class="mt-1.5 text-xs text-emerald-600">继承自：普通用户（用户侧角色）</p>
+              <p v-else-if="roleInheritMap[selectedRole.id] === 'custom'" class="mt-1.5 text-xs text-text-tertiary">继承自：自定义（从零开始）</p>
             </div>
           </div>
 
