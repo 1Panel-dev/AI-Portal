@@ -98,8 +98,7 @@
                 <div class="flex items-center gap-2">
                   <select
                     v-model="inheritFrom"
-                    :disabled="inheritFrom !== 'custom'"
-                    class="w-full h-10 px-3 border border-[rgba(0,0,0,0.1)] rounded-lg text-sm outline-none focus:border-text bg-surface-secondary cursor-pointer disabled:bg-surface-secondary disabled:text-text-secondary disabled:cursor-not-allowed"
+                    class="w-full h-10 px-3 border border-[rgba(0,0,0,0.1)] rounded-lg text-sm outline-none focus:border-text bg-surface-secondary cursor-pointer"
                     @change="applyInherit"
                   >
                     <option value="custom">自定义（从零开始）</option>
