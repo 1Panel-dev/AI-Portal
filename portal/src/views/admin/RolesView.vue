@@ -408,12 +408,13 @@ const MENU_ORDER = [
   'menu:api-keys', 'menu:my-skills', 'menu:submit',
 ]
 
-// 菜单权限分组（按后台/用户侧两组）
+// 菜单权限分组（按后台/用户侧两组）,menu:profile 为基础信息默认权限,不纳入配置
 const menuPermissionGroups = computed(() => {
   const backend = { id: 'admin', label: '后台菜单', permissions: [] }
   const portal = { id: 'portal', label: '用户侧菜单', permissions: [] }
   for (const p of allPermissions.value) {
     if (p.module !== 'menu') continue
+    if (p.key === 'menu:profile') continue
     if (p.action.startsWith('admin-')) backend.permissions.push(p)
     else portal.permissions.push(p)
   }
