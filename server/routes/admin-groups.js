@@ -172,7 +172,7 @@ router.post('/api/admin/panel-groups/sync', verifyUser, requirePermission('group
 router.get('/api/admin/roles', verifyUser, requirePermission('role:view'), async (req, res) => {
   try {
     const r = await pool().query(`
-      SELECT r.id, r.name, r.description, r.is_system,
+      SELECT r.id, r.name, r.description, r.is_system, r.inherit_from,
         COALESCE(
           (SELECT json_agg(p.key ORDER BY p.key)
            FROM role_permissions rp
@@ -206,6 +206,7 @@ router.post('/api/admin/roles', verifyUser, requirePermission('role:create'), as
     const name = String(req.body.name || '').trim();
     const description = String(req.body.description || '').trim();
     const keys = Array.isArray(req.body.keys) ? req.body.keys : [];
+    const inheritFrom = req.body.inherit_from || 'custom';
 
     if (!name) return res.status(400).json({ error: '角色名不能为空' });
     if (name.length > 50) return res.status(400).json({ error: '角色名不能超过50个字符' });
@@ -236,8 +237,8 @@ router.post('/api/admin/roles', verifyUser, requirePermission('role:create'), as
     try {
       await client.query('BEGIN');
       const r = await client.query(
-        `INSERT INTO roles (name, description, is_system) VALUES ($1, $2, FALSE) RETURNING id, name, description, is_system`,
-        [name, description]
+        `INSERT INTO roles (name, description, is_system, inherit_from) VALUES ($1, $2, FALSE, $3) RETURNING id, name, description, is_system, inherit_from`,
+        [name, description, inheritFrom]
       );
       const role = r.rows[0];
       // 插权限关联
@@ -250,7 +251,7 @@ router.post('/api/admin/roles', verifyUser, requirePermission('role:create'), as
       await client.query('COMMIT');
       // 返回完整角色信息（含权限位）
       const full = await pool().query(`
-        SELECT r.id, r.name, r.description, r.is_system,
+        SELECT r.id, r.name, r.description, r.is_system, r.inherit_from,
           COALESCE(
             (SELECT json_agg(p.key ORDER BY p.key)
              FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id
@@ -277,7 +278,7 @@ router.get('/api/admin/roles/:id', verifyUser, requirePermission('role:view'), a
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: '无效的角色 id' });
     const r = await pool().query(`
-      SELECT r.id, r.name, r.description, r.is_system,
+      SELECT r.id, r.name, r.description, r.is_system, r.inherit_from,
         COALESCE(
           (SELECT json_agg(p.key ORDER BY p.key)
            FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id
