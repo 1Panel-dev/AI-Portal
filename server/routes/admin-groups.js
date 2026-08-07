@@ -536,7 +536,9 @@ router.put('/api/admin/users/:id/roles', verifyUser, requirePermission('user:edi
 });
 
 // ---- 组内资源预览（某资源组包含的资源清单，带标题，按类型聚合）----
-// 供「资源授权」页组列表行的「预览」用：看这个组授权了哪些模型/技能/MCP（组内 items，不含成员交集）。
+// 供「资源授权」页组列表行的「预览」用：看这个组授权了哪些模型/技能/MCP。
+// 可选 ?userId=：按成员交集预览——模型按「组内勾选 ∩ 该成员 1Panel 模型组」展示；
+// 技能/MCP 不取交集（intersect_panel=FALSE），返回组内勾选。
 router.get('/api/admin/groups/:id/resources-preview', verifyUser, requirePermission('group:view'), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: '无效的资源组 id' });
@@ -552,15 +554,41 @@ router.get('/api/admin/groups/:id/resources-preview', verifyUser, requirePermiss
     for (const it of items.rows) {
       (byType[it.resource_type] ??= new Set()).add(String(it.resource_id));
     }
+
+    // 可选 userId：校验是该组成员，取该成员的 1Panel 模型组限制用于模型交集
+    let memberModelFilter = null;   // null = 未指定成员 / 成员无模型组限制 -> 不做交集过滤
+    if (req.query.userId) {
+      const memberUserId = Number(req.query.userId);
+      if (!Number.isInteger(memberUserId) || memberUserId <= 0) {
+        return res.status(400).json({ error: '无效的 userId' });
+      }
+      const member = await pool().query(
+        'SELECT 1 FROM resource_group_members WHERE group_id = $1 AND user_id = $2', [id, memberUserId]
+      );
+      if (!member.rowCount) return res.status(400).json({ error: '该用户不是此资源组成员' });
+      const { getPortalUser, getUserAllowedModels, isAdminRoleUser } = require('../lib/permission');
+      const portalUser = await getPortalUser(memberUserId);
+      // 后台角色成员看全量(与广场 isAdminRoleUser bypass 一致), 不做模型组交集
+      if (portalUser && !portalUser.is_portal_admin && !(await isAdminRoleUser(memberUserId))) {
+        const allowed = await getUserAllowedModels(portalUser.panel_user_id);
+        if (allowed) memberModelFilter = new Set(allowed);
+      }
+    }
+
     // 每类型拿全量带标题，再按组 items 过滤
     const data = {};
     for (const type of getAllResourceTypes()) {
       const adapter = getResourceType(type.key);
       const allWithTitle = await mapAllWithType(type.key, adapter);
       const idSet = byType[type.key];
-      data[type.key] = idSet
+      let list = idSet
         ? allWithTitle.filter(r => idSet.has(String(r.id)))
         : [];
+      // 模型按成员模型组取交集（仅 model 需要；技能/MCP 返回组内勾选）
+      if (type.key === 'model' && memberModelFilter) {
+        list = list.filter(r => memberModelFilter.has(String(r.id)));
+      }
+      data[type.key] = list;
     }
     res.json({ data });
   } catch (e) {

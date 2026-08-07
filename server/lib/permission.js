@@ -101,22 +101,64 @@ async function getAllResources() {
 }
 
 /**
- * 用户可见资源（资源组勾选, 模型再取交集）。
- * 兜底链: 用户不存在/超管 -> 全量; 未被任何资源组授权 -> 全公开; 某类型未配资源组 -> 该类型全公开。
- * shape 一致性: 返回全类型 key, 未授权类型返全量（与兜底语义一致, 不缺 key）。
+ * 用户是否后台角色(持有任一 menu:admin-* 菜单权限)。
+ * 后台角色用户是管理者, 不受资源组白名单限制(广场/资源看全量)。
+ */
+async function isAdminRoleUser(userId) {
+  const r = await pool().query(`
+    SELECT 1 FROM permissions p
+    JOIN role_permissions rp ON rp.permission_id = p.id
+    JOIN user_roles ur ON ur.role_id = rp.role_id
+    WHERE ur.user_id = $1 AND p.key LIKE 'menu:admin-%'
+    LIMIT 1
+  `, [userId]);
+  return r.rowCount > 0;
+}
+
+/**
+ * 某用户能否访问某技能（下载/详情）。
+ * 超管/后台角色 -> 放行; 普通用户 -> 必须其资源组勾选了该技能 slug。
+ * 用于下载/详情接口, 防绕过广场列表白名单直接获取未授权技能。
+ */
+async function canUserAccessSkill(userId, slug) {
+  const user = await getPortalUser(userId);
+  if (!user) return false;
+  if (user.is_portal_admin) return true;
+  if (await isAdminRoleUser(userId)) return true;
+  const r = await pool().query(`
+    SELECT 1 FROM resource_group_items i
+    JOIN resource_group_members m ON m.group_id = i.group_id
+    WHERE m.user_id = $1 AND i.resource_type = 'skill' AND i.resource_id = $2
+    LIMIT 1
+  `, [userId, slug]);
+  return r.rowCount > 0;
+}
+
+/**
+ * 用户可见资源（资源组勾选 = 严格白名单；模型再取模型组交集）。
+ * 兜底链: 用户不存在/超管/后台角色 -> 全量; 非超管不在任何资源组 -> 各类型空数组;
+ *         某类型未勾选 -> 该类型空数组（不再全公开）。
+ * shape 一致性: 返回全类型 key; 已授权类型返回勾选结果（字符串数组）, 未授权/未勾选返回空数组。
  * 延迟 require resource-types.js 打破循环依赖。
  */
 async function getVisibleResourcesForUser(userId) {
   const { getAllResourceTypes, getResourceType } = require('./resource-types');
   const portalUser = await getPortalUser(userId);
   if (!portalUser || portalUser.is_portal_admin) return getAllResources();
+  // 后台角色用户是管理者, 看全量(不受资源组白名单限制)
+  if (await isAdminRoleUser(userId)) return getAllResources();
 
   const items = await pool().query(`
     SELECT resource_type, resource_id FROM resource_group_items
     WHERE group_id IN (SELECT group_id FROM resource_group_members WHERE user_id = $1)
   `, [userId]);
 
-  if (items.rowCount === 0) return getAllResources();
+  // 非超管用户不在任何资源组 -> 各类型空数组（严格白名单, 不返回全量）
+  if (items.rowCount === 0) {
+    const empty = {};
+    for (const type of getAllResourceTypes()) empty[type.key] = [];
+    return empty;
+  }
 
   const byType = {};
   for (const r of items.rows) (byType[r.resource_type] ??= []).push(r.resource_id);
@@ -126,8 +168,8 @@ async function getVisibleResourcesForUser(userId) {
     const ids = byType[type.key];
     const adapter = getResourceType(type.key);
     if (!ids || !ids.length) {
-      // 该类型未配资源组 = 全公开
-      result[type.key] = adapter?.listAll ? await adapter.listAll() : [];
+      // 该类型未勾选 = 空（严格白名单）
+      result[type.key] = [];
     } else if (adapter?.isVisibleToUser) {
       result[type.key] = await adapter.isVisibleToUser(userId, ids);
     }
@@ -136,6 +178,6 @@ async function getVisibleResourcesForUser(userId) {
 }
 
 module.exports = {
-  getPortalUser, getUserPermissions, hasPermission,
+  getPortalUser, getUserPermissions, hasPermission, isAdminRoleUser, canUserAccessSkill,
   getVisibleResourcesForUser, getAllResources, getUserAllowedModels,
 };

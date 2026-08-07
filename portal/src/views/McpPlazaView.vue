@@ -80,14 +80,17 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useMcpServers } from '../composables/useMcpServers.js'
 import NavBar from '../components/NavBar.vue'
 import McpGrid from '../components/McpGrid.vue'
 import LoadMore from '../components/LoadMore.vue'
 import McpDetailModal from '../components/McpDetailModal.vue'
 import { bannerEnabled, bannerHtml, bannerVisible } from '../composables/useAnnouncement.js'
+import { loadPermissions, can, isAdminRoleUser } from '../composables/usePermissions.js'
 
+const router = useRouter()
 const {
   servers, loading, error, searchQuery, total, hasMore, loadMore, loadServers,
 } = useMcpServers()
@@ -100,4 +103,10 @@ const openDetail = (server) => { selectedServer.value = server }
 const runningCount = computed(() =>
   servers.value.filter(s => s.status === 'Running').length
 )
+
+// 深链直达预检：先加载权限再判断是否有 MCP 广场菜单权限(后台角色可看)，无则跳首页
+onMounted(async () => {
+  await loadPermissions()
+  if (!can('menu:mcp') && !isAdminRoleUser.value) { router.replace('/') }
+})
 </script>

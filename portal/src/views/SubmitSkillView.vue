@@ -219,7 +219,9 @@ const checkSkillExists = async () => {
   if (!validateField('skill_id')) return
   try {
     const slug = toSlug(form.value.skill_id)
-    const res = await fetch(`${API_BASE}/skills?slug=${encodeURIComponent(slug)}`)
+    const token = localStorage.getItem('token') || localStorage.getItem('admin_token')
+    const headers = token ? { Authorization: `Bearer ${token}` } : {}
+    const res = await fetch(`${API_BASE}/skills?slug=${encodeURIComponent(slug)}`, { headers })
     const data = await res.json()
     skillExists.value = res.ok && !!data.id
   } catch { skillExists.value = false }

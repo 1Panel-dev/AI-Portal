@@ -5,7 +5,7 @@ const multer = require('multer');
 const storage = require('../lib/storage');
 const downloadCounter = require('../lib/downloadCounter');
 const { panel, getPanelPayload, getPanelItems, downloadPanelSkill } = require('../panel');
-const { downloadLimiter, uploadLimiter, verifyUser, requirePermission, optionalUser } = require('../auth');
+const { downloadLimiter, uploadLimiter, verifyUser, requirePermission } = require('../auth');
 
 const router = express.Router();
 
@@ -281,7 +281,7 @@ router.get('/api/health', async (req, res) => {
 });
 
 // 获取所有技能
-router.get('/api/skills', optionalUser, async (req, res) => {
+router.get('/api/skills', verifyUser, async (req, res) => {
   try {
     const {
       category,
@@ -310,6 +310,11 @@ router.get('/api/skills', optionalUser, async (req, res) => {
 
       if (result.rows.length === 0) {
         return res.status(404).json({ error: '技能不存在' });
+      }
+      // 资源组白名单校验:普通用户只能查看其资源组勾选的技能(防绕过广场列表直接查详情)
+      const { canUserAccessSkill } = require('../lib/permission');
+      if (!(await canUserAccessSkill(req.portalUser.id, slug))) {
+        return res.status(403).json({ code: 'FORBIDDEN', error: '无权查看该技能' });
       }
       return res.json(result.rows[0]);
     }
@@ -713,6 +718,12 @@ router.get('/api/skills/:slug/download', verifyUser, requirePermission('skill:vi
     const { v: version } = req.query;
     if (SLUG_BLACKLIST.includes(slug)) {
       return res.status(400).json({ error: '无效的 slug' });
+    }
+
+    // 资源组白名单校验:普通用户只能下载其资源组勾选的技能(防绕过广场列表直接下载)
+    const { canUserAccessSkill } = require('../lib/permission');
+    if (!(await canUserAccessSkill(req.portalUser.id, slug))) {
+      return res.status(403).json({ code: 'FORBIDDEN', error: '无权访问该技能' });
     }
 
     // 下载文件名去掉 1panel- 前缀（slug 加前缀是为了 DB 唯一约束，文件名不需要）

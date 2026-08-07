@@ -22,17 +22,17 @@
           :class="isActive('/') ? 'font-semibold text-text' : 'text-text-secondary'">
           首页
         </router-link>
-        <router-link v-if="!isLoggedIn || can('menu:models')" to="/models"
+        <router-link v-if="isLoggedIn && (can('menu:models') || isAdminRoleUser)" to="/models"
           class="px-3 py-1.5 text-[14px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
           :class="isActive('/models') ? 'font-semibold text-text' : 'text-text-secondary'">
           模型广场
         </router-link>
-        <router-link v-if="!isLoggedIn || can('menu:skills')" to="/skills"
+        <router-link v-if="isLoggedIn && (can('menu:skills') || isAdminRoleUser)" to="/skills"
           class="px-3 py-1.5 text-[14px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
           :class="isActive('/skills') ? 'font-semibold text-text' : 'text-text-secondary'">
           Skill 广场
         </router-link>
-        <router-link v-if="!isLoggedIn || can('menu:mcp')" to="/mcp"
+        <router-link v-if="isLoggedIn && (can('menu:mcp') || isAdminRoleUser)" to="/mcp"
           class="px-3 py-1.5 text-[14px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
           :class="isActive('/mcp') ? 'font-semibold text-text' : 'text-text-secondary'">
           MCP 广场

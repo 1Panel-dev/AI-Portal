@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
-const { verifyUser, requirePermission, optionalUser, signPortalToken } = require('../auth');
+const { verifyUser, requirePermission, signPortalToken } = require('../auth');
 const { panel, getPanelPayload, getPanelItems, findPanelUser, createPanelUser, syncModelsFromPanel } = require('../panel');
 const { isAnyProviderEnabled } = require('../oauth');
 const { inspectPanelBiz, listPanelKeysOfUser } = require('../lib/panel-biz');
@@ -253,7 +253,7 @@ router.put('/api/auth/password', verifyUser, async (req, res) => {
   }
 });
 
-router.get('/api/models', optionalUser, async (req, res) => {
+router.get('/api/models', verifyUser, async (req, res) => {
   try {
     let rows = [];
     let syncFailedReason = null;  // 记录首次兜底同步是否失败,用于给前端 hint

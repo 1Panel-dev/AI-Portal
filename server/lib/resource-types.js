@@ -26,17 +26,13 @@ registerResourceType('model', {
     const { getPortalUser, getUserAllowedModels } = require('./permission');
     const portalUser = await getPortalUser(userId);
     if (!portalUser) return [];
-    if (portalUser.is_portal_admin) {
-      const all = await this.listAll();
-      return all.map(m => m.model_name);
-    }
+    // 超管不进此函数（getVisibleResourcesForUser 对超管直接 getAllResources），无需 is_portal_admin 分支
     const allowed = await getUserAllowedModels(portalUser.panel_user_id);
-    // allowed 为 null = 全公开兜底（三层 JOIN 空, 存量兼容）
-    if (!allowed) {
-      const all = await this.listAll();
-      return all.map(m => m.model_name);
-    }
+    // allowed 为 null = 无 1Panel 模型组限制（无 key / 用户组没配模型组 / 空模型组）
+    // -> 以资源组勾选为准（交集退化为勾选），不返回全量 listAll
+    if (!allowed) return modelNames;
     const allowedSet = new Set(allowed);
+    // 交集: 资源组勾选的 ∩ 1Panel 模型组允许的
     return modelNames.filter(m => allowedSet.has(m));
   },
 });

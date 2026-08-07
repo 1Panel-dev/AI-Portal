@@ -80,7 +80,8 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useSkills } from '../composables/useSkills.js'
 import NavBar from '../components/NavBar.vue'
 import FilterBar from '../components/FilterBar.vue'
@@ -88,7 +89,9 @@ import SkillGrid from '../components/SkillGrid.vue'
 import LoadMore from '../components/LoadMore.vue'
 import SkillDetailModal from '../components/SkillDetailModal.vue'
 import { bannerEnabled, bannerHtml, bannerVisible } from '../composables/useAnnouncement.js'
+import { loadPermissions, can, isAdminRoleUser } from '../composables/usePermissions.js'
 
+const router = useRouter()
 const {
   skills, loading, stats, currentCategory, currentSource, searchQuery,
   sortBy, total, hasMore, loadMore, recordDownload,
@@ -99,4 +102,10 @@ const hasVisibleBanner = computed(() => bannerEnabled.value && bannerVisible.val
 
 const openDetail = (skill) => { selectedSkill.value = skill }
 const onDownload = async (skillId) => { await recordDownload(skillId) }
+
+// 深链直达预检：先加载权限再判断是否有 Skill 广场菜单权限(后台角色可看),无则跳首页
+onMounted(async () => {
+  await loadPermissions()
+  if (!can('menu:skills') && !isAdminRoleUser.value) { router.replace('/') }
+})
 </script>

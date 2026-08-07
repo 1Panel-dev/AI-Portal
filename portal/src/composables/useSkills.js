@@ -3,6 +3,12 @@ import { ref, computed, onMounted, watch } from 'vue'
 // API 基础地址
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 
+// 带 token:登录用户按资源组过滤;后端列表接口已改 verifyUser
+const authHeaders = () => {
+  const token = localStorage.getItem('token') || localStorage.getItem('admin_token')
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 const skills = ref([])
 const loading = ref(false)
 const error = ref(null)
@@ -60,7 +66,7 @@ export function useSkills() {
         params.append('sort', sortBy.value)
       }
 
-      const response = await fetch(`${API_BASE}/skills?${params.toString()}`)
+      const response = await fetch(`${API_BASE}/skills?${params.toString()}`, { headers: authHeaders() })
       if (!response.ok) {
         throw new Error('Failed to fetch skills')
       }
@@ -137,7 +143,7 @@ export function useSkills() {
 
   const loadStats = async () => {
     try {
-      const response = await fetch(`${API_BASE}/stats`)
+      const response = await fetch(`${API_BASE}/stats`, { headers: authHeaders() })
       if (response.ok) {
         const data = await response.json()
         stats.value = {
@@ -163,7 +169,7 @@ export function useSkills() {
 
     // 从 API 获取
     try {
-      const response = await fetch(`${API_BASE}/skills?slug=${encodeURIComponent(slug)}`)
+      const response = await fetch(`${API_BASE}/skills?slug=${encodeURIComponent(slug)}`, { headers: authHeaders() })
       if (response.ok) {
         return await response.json()
       }

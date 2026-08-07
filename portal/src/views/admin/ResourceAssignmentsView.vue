@@ -68,6 +68,18 @@
 
     <!-- 组内资源预览弹窗 -->
     <AppDialog :open="preview.open" :title="preview.title" size="lg" @close="closePreview">
+      <!-- 成员选择器:选择成员后模型按「勾选∩该成员模型组」展示 -->
+      <div v-if="preview.members.length" class="flex items-center gap-2 mb-4">
+        <span class="text-xs text-text-tertiary whitespace-nowrap">查看成员可见资源</span>
+        <select
+          v-model="preview.selectedMemberId"
+          @change="onPreviewMemberChange"
+          class="flex-1 px-3 py-1.5 border border-[rgba(0,0,0,0.08)] rounded-lg text-xs bg-white outline-none focus:border-text"
+        >
+          <option v-for="m in preview.members" :key="m.id" :value="m.id">{{ m.name || m.username }}</option>
+        </select>
+      </div>
+      <div v-else-if="!preview.loading" class="mb-4 text-xs text-text-tertiary">该组暂无成员，展示组内包含资源（模型未按成员模型组过滤）</div>
       <div v-if="preview.loading" class="py-10 text-center text-sm text-text-secondary">加载中...</div>
       <div v-else-if="preview.error" class="py-8 text-center text-sm text-red-500">{{ preview.error }}</div>
       <div v-else class="space-y-4">
@@ -163,26 +175,60 @@ async function fetchGroups() {
   }
 }
 
-// ---- 组内资源预览 ----
+// ---- 组内资源预览（按成员交集） ----
 const previewTypes = [
   { key: 'model', name: '模型' },
   { key: 'skill', name: 'Skill' },
   { key: 'mcp', name: 'MCP' },
 ]
-const preview = ref({ open: false, loading: false, error: '', title: '', data: {} })
+const preview = ref({ open: false, loading: false, error: '', title: '', data: {}, groupId: null, members: [], selectedMemberId: null })
+
+async function fetchPreview(gId, userId) {
+  const token = getToken()
+  if (!token) { router.push('/admin/login'); return }
+  const qs = userId ? `?userId=${userId}` : ''
+  const res = await fetch(`${API_BASE}/admin/groups/${gId}/resources-preview${qs}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (res.status === 401 || res.status === 403) { router.push('/admin/login'); return }
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || '获取预览失败')
+  return data.data || {}
+}
 
 async function openPreview(g) {
-  preview.value = { open: true, loading: true, error: '', title: `组内资源 · ${g.name}`, data: {} }
+  preview.value = { open: true, loading: true, error: '', title: `组内资源 · ${g.name}`, data: {}, groupId: g.id, members: [], selectedMemberId: null }
   try {
     const token = getToken()
     if (!token) { router.push('/admin/login'); return }
-    const res = await fetch(`${API_BASE}/admin/groups/${g.id}/resources-preview`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (res.status === 401 || res.status === 403) { router.push('/admin/login'); return }
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || '获取预览失败')
-    preview.value.data = data.data || {}
+    // 拉组详情拿成员列表
+    const detailRes = await fetch(`${API_BASE}/admin/groups/${g.id}`, { headers: { Authorization: `Bearer ${token}` } })
+    if (detailRes.status === 401 || detailRes.status === 403) { router.push('/admin/login'); return }
+    const detailData = await detailRes.json().catch(() => ({}))
+    const members = detailData.data?.members || []
+    preview.value.members = members
+    // 默认选第一个成员,按成员交集预览;无成员则展示组内资源
+    const first = members[0]
+    if (first) {
+      preview.value.selectedMemberId = first.id
+      preview.value.data = await fetchPreview(g.id, first.id)
+    } else {
+      preview.value.data = await fetchPreview(g.id)
+    }
+  } catch (err) {
+    preview.value.error = err.message || '获取预览失败'
+  } finally {
+    preview.value.loading = false
+  }
+}
+
+async function onPreviewMemberChange() {
+  const gId = preview.value.groupId
+  const uid = preview.value.selectedMemberId
+  preview.value.loading = true
+  preview.value.error = ''
+  try {
+    preview.value.data = uid ? await fetchPreview(gId, uid) : {}
   } catch (err) {
     preview.value.error = err.message || '获取预览失败'
   } finally {

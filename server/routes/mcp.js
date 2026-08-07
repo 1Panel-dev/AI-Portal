@@ -1,7 +1,7 @@
 const express = require('express');
 
 const router = express.Router();
-const { optionalUser } = require('../auth');
+const { verifyUser } = require('../auth');
 
 /**
  * GET /api/mcp/search
@@ -16,7 +16,7 @@ const { optionalUser } = require('../auth');
  * Response:
  *   { data: items[], pagination: { page, pageSize, total, hasMore } }
  */
-router.get('/api/mcp/search', optionalUser, async (req, res) => {
+router.get('/api/mcp/search', verifyUser, async (req, res) => {
   try {
     const { q = '', page = '1', pageSize = '20' } = req.query;
     const pageNum = Math.max(1, parseInt(page) || 1);

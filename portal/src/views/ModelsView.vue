@@ -132,13 +132,15 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
 import FilterItem from '../components/FilterItem.vue'
 import { providerLabels } from '../data/categories.js'
 import { bannerEnabled, bannerHtml, bannerVisible } from '../composables/useAnnouncement.js'
-import { loadPermissions, can } from '../composables/usePermissions.js'
+import { loadPermissions, can, isAdminRoleUser } from '../composables/usePermissions.js'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
+const router = useRouter()
 const baseUrl = ref('')
 const exampleTemplate = ref('')
 
@@ -255,7 +257,10 @@ const fetchModels = async () => {
   loading.value = true
   hint.value = ''
   try {
-    const res = await fetch(`${API_BASE}/models`)
+    // 带 token:登录用户按资源组过滤;后端已改 verifyUser,未登录会被 401 拒(路由守卫已在前面拦截)
+    const token = localStorage.getItem('token') || localStorage.getItem('admin_token')
+    const headers = token ? { Authorization: `Bearer ${token}` } : {}
+    const res = await fetch(`${API_BASE}/models`, { headers })
     if (res.ok) {
       const data = await res.json()
       groups.value = data.groups || []
@@ -299,10 +304,12 @@ async function checkOAuth() {
 }
 
 onMounted(async () => {
+  await loadPermissions()
+  // 无模型广场菜单权限且非后台角色(深链直达场景) -> 跳首页;有权限才拉数据
+  if (!can('menu:models') && !isAdminRoleUser.value) { router.replace('/'); return }
   fetchModels()
   fetchExampleConfig()
   checkOAuth()
-  await loadPermissions()
   canCreateKey.value = can('key:create')
 })
 </script>

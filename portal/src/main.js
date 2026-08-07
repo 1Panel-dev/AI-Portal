@@ -14,10 +14,10 @@ const routes = [
     component: LandingView,
     meta: { public: true },
   },
-  { path: '/models', component: () => import('./views/ModelsView.vue'), meta: { public: true } },
-  { path: '/skills', component: () => import('./views/HomeView.vue') },
-  { path: '/mcp', component: () => import('./views/McpPlazaView.vue'), meta: { public: true } },
-  { path: '/skill/:slug', component: () => import('./views/SkillDetailView.vue') },
+  { path: '/models', component: () => import('./views/ModelsView.vue'), meta: { requiresLogin: true } },
+  { path: '/skills', component: () => import('./views/HomeView.vue'), meta: { requiresLogin: true } },
+  { path: '/mcp', component: () => import('./views/McpPlazaView.vue'), meta: { requiresLogin: true } },
+  { path: '/skill/:slug', component: () => import('./views/SkillDetailView.vue'), meta: { requiresLogin: true } },
   { path: '/submit', component: () => import('./views/SubmitSkillView.vue'), meta: { requiresUserAuth: true } },
   { path: '/my-skills', component: () => import('./views/MySkillsView.vue'), meta: { requiresUserAuth: true } },
   { path: '/docs', component: () => import('./views/DocsView.vue'), meta: { public: true } },
@@ -83,6 +83,16 @@ router.beforeEach((to, from, next) => {
     const loggedIn = atValid || utValid
     const wecomLogin = to.path === '/login' && isInsideWecomUA()
     if (loggedIn && !wecomLogin) return next('/models')
+  }
+
+  // 广场需登录（认 admin_token || token 任一有效,未登录跳用户登录页）
+  // 菜单权限（menu:models/skills/mcp）由各广场 onMounted 预检,这里只拦未登录
+  if (to.meta.requiresLogin) {
+    const at = localStorage.getItem('admin_token')
+    const ut = localStorage.getItem('token')
+    const atValid = at && !isTokenExpired(at)
+    const utValid = ut && !isTokenExpired(ut)
+    if (!atValid && !utValid) return next({ path: '/login', query: { redirect: to.fullPath } })
   }
 
   if (to.meta.requiresAuth) {

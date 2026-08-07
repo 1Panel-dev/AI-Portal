@@ -3,6 +3,12 @@ import { ref, onMounted, watch } from 'vue'
 // API 基础地址（与 useSkills.js 一致）
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 
+// 带 token:登录用户按资源组过滤;后端列表接口已改 verifyUser
+const authHeaders = () => {
+  const token = localStorage.getItem('token') || localStorage.getItem('admin_token')
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 const servers = ref([])
 const loading = ref(false)
 const error = ref(null)
@@ -42,7 +48,7 @@ export function useMcpServers() {
         params.append('q', searchQuery.value)
       }
 
-      const response = await fetch(`${API_BASE}/mcp/search?${params.toString()}`)
+      const response = await fetch(`${API_BASE}/mcp/search?${params.toString()}`, { headers: authHeaders() })
       if (!response.ok) {
         const errBody = await response.json().catch(() => ({}))
         throw new Error(errBody.reason || errBody.error || 'Failed to fetch MCP servers')
