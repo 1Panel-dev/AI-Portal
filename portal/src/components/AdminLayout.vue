@@ -174,6 +174,30 @@ function isActive(path) {
   return route.path.startsWith(path)
 }
 
+// 后台菜单:路由路径 → 对应菜单权限位(与 Sidebar 菜单项一一对应,顺序=侧边栏展示顺序)
+const ADMIN_MENU_ROUTES = [
+  { path: '/admin/stats', perm: 'menu:admin-stats' },
+  { path: '/admin', perm: 'menu:admin-review' },
+  { path: '/admin/models', perm: 'menu:admin-models' },
+  { path: '/admin/skills', perm: 'menu:admin-skills' },
+  { path: '/admin/mcps', perm: 'menu:admin-mcps' },
+  { path: '/admin/groups', perm: 'menu:admin-groups' },
+  { path: '/admin/resource-assignments', perm: 'menu:admin-assignments' },
+  { path: '/admin/users', perm: 'menu:admin-users' },
+  { path: '/admin/roles', perm: 'menu:admin-roles' },
+  { path: '/admin/config', perm: 'menu:admin-config' },
+  { path: '/admin/oauth', perm: 'menu:admin-oauth' },
+  { path: '/admin/panel-groups', perm: 'menu:admin-panel' },
+]
+
+// 匹配当前路由对应的菜单项(与 isActive 同一套路径匹配语义)
+function matchAdminMenu(path) {
+  return ADMIN_MENU_ROUTES.find(m => {
+    if (m.path === '/admin') return path === '/admin'
+    return path === m.path || path.startsWith(m.path + '/')
+  })
+}
+
 // 进入后台时隐藏顶部公告横幅（避免遮挡后台顶栏），离开时恢复原状态
 let savedBannerVisible = null
 onMounted(async () => {
@@ -193,6 +217,20 @@ onMounted(async () => {
     console.warn(`[AdminLayout] 无后台权限,踢回首页, 权限列表: ${permissions.value.join(',')}`)
     router.replace('/')
     return
+  }
+  // 当前路由无对应菜单权限 -> 重定向到第一个可访问菜单
+  // (覆盖:登录自动跳转落到无权限页、直链输入无权限页等场景)
+  const currentMenu = matchAdminMenu(route.path)
+  if (currentMenu && !can(currentMenu.perm)) {
+    const firstAccessible = ADMIN_MENU_ROUTES.find(m => can(m.perm))
+    if (firstAccessible) {
+      console.warn(`[AdminLayout] 当前页 ${route.path} 无菜单权限,跳转至 ${firstAccessible.path}`)
+      // 重定向后 AdminLayout 父组件复用不重新挂载(onMounted 不重跑),
+      // 必须先置 permsReady=true,否则 router-view 永不渲染,页面一直"加载中"
+      permsReady.value = true
+      router.replace(firstAccessible.path)
+      return
+    }
   }
   permsReady.value = true
 })

@@ -41,7 +41,7 @@ async function submit() {
   }
   loading.value = true
   try {
-    const token = localStorage.getItem('admin_token') || ''
+    const token = localStorage.getItem('admin_token') || localStorage.getItem('token')
     const res = await fetch(`${props.apiBase}/admin/portal-users`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

@@ -68,7 +68,7 @@ async function doTest() {
   testResult.value = null
   error.value = ''
   try {
-    const t = localStorage.getItem('admin_token') || ''
+    const t = localStorage.getItem('admin_token') || localStorage.getItem('token')
     const res = await fetch(`${props.apiBase}/admin/oauth/providers/${props.provider.provider}/test`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
@@ -88,7 +88,7 @@ async function doSave() {
   error.value = ''
   saveSuccess.value = false
   try {
-    const t = localStorage.getItem('admin_token') || ''
+    const t = localStorage.getItem('admin_token') || localStorage.getItem('token')
     const res = await fetch(`${props.apiBase}/admin/oauth/providers/${props.provider.provider}`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },

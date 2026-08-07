@@ -8,8 +8,8 @@
         <div class="flex items-center gap-3">
           <button @click="refreshUsers" :disabled="loading" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"><RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />{{ loading ? '加载中...' : '刷新' }}</button>
           <button @click="syncUsers" :disabled="syncing" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"><RefreshCw class="w-4 h-4" />{{ syncing ? '同步中...' : '同步用户' }}</button>
-          <button v-if="selectedUsers.size > 0" @click="openBatchPassword" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">{{ `批量改密 (${selectedUsers.size})` }}</button>
-          <button @click="showNewUserDialog = true" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all"><UserPlus class="w-4 h-4" />新增用户</button>
+          <button v-if="selectedUsers.size > 0 && can('user:edit')" @click="openBatchPassword" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">{{ `批量改密 (${selectedUsers.size})` }}</button>
+          <button v-if="can('user:create')" @click="showNewUserDialog = true" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all"><UserPlus class="w-4 h-4" />新增用户</button>
         </div>
       </div>
 
