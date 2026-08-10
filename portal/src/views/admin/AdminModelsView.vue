@@ -67,10 +67,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { RefreshCw, Search } from 'lucide-vue-next'
-import { API_BASE } from '../../lib/apiBase'
+import { API_BASE, getLoginToken } from '../../lib/apiBase'
 
 const router = useRouter()
-const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
+const getToken = () => getLoginToken()
 
 const allModels = ref([])
 const loading = ref(false)

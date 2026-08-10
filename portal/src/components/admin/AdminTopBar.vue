@@ -74,7 +74,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft } from 'lucide-vue-next'
-import { API_BASE } from '../../lib/apiBase'
+import { API_BASE, getLoginToken } from '../../lib/apiBase'
 import AppDialog from '../AppDialog.vue'
 
 const router = useRouter()
@@ -107,7 +107,7 @@ async function doChangePassword() {
   changing.value = true
   error.value = ''
   try {
-    const token = localStorage.getItem('admin_token') || localStorage.getItem('token')
+    const token = getLoginToken()
     const res = await fetch(`${API_BASE}/auth/password`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

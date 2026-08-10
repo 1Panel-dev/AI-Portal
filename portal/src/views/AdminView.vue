@@ -170,6 +170,7 @@ import { useRouter } from 'vue-router'
 import { Clock, CheckCircle2, ClipboardList, Inbox, Check, X } from 'lucide-vue-next'
 import { avatarColors } from '../data/categories.js'
 
+import { getLoginToken } from '../lib/apiBase'
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 
 const router = useRouter()
@@ -235,7 +236,7 @@ const emptyText = computed(() => {
   return map[currentTab.value] || '暂无记录'
 })
 
-const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
+const getToken = () => getLoginToken()
 
 const statusClass = (status) => {
   const map = {

@@ -1,11 +1,12 @@
 import { ref, computed, onMounted, watch } from 'vue'
 
+import { getLoginToken } from '../lib/apiBase'
 // API 基础地址
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 
 // 带 token:登录用户按资源组过滤;后端列表接口已改 verifyUser
 const authHeaders = () => {
-  const token = localStorage.getItem('token') || localStorage.getItem('admin_token')
+  const token = getLoginToken()
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
@@ -68,7 +69,9 @@ export function useSkills() {
 
       const response = await fetch(`${API_BASE}/skills?${params.toString()}`, { headers: authHeaders() })
       if (!response.ok) {
-        throw new Error('Failed to fetch skills')
+        // 403 = 无 skill:view 查看权限,读后端 error 文案展示给用户
+        const errBody = await response.json().catch(() => ({}))
+        throw new Error(errBody.error || 'Failed to fetch skills')
       }
 
       const result = await response.json()

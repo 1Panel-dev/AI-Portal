@@ -158,11 +158,11 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Info } from 'lucide-vue-next'
-import { API_BASE } from '../../lib/apiBase'
+import { API_BASE, getLoginToken } from '../../lib/apiBase'
 
 const route = useRoute()
 const router = useRouter()
-const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
+const getToken = () => getLoginToken()
 const groupId = Number(route.params.id)
 
 const group = ref(null)

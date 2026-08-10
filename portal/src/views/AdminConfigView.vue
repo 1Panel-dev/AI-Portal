@@ -632,6 +632,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Cloud, HardDrive, Eye, EyeOff, PlugZap, RefreshCw, Check } from 'lucide-vue-next'
 
+import { getLoginToken } from '../lib/apiBase'
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const router = useRouter()
 
@@ -944,7 +945,7 @@ const cosConfigured = computed(() => {
   return !!(form.value.cosSecretId && form.value.cosBucket)
 })
 
-const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
+const getToken = () => getLoginToken()
 
 const fetchConfig = async () => {
   try {

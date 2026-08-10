@@ -2,6 +2,7 @@
 import { ref, reactive, watch } from 'vue'
 import { CheckCircle2, XCircle } from 'lucide-vue-next'
 
+import { getLoginToken } from '../../lib/apiBase'
 const props = defineProps({
   provider: { type: Object, required: true },
   apiBase: { type: String, required: true },
@@ -68,7 +69,7 @@ async function doTest() {
   testResult.value = null
   error.value = ''
   try {
-    const t = localStorage.getItem('admin_token') || localStorage.getItem('token')
+    const t = getLoginToken()
     const res = await fetch(`${props.apiBase}/admin/oauth/providers/${props.provider.provider}/test`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
@@ -88,7 +89,7 @@ async function doSave() {
   error.value = ''
   saveSuccess.value = false
   try {
-    const t = localStorage.getItem('admin_token') || localStorage.getItem('token')
+    const t = getLoginToken()
     const res = await fetch(`${props.apiBase}/admin/oauth/providers/${props.provider.provider}`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },

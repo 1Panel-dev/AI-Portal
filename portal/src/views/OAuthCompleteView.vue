@@ -31,9 +31,11 @@ onMounted(async () => {
     if (data.user.role === 'admin') {
       localStorage.removeItem('token')
       localStorage.setItem('admin_token', data.token)
+      localStorage.setItem('login_token_type', 'admin')
     } else {
       localStorage.removeItem('admin_token')
       localStorage.setItem('token', data.token)
+      localStorage.setItem('login_token_type', 'portal')
     }
     localStorage.setItem('user', JSON.stringify(data.user))
     sessionStorage.setItem('wecom_oauth_completed', '1')

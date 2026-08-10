@@ -94,6 +94,12 @@
 
       <div v-if="loading" class="text-center py-20"><p class="text-text-secondary text-sm">加载中...</p></div>
 
+      <!-- 无查看权限横幅 -->
+      <div v-else-if="permError" class="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" class="mt-0.5 shrink-0"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+        <div class="text-sm text-red-700">{{ permError }}</div>
+      </div>
+
       <!-- 同步失败横幅:仅在 DB 空 + 兜底同步失败时由后端 hint 触发 -->
       <div v-else-if="hint" class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2" class="mt-0.5 shrink-0"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
@@ -139,6 +145,7 @@ import { providerLabels } from '../data/categories.js'
 import { bannerEnabled, bannerHtml, bannerVisible } from '../composables/useAnnouncement.js'
 import { loadPermissions, can, isAdminRoleUser } from '../composables/usePermissions.js'
 
+import { getLoginToken } from '../lib/apiBase'
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const router = useRouter()
 const baseUrl = ref('')
@@ -186,6 +193,7 @@ const highlightedExample = computed(() => escapeHtml(exampleRendered.value)
 
 const groups = ref([])
 const hint = ref('')
+const permError = ref('')
 const searchQuery = ref('')
 const currentProvider = ref('all')
 const copiedModelId = ref(null)
@@ -256,16 +264,21 @@ const filteredModelCount = computed(() =>
 const fetchModels = async () => {
   loading.value = true
   hint.value = ''
+  permError.value = ''
   try {
     // 带 token:登录用户按资源组过滤;后端已改 verifyUser,未登录会被 401 拒(路由守卫已在前面拦截)
-    const token = localStorage.getItem('token') || localStorage.getItem('admin_token')
+    const token = getLoginToken()
     const headers = token ? { Authorization: `Bearer ${token}` } : {}
     const res = await fetch(`${API_BASE}/models`, { headers })
     if (res.ok) {
       const data = await res.json()
       groups.value = data.groups || []
-      // 后端在「DB 为空 + 同步失败」时会带回 hint,展示给用户
+      // 后端在「DB 为空 + 同步同步失败」时会带回 hint,展示给用户
       hint.value = data.hint || ''
+    } else if (res.status === 403) {
+      // 无 model:view 权限(普通用户未勾选查看权限)
+      permError.value = '你没有查看模型的权限'
+      groups.value = []
     }
   } catch (e) {
     console.error('Failed to fetch models:', e)

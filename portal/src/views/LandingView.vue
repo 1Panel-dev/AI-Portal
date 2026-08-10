@@ -190,7 +190,7 @@ const steps = [
 // 懒拉统计数字（失败保持 --，不报错）
 // 三广场接口已改 verifyUser(需登录):未登录不拉,数字保持 --;登录用户带 token 拉各自可见资源的统计
 onMounted(async () => {
-  const token = localStorage.getItem('token') || localStorage.getItem('admin_token')
+  const token = getLoginToken()
   if (!token) return
   try {
     const headers = { Authorization: `Bearer ${token}` }

@@ -73,10 +73,10 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { RefreshCw } from 'lucide-vue-next'
-import { API_BASE } from '../../lib/apiBase'
+import { API_BASE, getLoginToken } from '../../lib/apiBase'
 
 const router = useRouter()
-const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
+const getToken = () => getLoginToken()
 
 const activeTab = ref('userGroups')
 const userGroups = ref([])

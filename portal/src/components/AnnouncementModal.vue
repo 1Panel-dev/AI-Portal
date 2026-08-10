@@ -81,6 +81,17 @@ import {
 const visible = ref(false)
 const dontShowAgain = ref(false)
 
+// 勾选「不再提示」立即写入 localStorage(不等点按钮/遮罩关闭):
+// 否则用户勾选后直接刷新/关闭浏览器, close() 不执行, 标记未写入, 下次进来又弹。
+// 取消勾选则删除标记(用户改变主意, 下次仍可看到)。
+watch(dontShowAgain, (val) => {
+  if (val) {
+    safeSet(localStorage, dismissDialogKey(), 'true')
+  } else {
+    try { localStorage.removeItem(dismissDialogKey()) } catch (e) { /* 忽略 */ }
+  }
+})
+
 // 会话锁改为 localStorage + 时间戳:企微 WebView 刷新会清 sessionStorage,导致每次刷新都弹。
 // 改用 localStorage 存时间戳,1 小时内的刷新算"同一会话",不重复弹。
 // 超过 1 小时或关闭 Tab 重开(模拟新会话)会重新弹,但用户勾了「不再提示」则永久不弹。

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 
+import { getLoginToken } from '../../lib/apiBase'
 const props = defineProps({
   open: { type: Boolean, default: false },
   apiBase: { type: String, required: true },
@@ -41,7 +42,7 @@ async function submit() {
   }
   loading.value = true
   try {
-    const token = localStorage.getItem('admin_token') || localStorage.getItem('token')
+    const token = getLoginToken()
     const res = await fetch(`${props.apiBase}/admin/portal-users`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },

@@ -168,6 +168,7 @@ import { can } from '../composables/usePermissions.js'
 import NewUserDialog from '../components/admin/NewUserDialog.vue'
 import AppDialog from '../components/AppDialog.vue'
 
+import { getLoginToken } from '../lib/apiBase'
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const router = useRouter()
 const users = ref([])
@@ -231,7 +232,7 @@ const pageNumbers = computed(() => {
   if (end < tp) out.push(tp)
   return out
 })
-const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
+const getToken = () => getLoginToken()
 const toggleSort = () => {
   sortOrder.value = sortOrder.value === 'desc' ? 'asc' : 'desc'
   fetchUsers(1)

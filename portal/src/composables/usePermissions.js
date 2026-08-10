@@ -7,18 +7,44 @@
 //
 // Phase 2 才接入 AdminLayout 菜单显隐 / 按钮禁用；Phase 1 仅提供 can() 供页面按需调用。
 import { ref, computed } from 'vue'
-import { API_BASE, isTokenExpired } from '../lib/apiBase'
+import { API_BASE, isTokenExpired, clearAuth, getLoginToken } from '../lib/apiBase'
 
 export const permissions = ref([])
 export const isPortalAdmin = ref(false)
 export const roles = ref([])
 
+// 当前登录身份类别（用于校验角色是否被变更）
+// superadmin=超管 / adminRole=后台角色(有 menu:admin-*) / user=普通用户
+function currentIdentity() {
+  if (isPortalAdmin.value) return 'superadmin'
+  return permissions.value.some(k => k.startsWith('menu:admin-')) ? 'adminRole' : 'user'
+}
+
+// 校验当前身份与登录时是否一致;角色被重新授权(如管理员->普通用户)则强制退出重新登录
+// 每次 loadPermissions 成功(刷新/切页都会重新拉权限)后对比 sessionStorage 里登录时记录的类别。
+function checkIdentityChange() {
+  const identity = currentIdentity()
+  const prev = sessionStorage.getItem('login_identity')
+  if (!prev) {
+    // 首次(登录后首次拉权限)记录基线
+    sessionStorage.setItem('login_identity', identity)
+    return
+  }
+  if (prev !== identity) {
+    console.warn(`[permissions] 角色已变更(${prev} -> ${identity}), 强制重新登录`)
+    clearAuth()
+    // 整页跳登录页(刷新后路由守卫已因 token 清除跳到 /login)
+    window.location.href = (window.__APP_BASE__ || '/') + 'login'
+  }
+}
+
 export async function loadPermissions() {
-  const token = localStorage.getItem('admin_token') || localStorage.getItem('token')
+  const token = getLoginToken()
   if (!token) {
     permissions.value = []
     isPortalAdmin.value = false
     roles.value = []
+    sessionStorage.removeItem('login_identity')
     return
   }
   try {
@@ -35,12 +61,15 @@ export async function loadPermissions() {
     permissions.value = data.permissions || []
     isPortalAdmin.value = !!data.is_portal_admin
     roles.value = data.roles || []
+    // 身份一致性校验:角色被变更(降级/升级)则强制退出重新登录
+    checkIdentityChange()
   } catch (e) {
     console.warn(`[permissions] 加载失败: ${e.message}, 保留旧权限(${permissions.value.length}条)`)
     // 接口异常时不覆盖 permissions(保留上次成功加载的值),避免闪退
-    // 仅兜底: admin_token 未过期时视为超管(保证后台可访问)
+    // 仅兜底: 当前身份是超管(login_token_type='admin')且 admin_token 未过期时视为超管,
+    // 保证后台可访问; 普通用户即使残留 admin_token 也不会被误判为超管
     const adminToken = localStorage.getItem('admin_token')
-    if (adminToken && !isTokenExpired(adminToken)) {
+    if (adminToken && !isTokenExpired(adminToken) && localStorage.getItem('login_token_type') === 'admin') {
       isPortalAdmin.value = true
       if (!permissions.value.length) permissions.value = []
     }
@@ -69,11 +98,12 @@ export const ADMIN_PERMS = [
 ]
 
 // 是否显示「管理后台」入口:超管或持有任一管理权限位
-// isPortalAdmin/admin_token 短路保证超管首屏不闪(权限未加载完也返 true)
+// 不信任残留 admin_token——用户角色已切为普通用户时,localStorage 里遗留的有效 admin_token
+// 会误判成管理员(显示管理入口 + 登录自动跳后台)。超管由 is_portal_admin 兜底:
+//   - loadPermissions 成功时返回 is_portal_admin=true
+//   - loadPermissions 失败(接口异常)时,下方 catch 里用未过期 admin_token 置 isPortalAdmin=true
+// 故此处无需再直接判断 admin_token。
 export const showAdminEntry = computed(() => {
   if (isPortalAdmin.value) return true
-  // 残留的 admin_token 若已过期则不应给入口(否则点进去被守卫踢回造成"闪退")
-  const adminToken = localStorage.getItem('admin_token')
-  if (adminToken && !isTokenExpired(adminToken)) return true
-  return ADMIN_PERMS.some(k => permissions.value.includes(k))
+  return permissions.value.some(k => k.startsWith('menu:admin-')) || ADMIN_PERMS.some(k => permissions.value.includes(k))
 })

@@ -296,6 +296,7 @@ import { useRouter } from 'vue-router'
 import { ChevronDown, Search, ArrowUpDown, Inbox, Pencil, Eye, EyeOff, Trash2, X, ArrowLeft, RefreshCw } from 'lucide-vue-next'
 import { avatarColors, categories } from '../data/categories.js'
 
+import { getLoginToken } from '../lib/apiBase'
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 
 const router = useRouter()
@@ -383,7 +384,7 @@ watchEffect(() => {
   sortedSkills.value = clone
 })
 
-const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
+const getToken = () => getLoginToken()
 
 const syncing = ref(false)
 const toast = ref({ show: false, message: '', type: 'success' })

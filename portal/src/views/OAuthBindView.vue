@@ -40,10 +40,15 @@ onMounted(async () => {
 })
 
 function setTokenAndGo(data) {
+  // 存当前身份的 token,同时清另一个 + 记录身份类型,避免残留 token 导致菜单/守卫误判
   if (data.user.role === 'admin') {
+    localStorage.removeItem('token')
     localStorage.setItem('admin_token', data.token)
+    localStorage.setItem('login_token_type', 'admin')
   } else {
+    localStorage.removeItem('admin_token')
     localStorage.setItem('token', data.token)
+    localStorage.setItem('login_token_type', 'portal')
   }
   const target = data.auto_created
     ? `${returnPath}?welcome=1`

@@ -81,8 +81,8 @@
             <SideItem v-if="can('menu:admin-groups')" to="/admin/groups" :active="isActive('/admin/groups')" :collapsed="collapsed" title="资源组管理">
               <FolderKanban class="w-5 h-5" /><template #label>资源组管理</template>
             </SideItem>
-            <SideItem v-if="can('menu:admin-assignments')" to="/admin/resource-assignments" :active="isActive('/admin/resource-assignments')" :collapsed="collapsed" title="资源授权">
-              <UserCheck class="w-5 h-5" /><template #label>资源授权</template>
+            <SideItem v-if="can('menu:admin-assignments')" to="/admin/resource-assignments" :active="isActive('/admin/resource-assignments')" :collapsed="collapsed" title="资源组授权">
+              <UserCheck class="w-5 h-5" /><template #label>资源组授权</template>
             </SideItem>
           </div>
         </section>

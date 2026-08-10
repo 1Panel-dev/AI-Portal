@@ -157,6 +157,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 
 echarts.use([BarChart, LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
+import { getLoginToken } from '../lib/apiBase'
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const router = useRouter()
 
@@ -278,7 +279,7 @@ const rankedUsers = computed(() => {
 const topUsers = computed(() => rankedUsers.value.slice(0, 10))
 const bottomUsers = computed(() => rankedUsers.value.slice(-10).reverse())
 
-const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
+const getToken = () => getLoginToken()
 
 const fmt = (n) => {
   if (!n && n !== 0) return '0'

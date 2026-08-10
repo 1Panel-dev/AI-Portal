@@ -78,12 +78,28 @@ export function cleanSlug(slug) {
 }
 
 /**
- * 清除所有登录态（localStorage）
+ * 当前登录身份使用的 token:按登录时记录的 login_token_type 选择。
+ * 根治残留 token 问题:普通用户登录(存 token)后,若 localStorage 还残留有效 admin_token,
+ * 不应再用它请求(否则权限错乱/越权)。登录时会清另一个 token + 记录 login_token_type。
+ * 无记录(旧会话)时:优先 token(普通登录更常见;超管即使残留 token 也映射到超管用户 is_portal_admin=true,不丢权限)。
+ */
+export function getLoginToken() {
+  const type = localStorage.getItem('login_token_type')
+  if (type === 'admin') return localStorage.getItem('admin_token') || ''
+  if (type === 'portal') return localStorage.getItem('token') || ''
+  return localStorage.getItem('token') || localStorage.getItem('admin_token') || ''
+}
+
+/**
+ * 清除所有登录态（localStorage + sessionStorage 身份标记）
  */
 export function clearAuth() {
   localStorage.removeItem('token')
   localStorage.removeItem('admin_token')
   localStorage.removeItem('user')
+  localStorage.removeItem('login_token_type')
+  // 身份类别标记(见 usePermissions.loadPermissions)一并清,防登出后残留误判下一位登录用户
+  sessionStorage.removeItem('login_identity')
 }
 
 /**

@@ -75,11 +75,11 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { API_BASE } from '../../lib/apiBase'
+import { API_BASE, getLoginToken } from '../../lib/apiBase'
 
 const route = useRoute()
 const router = useRouter()
-const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
+const getToken = () => getLoginToken()
 const groupId = route.params.id
 
 const tabs = [
@@ -174,57 +174,16 @@ async function fetchResourceTypes() {
   }
 }
 
-// 拉取某资源类型的全量列表（复用现有接口）
+// 拉取某资源类型的全量列表（用管理端接口 /api/admin/resources-list, 需 group:view;
+// 不走广场接口 /api/models 等, 它们已校验查看权限, 资源组编辑者可能无查看权限会拉不到）
 async function fetchResourceList(key) {
   resourceLoading.value = true
   try {
-    if (key === 'model') {
-      // /api/models -> { groups: [{name, provider, models:[{model_name, group_name, provider}]}] }
-      const res = await fetch(`${API_BASE}/models`, { headers: { Authorization: `Bearer ${getToken()}` } })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || '获取模型失败')
-      const list = []
-      for (const g of (data.groups || [])) {
-        for (const m of (g.models || [])) {
-          list.push({ id: m.model_name, title: m.model_name, subtitle: `${g.name} · ${m.provider || ''}` })
-        }
-      }
-      resourceCatalog[key] = list
-    } else if (key === 'skill') {
-      // /api/skills -> { data: [{slug, title, ...}], pagination:{total} } ; 翻全量
-      const list = []
-      let page = 1
-      const limit = 100
-      while (true) {
-        const res = await fetch(`${API_BASE}/skills?page=${page}&limit=${limit}`, { headers: { Authorization: `Bearer ${getToken()}` } })
-        const data = await res.json().catch(() => ({}))
-        if (!res.ok) throw new Error(data.error || '获取技能失败')
-        const rows = data.data || []
-        for (const s of rows) list.push({ id: s.slug, title: s.title, subtitle: s.slug })
-        const hasMore = data.pagination?.hasMore
-        if (!hasMore || rows.length < limit) break
-        page++
-        if (page > 50) break // 翻页保护
-      }
-      resourceCatalog[key] = list
-    } else if (key === 'mcp') {
-      // /api/mcp/search -> { data: [{id, name, ...}], pagination } ; 翻全量
-      const list = []
-      let page = 1
-      const pageSize = 100
-      while (true) {
-        const res = await fetch(`${API_BASE}/mcp/search?page=${page}&pageSize=${pageSize}`, { headers: { Authorization: `Bearer ${getToken()}` } })
-        const data = await res.json().catch(() => ({}))
-        if (!res.ok) throw new Error(data.error || data.reason || '获取 MCP 失败')
-        const items = data.data || []
-        for (const it of items) list.push({ id: String(it.id ?? it.key ?? it.name), title: it.name || it.key || '未命名', subtitle: it.type || '' })
-        const hasMore = data.pagination?.hasMore
-        if (!hasMore || items.length < pageSize) break
-        page++
-        if (page > 50) break
-      }
-      resourceCatalog[key] = list
-    }
+    const res = await fetch(`${API_BASE}/admin/resources-list?type=${key}`, { headers: { Authorization: `Bearer ${getToken()}` } })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || data.reason || '获取资源失败')
+    const items = data.data?.[key] || []
+    resourceCatalog[key] = items.map(r => ({ id: r.id, title: r.title, subtitle: r.subtitle }))
   } catch (err) {
     const typeName = resourceTypes.value.find(t => t.key === key)?.name || key
     showToast(err.message || `获取${typeName}列表失败`, 'error')

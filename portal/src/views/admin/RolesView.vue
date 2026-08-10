@@ -321,12 +321,12 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, Trash2 } from 'lucide-vue-next'
-import { API_BASE } from '../../lib/apiBase'
+import { API_BASE, getLoginToken } from '../../lib/apiBase'
 import AppDialog from '../../components/AppDialog.vue'
 import { loadPermissions, can } from '../../composables/usePermissions.js'
 
 const router = useRouter()
-const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
+const getToken = () => getLoginToken()
 
 const roles = ref([])
 const allPermissions = ref([])  // { id, module, action, key, name }
@@ -366,7 +366,7 @@ const ADMIN_OP_KEYS = new Set([
   'model:view', 'model:sync', 'skill:view', 'skill:edit', 'skill:delete', 'mcp:view', 'mcp:sync',
   'user:view', 'user:create', 'user:edit', 'user:delete',
   'role:view', 'role:create', 'role:edit', 'role:delete',
-  'group:view', 'group:create', 'group:edit', 'group:delete',
+  'group:view', 'group:create', 'group:edit', 'group:delete', 'group:assign',
   'system:config',
 ])
 const PORTAL_OP_KEYS = new Set([
@@ -379,21 +379,21 @@ const MENU_TO_OPS = {
   'menu:admin-stats': ['user:view'],
   'menu:admin-review': ['skill:edit', 'user:view'],
   'menu:admin-models': ['model:view', 'system:config'],
-  'menu:admin-skills': ['skill:view', 'skill:create', 'skill:edit', 'skill:delete'],
+  'menu:admin-skills': ['skill:view', 'skill:edit', 'skill:delete', 'system:config'],
   'menu:admin-mcps': ['mcp:view', 'system:config'],
   'menu:admin-groups': ['group:view', 'group:create', 'group:edit', 'group:delete'],
-  'menu:admin-assignments': ['group:view', 'group:edit', 'user:view'],
+  'menu:admin-assignments': ['group:view', 'group:assign', 'user:view'],
   'menu:admin-users': ['user:view', 'user:create', 'user:edit', 'user:delete'],
   'menu:admin-roles': ['role:view', 'role:create', 'role:edit', 'role:delete'],
   'menu:admin-config': ['system:config'],
   'menu:admin-oauth': ['system:config'],
   'menu:admin-panel': ['group:view', 'group:edit'],
   'menu:models': ['model:view'],
-  'menu:skills': ['skill:view', 'skill:create'],
+  'menu:skills': ['skill:view'],
   'menu:mcp': ['mcp:view'],
   'menu:docs': [],
   'menu:api-keys': ['key:view', 'key:create', 'key:edit', 'key:delete'],
-  'menu:my-skills': ['skill:view', 'skill:create'],
+  'menu:my-skills': ['skill:create'],
   'menu:submit': ['skill:create'],
 }
 
@@ -408,16 +408,24 @@ const MENU_ORDER = [
   'menu:api-keys', 'menu:my-skills', 'menu:submit',
 ]
 
-// 菜单权限分组（按后台/用户侧两组）,menu:profile 为基础信息默认权限,不纳入配置
+// 菜单权限分组（按后台/用户侧两组）,menu:profile 为基础信息默认权限、menu:submit 归入"我的技能"不纳独立菜单
+// 每组内按 MENU_ORDER 逻辑顺序排列,保证展示不乱(概览→内容→资源→授权→用户→系统;用户侧模型→技能→MCP→文档→Key→我的技能)
 const menuPermissionGroups = computed(() => {
   const backend = { id: 'admin', label: '后台菜单', permissions: [] }
   const portal = { id: 'portal', label: '用户侧菜单', permissions: [] }
   for (const p of allPermissions.value) {
     if (p.module !== 'menu') continue
     if (p.key === 'menu:profile') continue
+    // 提交技能不是独立菜单,入口在「我的技能」页内(menu:my-skills 已关联 skill:create),不单独展示
+    if (p.key === 'menu:submit') continue
     if (p.action.startsWith('admin-')) backend.permissions.push(p)
     else portal.permissions.push(p)
   }
+  // 按 MENU_ORDER 排序;未列入 MENU_ORDER 的排最后
+  const orderIdx = new Map(MENU_ORDER.map((k, i) => [k, i]))
+  const sortByOrder = list => [...list].sort((a, b) => (orderIdx.get(a.key) ?? 999) - (orderIdx.get(b.key) ?? 999))
+  backend.permissions = sortByOrder(backend.permissions)
+  portal.permissions = sortByOrder(portal.permissions)
   return [backend, portal].filter(g => g.permissions.length)
 })
 
@@ -467,7 +475,15 @@ const allOperationGroups = computed(() => {
     if (!map[p.module]) map[p.module] = { module: p.module, permissions: [] }
     map[p.module].permissions.push(p)
   }
-  return Object.values(map)
+  const list = Object.values(map)
+  // 按逻辑顺序排列: 分组顺序(模型→Key→技能→MCP→用户→角色→资源组→系统); 组内(查看→创建→编辑→删除→同步→配置)
+  const MODULE_ORDER = ['model', 'key', 'skill', 'mcp', 'user', 'role', 'group', 'system']
+  const ACTION_ORDER = ['view', 'create', 'edit', 'delete', 'sync', 'config']
+  const modIdx = m => MODULE_ORDER.indexOf(m) !== -1 ? MODULE_ORDER.indexOf(m) : 999
+  const actIdx = a => ACTION_ORDER.indexOf(a) !== -1 ? ACTION_ORDER.indexOf(a) : 999
+  list.sort((a, b) => modIdx(a.module) - modIdx(b.module))
+  for (const g of list) g.permissions.sort((a, b) => actIdx(a.action) - actIdx(b.action))
+  return list
 })
 
 function groupLabel(module) {
@@ -495,9 +511,26 @@ function groupSomeSelected(group) {
 function toggleGroupAll(group) {
   const newSet = new Set(selectedPerms.value)
   const allSel = groupAllSelected(group)
+  const groupMenuKeys = group.permissions.map(p => p.key)
   for (const p of group.permissions) {
     if (allSel) newSet.delete(p.key)
     else newSet.add(p.key)
+  }
+  // 联动操作权限(与 togglePerm 单菜单联动一致):
+  // 全选 -> 自动勾选该组菜单对应的操作权限;取消全选 -> 移除,但保留仍被其他勾选菜单引用的权限
+  if (allSel) {
+    for (const menuKey of groupMenuKeys) {
+      for (const opKey of (MENU_TO_OPS[menuKey] || [])) {
+        const stillReferenced = orderedMenuList.value.some(m =>
+          newSet.has(m.key) && (MENU_TO_OPS[m.key] || []).includes(opKey)
+        )
+        if (!stillReferenced) newSet.delete(opKey)
+      }
+    }
+  } else {
+    for (const menuKey of groupMenuKeys) {
+      for (const opKey of (MENU_TO_OPS[menuKey] || [])) newSet.add(opKey)
+    }
   }
   selectedPerms.value = newSet
 }

@@ -2,7 +2,7 @@
   <div>
     <div class="flex items-center justify-between mb-6">
       <div>
-        <h1 class="text-2xl font-bold text-text">资源授权</h1>
+        <h1 class="text-2xl font-bold text-text">资源组授权</h1>
         <p class="text-text-secondary text-sm mt-1">以资源组为单位管理用户授权。点击「管理成员」图标给组添加/移除授权用户；「预览」图标查看该组包含的资源</p>
       </div>
       <button
@@ -117,11 +117,11 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { RefreshCw, Eye, Pencil } from 'lucide-vue-next'
-import { API_BASE } from '../../lib/apiBase'
+import { API_BASE, getLoginToken } from '../../lib/apiBase'
 import AppDialog from '../../components/AppDialog.vue'
 
 const router = useRouter()
-const getToken = () => localStorage.getItem('admin_token') || localStorage.getItem('token')
+const getToken = () => getLoginToken()
 
 const groups = ref([])
 const loading = ref(false)

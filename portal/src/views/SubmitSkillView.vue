@@ -219,9 +219,8 @@ const checkSkillExists = async () => {
   if (!validateField('skill_id')) return
   try {
     const slug = toSlug(form.value.skill_id)
-    const token = localStorage.getItem('token') || localStorage.getItem('admin_token')
-    const headers = token ? { Authorization: `Bearer ${token}` } : {}
-    const res = await fetch(`${API_BASE}/skills?slug=${encodeURIComponent(slug)}`, { headers })
+    // 用公开的 :slug 路由(无需 skill:view; 提交者可能只有 skill:create 无 skill:view)
+    const res = await fetch(`${API_BASE}/skills/${encodeURIComponent(slug)}`)
     const data = await res.json()
     skillExists.value = res.ok && !!data.id
   } catch { skillExists.value = false }

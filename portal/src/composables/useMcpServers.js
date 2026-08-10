@@ -1,11 +1,12 @@
 import { ref, onMounted, watch } from 'vue'
 
+import { getLoginToken } from '../lib/apiBase'
 // API 基础地址（与 useSkills.js 一致）
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 
 // 带 token:登录用户按资源组过滤;后端列表接口已改 verifyUser
 const authHeaders = () => {
-  const token = localStorage.getItem('token') || localStorage.getItem('admin_token')
+  const token = getLoginToken()
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 

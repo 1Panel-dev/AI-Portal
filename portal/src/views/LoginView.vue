@@ -196,11 +196,16 @@ const login = async () => {
       throw new Error(data.error || '登录失败')
     }
 
-    // 根据角色存储不同的 token
+    // 根据角色存储不同的 token;同时清掉另一个 + 记录身份类型,避免残留 token 导致菜单/守卫误判
+    // (如残留 admin_token 会让 loadPermissions/showAdminEntry 误判,普通用户被当管理员)
     if (data.user.role === 'admin') {
+      localStorage.removeItem('token')
       localStorage.setItem('admin_token', data.token)
+      localStorage.setItem('login_token_type', 'admin')
     } else {
+      localStorage.removeItem('admin_token')
       localStorage.setItem('token', data.token)
+      localStorage.setItem('login_token_type', 'portal')
     }
     localStorage.setItem('user', JSON.stringify(data.user))
 

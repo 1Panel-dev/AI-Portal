@@ -40,18 +40,13 @@
       </div>
     </section>
 
-    <!-- Error banner -->
+    <!-- 无查看权限 / 数据加载失败横幅 -->
     <div
       v-if="error"
-      class="max-w-[520px] mx-auto mb-8 p-5 bg-red-50 rounded-2xl border border-red-200 text-center"
+      class="max-w-[1024px] mx-auto px-6 mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3"
     >
-      <p class="text-red-800 font-medium text-sm">{{ error }}</p>
-      <button
-        @click="loadServers(true)"
-        class="mt-3 px-5 py-2 text-sm bg-red-100 text-red-700 rounded-xl hover:bg-red-200 transition-colors cursor-pointer"
-      >
-        重试
-      </button>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" class="mt-0.5 shrink-0"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+      <div class="text-sm text-red-700">{{ error }}</div>
     </div>
 
     <!-- Grid -->
