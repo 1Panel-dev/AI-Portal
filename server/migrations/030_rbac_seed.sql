@@ -33,6 +33,7 @@ INSERT INTO permissions (module, action, key, name) VALUES
 ('group', 'create', 'group:create', '资源组创建'),
 ('group', 'edit', 'group:edit', '资源组编辑'),
 ('group', 'delete', 'group:delete', '资源组删除'),
+('group', 'assign', 'group:assign', '资源组授权'),
 ('system', 'config', 'system:config', '系统配置')
 ON CONFLICT (key) DO NOTHING;
 

@@ -121,8 +121,8 @@ router.put('/api/admin/groups/:id/items', verifyUser, requirePermission('group:e
   }
 });
 
-// 全量覆盖成员（事务）
-router.put('/api/admin/groups/:id/members', verifyUser, requirePermission('group:edit'), async (req, res) => {
+// 全量覆盖成员（事务）——资源组授权:管理「授权给谁」。独立 group:assign 权限, 与资源组管理(group:edit)解耦
+router.put('/api/admin/groups/:id/members', verifyUser, requirePermission('group:assign'), async (req, res) => {
   const id = Number(req.params.id);
   const userIds = Array.isArray(req.body.userIds) ? req.body.userIds : [];
   const client = await pool().connect();
@@ -596,13 +596,33 @@ router.get('/api/admin/groups/:id/resources-preview', verifyUser, requirePermiss
   }
 });
 
+// 全量资源列表(供资源组编辑勾选用):管理端,需 group:view。
+// 不走广场接口(/api/models 等,它们已校验 model:view/skill:view/mcp:view),避免资源组编辑者
+// 因没有查看权限而拉不到资源。
+router.get('/api/admin/resources-list', verifyUser, requirePermission('group:view'), async (req, res) => {
+  try {
+    const { type } = req.query;
+    const data = {};
+    if (type) {
+      data[type] = await mapAllWithType(type, getResourceType(type));
+    } else {
+      for (const t of getAllResourceTypes()) {
+        data[t.key] = await mapAllWithType(t.key, getResourceType(t.key));
+      }
+    }
+    res.json({ data });
+  } catch (e) {
+    res.status(500).json({ error: '获取资源列表失败', reason: e.message });
+  }
+});
+
 // 各资源类型 listAll -> 统一 {id, title, subtitle} 映射
 async function mapAllWithType(key, adapter) {
   if (!adapter?.listAll) return [];
   const rows = await adapter.listAll();
   if (key === 'model') return rows.map(r => ({ id: r.model_name, title: r.model_name, subtitle: `${r.group_name || ''} · ${r.provider || ''}`.trim() }));
   if (key === 'skill') return rows.map(r => ({ id: r.slug, title: r.title, subtitle: r.slug }));
-  if (key === 'mcp') return rows.map(r => ({ id: String(r.id), title: r.name || '未命名', subtitle: r.type || '' }));
+  if (key === 'mcp') return rows.map(r => ({ id: String(r.panel_mcp_id ?? r.id), title: r.name || '未命名', subtitle: r.type || '' }));
   return rows.map(r => ({ id: String(r.id ?? ''), title: String(r.title ?? r.name ?? r.id ?? ''), subtitle: '' }));
 }
 

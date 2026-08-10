@@ -5,7 +5,7 @@ const multer = require('multer');
 const storage = require('../lib/storage');
 const downloadCounter = require('../lib/downloadCounter');
 const { panel, getPanelPayload, getPanelItems, downloadPanelSkill } = require('../panel');
-const { downloadLimiter, uploadLimiter, verifyUser, requirePermission } = require('../auth');
+const { downloadLimiter, uploadLimiter, verifyUser, requirePermission, requirePermissionOrAdminRole } = require('../auth');
 
 const router = express.Router();
 
@@ -281,7 +281,7 @@ router.get('/api/health', async (req, res) => {
 });
 
 // 获取所有技能
-router.get('/api/skills', verifyUser, async (req, res) => {
+router.get('/api/skills', verifyUser, requirePermissionOrAdminRole('skill:view'), async (req, res) => {
   try {
     const {
       category,

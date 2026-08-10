@@ -114,12 +114,37 @@ function requirePermission(permissionKey) {
   };
 }
 
+// 查看权限中间件（广场列表用）:超管 / 后台角色(isAdminRoleUser) 放行; 普通用户需对应查看权限。
+// 与 getVisibleResourcesForUser 的「后台角色看全量」一致——后台角色是管理者, 直接放行;
+// 普通用户必须有 model:view/skill:view/mcp:view 才能看广场数据。
+function requirePermissionOrAdminRole(permissionKey) {
+  return async (req, res, next) => {
+    if (!req.portalUser) {
+      return res.status(401).json({ error: '未登录' });
+    }
+    if (req.portalUser.is_portal_admin) return next();
+    const { hasPermission, isAdminRoleUser } = require('./lib/permission');
+    if (await isAdminRoleUser(req.portalUser.id)) return next();
+    const ok = await hasPermission(req.portalUser.id, permissionKey);
+    if (!ok) return res.status(403).json({ code: 'FORBIDDEN', error: '权限不足' });
+    next();
+  };
+}
+
+// 从用户行解析 token 过期秒数。session_timeout(秒) 来自 1Panel(portal_users.session_timeout),
+// 用于真正控制 token 何时过期;缺失/非法时回退默认 86400(1 天)。
+function resolveTokenExpires(user, fallback = 86400) {
+  const sec = user && user.session_timeout;
+  const n = Number(sec);
+  return (Number.isFinite(n) && n > 0) ? n : fallback;
+}
+
 // 生成 portal user token
 function signPortalToken(user) {
   return jwt.sign(
     { id: user.id, username: user.username, type: 'portal_user', role: user.role },
     JWT_SECRET,
-    { expiresIn: '1d' }
+    { expiresIn: resolveTokenExpires(user) }
   );
 }
 
@@ -128,7 +153,7 @@ function signAdminToken(user) {
   return jwt.sign(
     { id: user.id, username: user.username, role: 'admin', type: 'admin' },
     JWT_SECRET,
-    { expiresIn: '24h' }
+    { expiresIn: resolveTokenExpires(user) }
   );
 }
 
@@ -183,6 +208,7 @@ module.exports = {
   verifyUser,
   optionalUser,
   requirePermission,
+  requirePermissionOrAdminRole,
   signPortalToken,
   signAdminToken,
   signOauthTicket,

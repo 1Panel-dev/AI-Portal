@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
-const { verifyUser, requirePermission, signPortalToken } = require('../auth');
+const { verifyUser, requirePermission, requirePermissionOrAdminRole, signPortalToken } = require('../auth');
 const { panel, getPanelPayload, getPanelItems, findPanelUser, createPanelUser, syncModelsFromPanel } = require('../panel');
 const { isAnyProviderEnabled } = require('../oauth');
 const { inspectPanelBiz, listPanelKeysOfUser } = require('../lib/panel-biz');
@@ -82,7 +82,7 @@ router.post('/api/auth/register', async (req, res) => {
     const result = await global.pool.query(`
       INSERT INTO portal_users (panel_user_id, username, name, password_hash, session_timeout, status, role)
       VALUES ($1, $2, $3, $4, $5, 'active', 'user')
-      RETURNING id, panel_user_id, username, name, role, status, last_login_at, created_at
+      RETURNING id, panel_user_id, username, name, role, status, last_login_at, created_at, session_timeout
     `, [panelUserId, rawUsername, rawName, passwordHash, sessionTimeout]);
 
     const user = result.rows[0];
@@ -253,7 +253,7 @@ router.put('/api/auth/password', verifyUser, async (req, res) => {
   }
 });
 
-router.get('/api/models', verifyUser, async (req, res) => {
+router.get('/api/models', verifyUser, requirePermissionOrAdminRole('model:view'), async (req, res) => {
   try {
     let rows = [];
     let syncFailedReason = null;  // 记录首次兜底同步是否失败,用于给前端 hint
