@@ -104,6 +104,7 @@
     <!-- 保存按钮 -->
     <div class="flex items-center gap-3 mt-6">
       <button
+        v-if="can('group:assign')"
         @click="save"
         :disabled="saving || !dirty"
         class="px-5 py-2.5 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-all"
@@ -159,6 +160,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Info } from 'lucide-vue-next'
 import { API_BASE, getLoginToken } from '../../lib/apiBase'
+import { can, loadPermissions } from '../../composables/usePermissions.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -292,23 +294,22 @@ async function fetchAllUsers() {
   }
 }
 
+// 先取第 1 页拿 total, 再并发拉剩余页(原串行翻页, 用户多时是 N/100 次串行 RTT)
 async function fetchAllUsersPaged(token) {
-  const list = []
-  let p = 1
   const pageSize = 100
-  while (true) {
+  const fetchPage = async (p) => {
     const params = new URLSearchParams({ page: String(p), pageSize: String(pageSize) })
     const res = await fetch(`${API_BASE}/admin/portal-users?${params}`, { headers: { Authorization: `Bearer ${token}` } })
-    if (res.status === 401 || res.status === 403) { router.push('/admin/login'); return list }
+    if (res.status === 401 || res.status === 403) { router.push('/admin/login'); return { items: [], total: 0 } }
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || '获取用户失败')
-    list.push(...(data.items || []))
-    const total = data.total || 0
-    if (list.length >= total || (data.items || []).length < pageSize) break
-    p++
-    if (p > 50) break
+    return { items: data.items || [], total: data.total || 0 }
   }
-  return list
+  const first = await fetchPage(1)
+  const totalPages = Math.min(Math.ceil(first.total / pageSize), 50)
+  if (totalPages <= 1) return first.items
+  const rest = await Promise.all(Array.from({ length: totalPages - 1 }, (_, i) => fetchPage(i + 2)))
+  return [first, ...rest].flatMap(r => r.items)
 }
 
 async function save() {
@@ -357,6 +358,7 @@ async function fetchPreview() {
 }
 
 onMounted(() => {
+  loadPermissions()
   fetchGroupDetail()
   fetchAllUsers()
 })

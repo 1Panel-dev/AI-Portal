@@ -3,7 +3,7 @@ import { ref, onMounted, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { Lock, ShieldCheck, AlertTriangle, Link } from 'lucide-vue-next'
 import OAuthProviderCard from '../components/admin/OAuthProviderCard.vue'
-import { API_BASE } from '../lib/apiBase.js'
+import { API_BASE, getLoginToken } from '../lib/apiBase.js'
 
 const router = useRouter()
 

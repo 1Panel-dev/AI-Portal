@@ -208,6 +208,8 @@ const login = async () => {
       localStorage.setItem('login_token_type', 'portal')
     }
     localStorage.setItem('user', JSON.stringify(data.user))
+    // 登录成功后重置身份基线, 确保 checkIdentityChange 以本次登录为准(防上一会话残留误判)
+    sessionStorage.removeItem('login_identity')
 
     // 跳转:超管直接进后台,普通用户先进 profile 由页面自己判断权限
     // 不在此处串行调 /api/my/permissions(避免接口慢时登录卡住)

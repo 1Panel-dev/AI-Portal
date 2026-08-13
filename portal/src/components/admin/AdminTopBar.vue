@@ -74,7 +74,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ArrowLeft } from 'lucide-vue-next'
-import { API_BASE, getLoginToken } from '../../lib/apiBase'
+import { API_BASE, getLoginToken, clearAuth } from '../../lib/apiBase'
 import AppDialog from '../AppDialog.vue'
 
 const router = useRouter()
@@ -133,9 +133,8 @@ async function doChangePassword() {
 
 const logout = () => {
   showDropdown.value = false
-  localStorage.removeItem('token')
-  localStorage.removeItem('admin_token')
-  localStorage.removeItem('user')
+  // 统一走 clearAuth: 清 login_token_type 与 sessionStorage.login_identity, 防身份标记残留
+  clearAuth()
   router.push('/login')
 }
 

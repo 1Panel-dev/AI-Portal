@@ -284,7 +284,7 @@
             <SkillctlGuide v-if="!isPortalAdmin" />
             <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
               <div class="flex items-center justify-between gap-3 mb-6">
-                <h2 class="text-lg font-semibold text-text">{{ can('skill:edit') ? '技能审核' : '我的技能' }}</h2>
+                <h2 class="text-lg font-semibold text-text">{{ can('skill:review') ? '技能审核' : '我的技能' }}</h2>
                 <router-link v-if="can('skill:create') && featureFlags.skillSubmitEnabled" to="/submit" class="shrink-0 px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all no-underline">提交技能</router-link>
               </div>
               <div v-if="mySkillsLoading" class="py-10 text-center text-text-secondary text-sm">加载中...</div>
@@ -292,7 +292,7 @@
                 <div class="w-12 h-12 bg-surface-secondary rounded-full mx-auto mb-3 flex items-center justify-center">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#86868b" stroke-width="1.5"><path d="M12 2l7 4v6c0 5-3 8-7 10-4-2-7-5-7-10V6l7-4z"/><path d="M9 12l2 2 4-4"/></svg>
                 </div>
-                <p class="text-text-secondary text-sm">{{ can('skill:edit') ? '暂无待审核的技能' : '暂未提交任何技能' }}</p>
+                <p class="text-text-secondary text-sm">{{ can('skill:review') ? '暂无待审核的技能' : '暂未提交任何技能' }}</p>
               </div>
               <div v-else class="space-y-3">
                 <div v-for="skill in mySkills" :key="skill.id" class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 border border-[rgba(0,0,0,0.06)] rounded-xl">
@@ -535,7 +535,7 @@ import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/compon
 import { CanvasRenderer } from 'echarts/renderers'
 
 echarts.use([BarChart, LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
-import { getLoginToken } from '../lib/apiBase'
+import { getLoginToken, clearAuth } from '../lib/apiBase'
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const router = useRouter()
 const route = useRoute()
@@ -817,7 +817,7 @@ const tabs = computed(() => {
   if (can('menu:my-skills')) {
     tabsList.push({
       id: 'skills',
-      label: can('skill:edit') ? '技能审核' : '我的技能',
+      label: can('skill:review') ? '技能审核' : '我的技能',
     })
   }
   return tabsList
@@ -834,7 +834,13 @@ const fetchUser = async () => {
   try {
     const token = localStorage.getItem('token')
     const res = await fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
-    if (res.ok) user.value = await res.json()
+    if (res.ok) {
+      const data = await res.json()
+      user.value = data
+      // 顺带填充密码/来源标识, loadOauthState 不再重复拉 /auth/me
+      hasPassword.value = !!data.has_password
+      autoCreatedFrom.value = data.auto_created_from || null
+    }
   } catch (e) { console.error(e) }
 }
 const fetchKeys = async () => {
@@ -1073,14 +1079,7 @@ const loadOauthState = async () => {
     allProviders.value = pr.providers || []
     myIdentities.value = idr.identities || []
   } catch (e) { console.warn('loadOauthState failed:', e) }
-  try {
-    const r = await fetch(`${API_BASE}/auth/me`, { headers: authHeader() })
-    if (r.ok) {
-      const data = await r.json()
-      hasPassword.value = !!data.has_password
-      autoCreatedFrom.value = data.auto_created_from || null
-    }
-  } catch {}
+  // has_password / auto_created_from 由 fetchUser 统一填充, 此处不再重复拉 /auth/me
 }
 const startBindProvider = async (provider) => {
   if (provider !== 'wecom') return
@@ -1140,7 +1139,7 @@ const setPasswordForAutoUser = async () => {
   }
 }
 const formatDate = (d) => { if (!d) return '-'; return new Date(d).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) }
-const logout = () => { localStorage.removeItem('token'); localStorage.removeItem('admin_token'); localStorage.removeItem('user'); router.push('/login') }
+const logout = () => { clearAuth(); router.push('/login') }
 const goToAdmin = () => { router.push('/admin') }
 const openChangePasswordDialog = () => {
   passwordError.value = ''
@@ -1156,9 +1155,8 @@ const closeChangePasswordDialog = () => {
 }
 const closeSuccessDialog = () => {
   showSuccessDialog.value = false
-  // 清除登录状态并跳转到登录页
-  localStorage.removeItem('token')
-  localStorage.removeItem('user')
+  // 统一走 clearAuth: 连 login_token_type / sessionStorage.login_identity 一起清, 防身份标记残留
+  clearAuth()
   router.push('/login')
 }
 const submitChangePassword = async () => {

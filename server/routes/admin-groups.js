@@ -157,7 +157,7 @@ router.get('/api/admin/panel-groups', verifyUser, requirePermission('group:view'
   }
 });
 
-router.post('/api/admin/panel-groups/sync', verifyUser, requirePermission('group:edit'), async (req, res) => {
+router.post('/api/admin/panel-groups/sync', verifyUser, requirePermission('group:panel-sync'), async (req, res) => {
   try {
     const result = await syncPanelGroups();
     res.json({ data: result });
@@ -455,7 +455,7 @@ router.put('/api/admin/roles/:id/permissions', verifyUser, requirePermission('ro
 // ---- 用户角色分配（spec 盲区1: 没有它管理角色无法赋予用户）----
 
 // 查某用户已分配的角色
-router.get('/api/admin/users/:id/roles', verifyUser, requirePermission('user:edit'), async (req, res) => {
+router.get('/api/admin/users/:id/roles', verifyUser, requirePermission('user:assign'), async (req, res) => {
   const userId = Number(req.params.id);
   try {
     const r = await pool().query(`
@@ -471,7 +471,7 @@ router.get('/api/admin/users/:id/roles', verifyUser, requirePermission('user:edi
 
 // 全量覆盖某用户的角色（事务, 跟 items/members 一个范式）
 // 单角色限制: 每个用户只能有一个角色（数组长度≤1，传多个返 400）
-router.put('/api/admin/users/:id/roles', verifyUser, requirePermission('user:edit'), async (req, res) => {
+router.put('/api/admin/users/:id/roles', verifyUser, requirePermission('user:assign'), async (req, res) => {
   const userId = Number(req.params.id);
   const roleIds = Array.isArray(req.body.roleIds) ? req.body.roleIds.map(Number) : [];
 

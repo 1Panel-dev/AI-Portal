@@ -56,7 +56,7 @@
 
         <p class="text-xs text-text-tertiary mt-3">已选 {{ selectedCount(activeResourceType) }} / 共 {{ totalCount(activeResourceType) }} 个{{ activeTypeName }}。</p>
         <div class="mt-4">
-          <button @click="saveItems" :disabled="savingItems" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50">{{ savingItems ? '保存中...' : '保存包含资源' }}</button>
+          <button v-if="can('group:edit')" @click="saveItems" :disabled="savingItems" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50">{{ savingItems ? '保存中...' : '保存包含资源' }}</button>
         </div>
       </template>
     </div>
@@ -76,6 +76,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { API_BASE, getLoginToken } from '../../lib/apiBase'
+import { can, loadPermissions } from '../../composables/usePermissions.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -174,20 +175,20 @@ async function fetchResourceTypes() {
   }
 }
 
-// 拉取某资源类型的全量列表（用管理端接口 /api/admin/resources-list, 需 group:view;
+// 拉取全量资源列表（一次请求返回所有类型, 避免逐类型串行请求的瀑布延迟。
+// 用管理端接口 /api/admin/resources-list, 需 group:view;
 // 不走广场接口 /api/models 等, 它们已校验查看权限, 资源组编辑者可能无查看权限会拉不到）
-async function fetchResourceList(key) {
+async function fetchAllResources() {
   resourceLoading.value = true
   try {
-    const res = await fetch(`${API_BASE}/admin/resources-list?type=${key}`, { headers: { Authorization: `Bearer ${getToken()}` } })
+    const res = await fetch(`${API_BASE}/admin/resources-list`, { headers: { Authorization: `Bearer ${getToken()}` } })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error || data.reason || '获取资源失败')
-    const items = data.data?.[key] || []
-    resourceCatalog[key] = items.map(r => ({ id: r.id, title: r.title, subtitle: r.subtitle }))
+    for (const key of Object.keys(data.data || {})) {
+      resourceCatalog[key] = (data.data[key] || []).map(r => ({ id: r.id, title: r.title, subtitle: r.subtitle }))
+    }
   } catch (err) {
-    const typeName = resourceTypes.value.find(t => t.key === key)?.name || key
-    showToast(err.message || `获取${typeName}列表失败`, 'error')
-    resourceCatalog[key] = []
+    showToast(err.message || '获取资源列表失败', 'error')
   } finally {
     resourceLoading.value = false
   }
@@ -218,11 +219,9 @@ async function saveItems() {
 }
 
 onMounted(async () => {
-  await Promise.all([fetchGroupDetail(), fetchResourceTypes()])
-  // 拉取各资源类型全量列表
-  for (const rt of resourceTypes.value) {
-    await fetchResourceList(rt.key)
-  }
+  loadPermissions()
+  // 详情 / 资源类型 / 全量资源 三请求并行, 一个往返时间内全部就绪
+  await Promise.all([fetchGroupDetail(), fetchResourceTypes(), fetchAllResources()])
 })
 onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 </script>

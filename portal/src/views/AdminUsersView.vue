@@ -7,8 +7,8 @@
         </div>
         <div class="flex items-center gap-3">
           <button @click="refreshUsers" :disabled="loading" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"><RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />{{ loading ? '加载中...' : '刷新' }}</button>
-          <button @click="syncUsers" :disabled="syncing" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"><RefreshCw class="w-4 h-4" />{{ syncing ? '同步中...' : '同步用户' }}</button>
-          <button v-if="selectedUsers.size > 0 && can('user:edit')" @click="openBatchPassword" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">{{ `批量改密 (${selectedUsers.size})` }}</button>
+          <button v-if="can('user:edit')" @click="syncUsers" :disabled="syncing" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"><RefreshCw class="w-4 h-4" />{{ syncing ? '同步中...' : '同步用户' }}</button>
+          <button v-if="selectedUsers.size > 0 && can('user:batch-password')" @click="openBatchPassword" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">{{ `批量改密 (${selectedUsers.size})` }}</button>
           <button v-if="can('user:create')" @click="showNewUserDialog = true" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all"><UserPlus class="w-4 h-4" />新增用户</button>
         </div>
       </div>
@@ -58,9 +58,9 @@
           <div class="text-text-secondary">{{ user.submission_count || 0 }}</div>
           <div class="text-xs text-text-tertiary">{{ formatDate(user.created_at) }}</div>
           <div class="flex items-center justify-end gap-2">
-            <button v-if="user.role !== 'admin' && !user.is_portal_admin && can('user:edit')" @click="openRoleDialog(user)" class="p-2 text-text-secondary hover:text-accent transition-all" title="分配角色"><UserCog class="w-4 h-4" /></button>
-            <button v-if="user.role !== 'admin' && !user.is_portal_admin && can('user:edit')" @click="openPasswordDialog(user)" class="p-2 text-text-secondary hover:text-accent transition-all" title="修改密码"><KeyRound class="w-4 h-4" /></button>
-            <button v-if="user.role !== 'admin' && !user.is_portal_admin && can('user:delete')" @click="confirmDelete(user)" class="p-2 text-text-secondary hover:text-red-500 transition-all" title="删除"><Trash2 class="w-4 h-4" /></button>
+            <button v-if="user.role !== 'admin' && !user.is_portal_admin && can('user:assign') && can('role:view')" @click="openRoleDialog(user)" class="p-2 text-text-secondary hover:text-accent transition-all" title="分配角色"><UserCog class="w-4 h-4" /></button>
+            <button v-if="user.role !== 'admin' && !user.is_portal_admin && can('user:password')" @click="openPasswordDialog(user)" class="p-2 text-text-secondary hover:text-accent transition-all" title="修改密码"><KeyRound class="w-4 h-4" /></button>
+            <button v-if="user.role !== 'admin' && !user.is_portal_admin && user.id !== currentUserId && can('user:delete')" @click="confirmDelete(user)" class="p-2 text-text-secondary hover:text-red-500 transition-all" title="删除"><Trash2 class="w-4 h-4" /></button>
             <span v-else class="text-xs text-text-tertiary">不可操作</span>
           </div>
         </div>
@@ -168,7 +168,7 @@ import { can } from '../composables/usePermissions.js'
 import NewUserDialog from '../components/admin/NewUserDialog.vue'
 import AppDialog from '../components/AppDialog.vue'
 
-import { getLoginToken } from '../lib/apiBase'
+import { getLoginToken, parseJwt } from '../lib/apiBase'
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const router = useRouter()
 const users = ref([])
@@ -233,6 +233,8 @@ const pageNumbers = computed(() => {
   return out
 })
 const getToken = () => getLoginToken()
+// 当前登录用户 id(从 token 解出): 用于隐藏自己那一行的删除按钮(不能删自己)
+const currentUserId = computed(() => parseJwt(getToken())?.id)
 const toggleSort = () => {
   sortOrder.value = sortOrder.value === 'desc' ? 'asc' : 'desc'
   fetchUsers(1)
@@ -379,6 +381,12 @@ const openRoleDialog = async (user) => {
       fetch(`${API_BASE}/admin/roles`, { headers: { Authorization: `Bearer ${token}` } }),
       fetch(`${API_BASE}/admin/users/${user.id}/roles`, { headers: { Authorization: `Bearer ${token}` } }),
     ])
+    // 任一拉取失败(权限 403 / 服务器错误)都不能按空列表展示——否则保存会以空 roleIds 全量清空目标用户角色
+    if (!rolesRes.ok || !userRolesRes.ok) {
+      showRoleDialog.value = false
+      showToast('加载角色列表失败,请重试', 'error')
+      return
+    }
     const rolesData = await rolesRes.json().catch(() => ({}))
     const userRolesData = await userRolesRes.json().catch(() => ({}))
     assignableRoles.value = (rolesData.data || []).filter(r => r.name !== 'admin')

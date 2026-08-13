@@ -189,7 +189,7 @@ async function detectSkillType(filePath) {
 
 // 验证管理员 token 中间件
 
-router.get('/api/admin/submissions', verifyUser, requirePermission('skill:edit'), async (req, res) => {
+router.get('/api/admin/submissions', verifyUser, requirePermission('skill:review'), async (req, res) => {
   try {
     const result = await global.pool.query(`
       SELECT *
@@ -206,7 +206,7 @@ router.get('/api/admin/submissions', verifyUser, requirePermission('skill:edit')
 
 // 提交新技能（待审核）
 
-router.post('/api/admin/approve/:id', verifyUser, requirePermission('skill:edit'), async (req, res) => {
+router.post('/api/admin/approve/:id', verifyUser, requirePermission('skill:review'), async (req, res) => {
   try {
     const { id } = req.params;
     const reviewer = 'admin'; // 简化处理，实际可以从 token 中获取
@@ -334,7 +334,7 @@ router.post('/api/admin/approve/:id', verifyUser, requirePermission('skill:edit'
 });
 
 // 拒绝技能
-router.post('/api/admin/reject/:id', verifyUser, requirePermission('skill:edit'), async (req, res) => {
+router.post('/api/admin/reject/:id', verifyUser, requirePermission('skill:review'), async (req, res) => {
   try {
     const { id } = req.params;
     const { note } = req.body;
@@ -389,32 +389,59 @@ router.post('/api/admin/reject/:id', verifyUser, requirePermission('skill:edit')
   }
 });
 
-// 获取审核历史（所有记录）
-router.get('/api/admin/submissions/all', verifyUser, requirePermission('skill:edit'), async (req, res) => {
+// 获取审核历史（分页 + 状态筛选 + 各状态计数）
+router.get('/api/admin/submissions/all', verifyUser, requirePermission('skill:review'), async (req, res) => {
   try {
-    const { status } = req.query;
-    let query = `
+    const { status = 'all', page = '1', limit = '20' } = req.query;
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
+    const offset = (pageNum - 1) * limitNum;
+
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+    let paramIndex = 1;
+
+    if (status && status !== 'all') {
+      whereClause += ` AND s.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+
+    // COUNT(*) OVER() 单次 SQL 完成计数 + 分页
+    const query = `
       SELECT s.*,
         CASE
           WHEN s.status = 'approved' THEN '已通过'
           WHEN s.status = 'rejected' THEN '已拒绝'
           WHEN s.status = 'deleted' THEN '已删除'
           ELSE '待审核'
-        END as status_text
+        END as status_text,
+        COUNT(*) OVER() AS _total
       FROM skill_submissions s
-      WHERE 1=1
+      ${whereClause}
+      ORDER BY s.submitted_at DESC
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
-    const params = [];
-
-    if (status && status !== 'all') {
-      query += ' AND s.status = $1';
-      params.push(status);
-    }
-
-    query += ' ORDER BY s.submitted_at DESC';
+    params.push(limitNum, offset);
 
     const result = await global.pool.query(query, params);
-    res.json(result.rows);
+    const total = result.rows.length > 0 ? parseInt(result.rows[0]._total) : 0;
+    const data = result.rows.map(({ _total, ...row }) => row);
+
+    // 各状态计数(供前端 tab 徽标/统计), 独立于分页
+    const countsResult = await global.pool.query(
+      `SELECT status, COUNT(*)::int AS cnt FROM skill_submissions GROUP BY status`
+    );
+    const counts = { pending: 0, approved: 0, rejected: 0 };
+    for (const r of countsResult.rows) {
+      if (r.status in counts) counts[r.status] = r.cnt;
+    }
+
+    res.json({
+      data,
+      counts,
+      pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) },
+    });
   } catch (err) {
     console.error('Error fetching submission history:', err);
     res.status(500).json({ error: '获取审核历史失败' });
@@ -540,7 +567,7 @@ router.put('/api/admin/skills/:id', verifyUser, requirePermission('skill:edit'),
 });
 
 // 下架/上架技能
-router.post('/api/admin/skills/:id/toggle', verifyUser, requirePermission('skill:edit'), async (req, res) => {
+router.post('/api/admin/skills/:id/toggle', verifyUser, requirePermission('skill:publish'), async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -1457,7 +1484,7 @@ router.get('/api/admin/sync-tasks/:taskId', verifyUser, requirePermission('user:
 });
 
 // 管理员修改用户密码（支持批量，同时同步到 1Panel 远端）
-router.post('/api/admin/portal-users/password', verifyUser, requirePermission('user:edit'), async (req, res) => {
+router.post('/api/admin/portal-users/password', verifyUser, requirePermission('user:password'), async (req, res) => {
   try {
     const { user_ids, new_password } = req.body;
 
@@ -1557,7 +1584,7 @@ router.post('/api/admin/portal-users/password', verifyUser, requirePermission('u
 // ============ 1Panel 用户管理 (管理员) ============
 
 // 获取 1Panel 所有用户
-router.get('/api/admin/panel-users', verifyUser, requirePermission('user:edit'), async (req, res) => {
+router.get('/api/admin/panel-users', verifyUser, requirePermission('user:batch-password'), async (req, res) => {
   try {
     const { roleId } = req.query;
     const response = await panel.post('/api/v2/core/enterprise/users/search', {
@@ -1603,7 +1630,7 @@ router.get('/api/admin/panel-users', verifyUser, requirePermission('user:edit'),
 });
 
 // 批量修改面板用户密码
-router.post('/api/admin/panel-users/batch-password', verifyUser, requirePermission('user:edit'), async (req, res) => {
+router.post('/api/admin/panel-users/batch-password', verifyUser, requirePermission('user:batch-password'), async (req, res) => {
   try {
     const { password, roleId, userIds } = req.body;
 

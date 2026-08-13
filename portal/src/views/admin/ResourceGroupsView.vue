@@ -9,7 +9,7 @@
         <button @click="fetchGroups" :disabled="loading" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50">
           <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />刷新
         </button>
-        <button @click="openNew" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">
+        <button v-if="can('group:create')" @click="openNew" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">
           <Plus class="w-4 h-4" />新建资源组
         </button>
       </div>
@@ -24,8 +24,9 @@
       <div
         v-for="g in groups"
         :key="g.id"
-        class="grid grid-cols-[1.5fr_1fr_1.4fr_1fr_120px] gap-3 px-4 py-3 items-center border-b border-[rgba(0,0,0,0.04)] last:border-b-0 text-sm cursor-pointer hover:bg-black/[0.015]"
-        @click="$router.push(`/admin/groups/${g.id}`)"
+        class="grid grid-cols-[1.5fr_1fr_1.4fr_1fr_120px] gap-3 px-4 py-3 items-center border-b border-[rgba(0,0,0,0.04)] last:border-b-0 text-sm"
+        :class="can('group:edit') ? 'cursor-pointer hover:bg-black/[0.015]' : ''"
+        @click="can('group:edit') && $router.push(`/admin/groups/${g.id}`)"
       >
         <div>
           <div class="font-medium text-text">{{ g.name }}</div>
@@ -44,8 +45,8 @@
         </div>
         <div class="text-xs text-text-tertiary">{{ formatDate(g.created_at) }}</div>
         <div class="flex items-center justify-end gap-2">
-          <button class="p-2 text-text-secondary hover:text-accent transition-all" title="编辑" @click.stop="$router.push(`/admin/groups/${g.id}`)"><Pencil class="w-4 h-4" /></button>
-          <button class="p-2 text-text-secondary hover:text-red-500 transition-all" title="删除" @click.stop="confirmDelete(g)"><Trash2 class="w-4 h-4" /></button>
+          <button v-if="can('group:edit')" class="p-2 text-text-secondary hover:text-accent transition-all" title="编辑" @click.stop="$router.push(`/admin/groups/${g.id}`)"><Pencil class="w-4 h-4" /></button>
+          <button v-if="can('group:delete')" class="p-2 text-text-secondary hover:text-red-500 transition-all" title="删除" @click.stop="confirmDelete(g)"><Trash2 class="w-4 h-4" /></button>
         </div>
       </div>
     </div>
@@ -101,6 +102,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { RefreshCw, Plus, Pencil, Trash2 } from 'lucide-vue-next'
 import { API_BASE, getLoginToken } from '../../lib/apiBase'
+import { can, loadPermissions } from '../../composables/usePermissions.js'
 import AppDialog from '../../components/AppDialog.vue'
 
 const router = useRouter()
@@ -180,9 +182,9 @@ async function create() {
     if (!res.ok) throw new Error(data.error || data.reason || '创建失败')
     showNew.value = false
     showToast('资源组已创建', 'success')
-    await fetchGroups()
-    // 创建后直接跳编辑页配置资源/成员
+    // 创建后直接跳编辑页配置资源/成员; 仅拿不到 id 停留本页时才刷新列表(避免跳转前白打一次)
     if (data.data && data.data.id) router.push(`/admin/groups/${data.data.id}`)
+    else await fetchGroups()
   } catch (err) {
     showToast(err.message || '创建失败', 'error')
   } finally {
@@ -213,6 +215,6 @@ async function doDelete() {
   }
 }
 
-onMounted(fetchGroups)
+onMounted(() => { loadPermissions(); fetchGroups() })
 onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 </script>

@@ -6,7 +6,7 @@
         <p class="text-text-secondary text-sm mt-1">模型来自 1Panel 同步，共 {{ totalModels }} 个</p>
       </div>
       <div class="flex gap-3">
-        <button @click="syncAll" :disabled="syncing" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50">
+        <button v-if="can('system:config')" @click="syncAll" :disabled="syncing" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50">
           <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': syncing }" />{{ syncing ? '同步中...' : '同步' }}
         </button>
       </div>
@@ -68,6 +68,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { RefreshCw, Search } from 'lucide-vue-next'
 import { API_BASE, getLoginToken } from '../../lib/apiBase'
+import { can, loadPermissions } from '../../composables/usePermissions.js'
 
 const router = useRouter()
 const getToken = () => getLoginToken()
@@ -155,5 +156,5 @@ async function syncAll() {
   }
 }
 
-onMounted(fetchModels)
+onMounted(() => { loadPermissions(); fetchModels() })
 </script>

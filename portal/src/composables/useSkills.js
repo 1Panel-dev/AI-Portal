@@ -32,6 +32,25 @@ const currentSource = ref('panel')
 const searchQuery = ref('')
 const sortBy = ref('default')
 
+// 根据 slug 获取技能（模块级导出: 详情页直接用, 不必调用 useSkills() ——
+// 否则会连带触发 composable 里的 onMounted, 在详情页白打 /skills 列表 + /stats 两个请求）
+export async function getSkillBySlug(slug) {
+  // 先在当前列表中查找
+  const cached = skills.value.find(s => s.slug === slug)
+  if (cached) return cached
+
+  // 从 API 获取
+  try {
+    const response = await fetch(`${API_BASE}/skills?slug=${encodeURIComponent(slug)}`, { headers: authHeaders() })
+    if (response.ok) {
+      return await response.json()
+    }
+  } catch (err) {
+    console.error('Error fetching skill:', err)
+  }
+  return null
+}
+
 export function useSkills() {
   // 加载技能数据（分页）
   // reset=true: 切换筛选条件,需要丢弃旧结果重新查; 即使有 in-flight 请求也要继续——
@@ -163,24 +182,6 @@ export function useSkills() {
   }
 
   onMounted(loadStats)
-
-  // 根据 slug 获取技能
-  const getSkillBySlug = async (slug) => {
-    // 先在当前列表中查找
-    const cached = skills.value.find(s => s.slug === slug)
-    if (cached) return cached
-
-    // 从 API 获取
-    try {
-      const response = await fetch(`${API_BASE}/skills?slug=${encodeURIComponent(slug)}`, { headers: authHeaders() })
-      if (response.ok) {
-        return await response.json()
-      }
-    } catch (err) {
-      console.error('Error fetching skill:', err)
-    }
-    return null
-  }
 
   // Track download requests
   const downloadInProgress = new Set()

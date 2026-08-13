@@ -9,17 +9,17 @@
 | 菜单 | 关联权限 | 说明 |
 |------|---------|------|
 | 数据统计 `menu:admin-stats` | `user:view` | 统计页查看 |
-| 审核管理 `menu:admin-review` | `skill:edit`, `user:view` | 审核技能 + 首页统计 |
+| 审核管理 `menu:admin-review` | `skill:review`, `user:view` | 审核技能 + 首页统计 |
 | 模型管理 `menu:admin-models` | `model:view`, `system:config` | 模型列表 + 同步按钮 |
-| 技能管理 `menu:admin-skills` | `skill:view`, `skill:edit`, `skill:delete`, `system:config` | 技能 CRUD + 同步按钮 |
+| 技能管理 `menu:admin-skills` | `skill:view`, `skill:edit`, `skill:publish`, `skill:delete`, `system:config` | 技能 CRUD + 同步按钮 |
 | MCP 管理 `menu:admin-mcps` | `mcp:view`, `system:config` | MCP 列表 + 同步按钮 |
 | 资源组管理 `menu:admin-groups` | `group:view`, `group:create`, `group:edit`, `group:delete` | 资源组 CRUD + 配置组内资源 |
 | 资源组授权 `menu:admin-assignments` | `group:view`, `group:assign`, `user:view` | 管理授权给谁 |
-| 用户管理 `menu:admin-users` | `user:view`, `user:create`, `user:edit`, `user:delete` | 用户 CRUD |
+| 用户管理 `menu:admin-users` | `user:view`, `user:create`, `user:edit`, `user:password`, `user:batch-password`, `user:assign`, `user:delete` | 用户 CRUD + 密码/角色 |
 | 角色权限 `menu:admin-roles` | `role:view`, `role:create`, `role:edit`, `role:delete` | 角色 CRUD |
 | 基础配置 `menu:admin-config` | `system:config` | 系统配置 |
 | 第三方登录 `menu:admin-oauth` | `system:config` | OAuth 配置 |
-| AI 网关同步 `menu:admin-panel` | `group:view`, `group:edit` | 面板数据 + 手动同步 |
+| AI 网关同步 `menu:admin-panel` | `group:view`, `group:panel-sync` | 面板数据 + 手动同步 |
 
 ## 二、用户侧菜单 ↔ 关联权限
 
@@ -50,10 +50,10 @@
 ### 2. 审核管理 `/admin`
 | 功能 | 接口 | 权限 |
 |------|------|------|
-| 查看提交列表（待审核/已通过/已拒绝/全部） | `GET /api/admin/submissions/all` | `skill:edit` |
+| 查看提交列表（待审核/已通过/已拒绝/全部） | `GET /api/admin/submissions/all` | `skill:review` |
 | 统计卡片（总技能/上架/待审核/下载量） | `GET /api/admin/stats` | `user:view` |
-| 通过技能 | `POST /api/admin/approve/:id` | `skill:edit` |
-| 拒绝技能（含拒绝原因） | `POST /api/admin/reject/:id` | `skill:edit` |
+| 通过技能 | `POST /api/admin/approve/:id` | `skill:review` |
+| 拒绝技能（含拒绝原因） | `POST /api/admin/reject/:id` | `skill:review` |
 
 无创建/删除。
 
@@ -70,7 +70,7 @@
 |------|------|------|
 | 查看技能列表（搜索/分类/排序/分页） | `GET /api/admin/skills` | `skill:view` |
 | 编辑技能（标题/描述/分类/安装命令/文档/版本） | `PUT /api/admin/skills/:id` | `skill:edit` |
-| 上架/下架 | `POST /api/admin/skills/:id/toggle` | `skill:edit` |
+| 上架/下架 | `POST /api/admin/skills/:id/toggle` | `skill:publish` |
 | 删除技能 | `DELETE /api/admin/skills/:id` | `skill:delete` |
 | 同步按钮 | `POST /api/admin/panel-config/sync-now` | `system:config` |
 
@@ -106,8 +106,9 @@
 |------|------|------|
 | 查看用户列表（搜索/分页/排序） | `GET /api/admin/portal-users` | `user:view` |
 | 新增用户（用户名/显示名/初始密码） | `POST /api/admin/portal-users` | `user:create` |
-| 分配角色 | `PUT /api/admin/users/:id/roles` | `user:edit` |
-| 修改密码 / 批量改密 | `POST /api/admin/portal-users/password` | `user:edit` |
+| 分配角色 | `GET/PUT /api/admin/users/:id/roles` | `user:assign` |
+| 修改密码 | `POST /api/admin/portal-users/password` | `user:password` |
+| 批量改密 | `GET /api/admin/panel-users`、`POST /api/admin/panel-users/batch-password` | `user:batch-password` |
 | 删除用户（先清理 1Panel 远端 + API Key） | `DELETE /api/admin/portal-users/:id` | `user:delete` |
 | 同步用户（异步任务） | `POST /api/admin/portal-users/sync` | `user:edit` |
 | 查看同步任务状态 | `GET /api/admin/sync-tasks/:taskId` | `user:view` |
@@ -143,7 +144,7 @@
 | 功能 | 接口 | 权限 |
 |------|------|------|
 | 查看用户组/模型组 | `GET /api/admin/panel-groups` | `group:view` |
-| 手动同步 | `POST /api/admin/panel-groups/sync` | `group:edit` |
+| 手动同步 | `POST /api/admin/panel-groups/sync` | `group:panel-sync` |
 
 ---
 
@@ -152,7 +153,7 @@
 1. **同步按钮统一走 `POST /api/admin/panel-config/sync-now`（`system:config`）**
    - 模型管理、MCP 管理、技能管理、基础配置 的"同步"都是这一个接口
    - 所以这三个资源管理页都要带 `system:config` 才能用同步功能
-2. **AI 网关同步页的手动同步走 `POST /api/admin/panel-groups/sync`（`group:edit`）**，与上面的 sync-now 不同
+2. **AI 网关同步页的手动同步走 `POST /api/admin/panel-groups/sync`（`group:panel-sync`）**，与上面的 sync-now 不同
 3. **资源组管理 = 管组本身 + 配置组内资源（items → group:edit）**
 4. **资源组授权 = 管理授权给谁（members → group:assign）**，独立权限
 5. **技能管理不需要 `skill:create`**（管理员不新建技能，create 是用户提交技能用）

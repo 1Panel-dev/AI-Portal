@@ -147,34 +147,39 @@
               </div>
             </div>
 
-            <!-- 操作权限 -->
+            <!-- 按钮权限（按页面归组，每行首位为该行全选；查看类权限隐式默认随菜单授予） -->
             <div>
-              <div class="text-sm font-medium text-text mb-2">{{ isAdminRole ? '操作权限' : '功能权限' }}<span class="ml-2 text-xs font-normal text-text-tertiary">随上方勾选的菜单联动</span></div>
-              <div v-if="allOperationGroups.length" class="space-y-3">
-                <div v-for="group in allOperationGroups" :key="group.module" class="flex flex-wrap items-center gap-2">
+              <div class="text-sm font-medium text-text mb-2">按钮权限<span v-if="!permReadonly" class="ml-2 text-xs font-normal text-text-tertiary">页面内的操作按钮，随菜单联动勾选；查看、同步、配置等共享权限随对应菜单默认授予，不逐页重复展示</span></div>
+              <div v-if="buttonGroups.length" class="space-y-3">
+                <div v-for="row in buttonGroups" :key="row.menuKey" class="flex flex-wrap items-center gap-2">
                   <div
-                    class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs cursor-pointer select-none transition-all border"
-                    :class="groupAllSelected(group) ? 'bg-accent text-white border-accent' : groupSomeSelected(group) ? 'bg-accent/10 text-accent border-accent/30' : 'bg-white border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
-                    @click="toggleGroupAll(group)"
+                    class="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs cursor-pointer select-none transition-all border"
+                    :class="permReadonly ? 'opacity-50 cursor-not-allowed' : rowAllSelected(row) ? 'bg-accent text-white border-accent' : rowSomeSelected(row) ? 'bg-accent/10 text-accent border-accent/30' : 'bg-white border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
+                    @click="!permReadonly && toggleRowAll(row)"
                   >
-                    全选{{ groupLabel(group.module) }}
+                    全选
                   </div>
+                  <span class="w-24 shrink-0 text-xs font-semibold text-text-secondary">{{ row.menuName }}</span>
                   <div
-                    v-for="perm in group.permissions" :key="perm.key"
+                    v-for="btn in row.buttons" :key="btn.key"
                     class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer select-none transition-all"
-                    :class="selectedPerms.has(perm.key) ? 'bg-accent text-white border border-transparent' : 'bg-white border border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
-                    @click="togglePerm(perm.key)"
+                    :class="selectedPerms.has(btn.key) || showAllPerms ? 'bg-accent text-white border border-transparent' : 'bg-white border border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
+                    :style="permReadonly ? 'opacity: 0.5; pointer-events: none;' : ''"
+                    :title="!permReadonly && selectedPerms.has(btn.key) && isImplicitRequired(btn.key) ? lockedHint(btn.key) : ''"
+                    @click="!permReadonly && togglePerm(btn.key)"
                   >
-                    {{ perm.name }}
+                    {{ btn.label }}
+                    <Lock v-if="!permReadonly && selectedPerms.has(btn.key) && isImplicitRequired(btn.key)" class="w-3 h-3 opacity-70" />
                   </div>
                 </div>
               </div>
-              <div v-else class="text-xs text-text-tertiary">请先勾选上方菜单，这里会显示对应菜单下的操作权限</div>
+              <div v-else class="text-xs text-text-tertiary">请先勾选上方菜单，这里会显示对应页面下的按钮权限</div>
             </div>
           </div>
 
           <div class="flex justify-end mt-6">
             <button
+              v-if="can('role:create')"
               @click="saveNewRole"
               :disabled="saving || !formName.trim()"
               class="px-6 py-2.5 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-all"
@@ -234,8 +239,8 @@
                     <div class="flex-1"></div>
                     <div
                       class="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs cursor-pointer select-none transition-all border"
-                      :class="selectedRole.is_system ? 'opacity-50 cursor-not-allowed' : groupAllSelected(group) ? 'bg-accent text-white border-accent' : groupSomeSelected(group) ? 'bg-accent/10 text-accent border-accent/30' : 'bg-white border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
-                      @click="!selectedRole.is_system && toggleGroupAll(group)"
+                      :class="permReadonly ? 'opacity-50 cursor-not-allowed' : groupAllSelected(group) ? 'bg-accent text-white border-accent' : groupSomeSelected(group) ? 'bg-accent/10 text-accent border-accent/30' : 'bg-white border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
+                      @click="!permReadonly && toggleGroupAll(group)"
                     >
                       全选
                     </div>
@@ -244,9 +249,9 @@
                     <div
                       v-for="m in group.permissions" :key="m.key"
                       class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer select-none transition-all"
-                      :class="selectedPerms.has(m.key) || selectedRole.is_system ? 'bg-accent text-white border border-transparent' : 'bg-white border border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
-                      :style="selectedRole.is_system ? 'opacity: 0.5; pointer-events: none;' : ''"
-                      @click="!selectedRole.is_system && togglePerm(m.key)"
+                      :class="selectedPerms.has(m.key) || showAllPerms ? 'bg-accent text-white border border-transparent' : 'bg-white border border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
+                      :style="permReadonly ? 'opacity: 0.5; pointer-events: none;' : ''"
+                      @click="!permReadonly && togglePerm(m.key)"
                     >
                       {{ m.name }}
                     </div>
@@ -257,35 +262,39 @@
               </div>
             </div>
 
-            <!-- 操作权限 -->
+            <!-- 按钮权限（按页面归组，每行首位为该行全选；查看类权限隐式默认随菜单授予） -->
             <div>
-              <div class="text-sm font-medium text-text mb-2">{{ isAdminRole ? '操作权限' : '功能权限' }}<span v-if="!selectedRole.is_system" class="ml-2 text-xs font-normal text-text-tertiary">随上方勾选的菜单联动</span></div>
-              <div v-if="allOperationGroups.length" class="space-y-3">
-                <div v-for="group in allOperationGroups" :key="group.module" class="flex flex-wrap items-center gap-2">
+              <div class="text-sm font-medium text-text mb-2">按钮权限<span v-if="!permReadonly" class="ml-2 text-xs font-normal text-text-tertiary">页面内的操作按钮，随菜单联动勾选；查看、同步、配置等共享权限随对应菜单默认授予，不逐页重复展示</span></div>
+              <div v-if="buttonGroups.length" class="space-y-3">
+                <div v-for="row in buttonGroups" :key="row.menuKey" class="flex flex-wrap items-center gap-2">
                   <div
-                    class="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs cursor-pointer select-none transition-all border"
-                    :class="selectedRole.is_system ? 'opacity-50 cursor-not-allowed' : groupAllSelected(group) ? 'bg-accent text-white border-accent' : groupSomeSelected(group) ? 'bg-accent/10 text-accent border-accent/30' : 'bg-white border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
-                    @click="!selectedRole.is_system && toggleGroupAll(group)"
+                    class="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs cursor-pointer select-none transition-all border"
+                    :class="permReadonly ? 'opacity-50 cursor-not-allowed' : rowAllSelected(row) ? 'bg-accent text-white border-accent' : rowSomeSelected(row) ? 'bg-accent/10 text-accent border-accent/30' : 'bg-white border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
+                    @click="!permReadonly && toggleRowAll(row)"
                   >
-                    全选{{ groupLabel(group.module) }}
+                    全选
                   </div>
+                  <span class="w-24 shrink-0 text-xs font-semibold text-text-secondary">{{ row.menuName }}</span>
                   <div
-                    v-for="perm in group.permissions" :key="perm.key"
+                    v-for="btn in row.buttons" :key="btn.key"
                     class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs cursor-pointer select-none transition-all"
-                    :class="selectedPerms.has(perm.key) || selectedRole.is_system ? 'bg-accent text-white border border-transparent' : 'bg-white border border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
-                    :style="selectedRole.is_system ? 'opacity: 0.5; pointer-events: none;' : ''"
-                    @click="!selectedRole.is_system && togglePerm(perm.key)"
+                    :class="selectedPerms.has(btn.key) || showAllPerms ? 'bg-accent text-white border border-transparent' : 'bg-white border border-[rgba(0,0,0,0.06)] text-text-secondary hover:border-text'"
+                    :style="permReadonly ? 'opacity: 0.5; pointer-events: none;' : ''"
+                    :title="!permReadonly && selectedPerms.has(btn.key) && isImplicitRequired(btn.key) ? lockedHint(btn.key) : ''"
+                    @click="!permReadonly && togglePerm(btn.key)"
                   >
-                    {{ perm.name }}
+                    {{ btn.label }}
+                    <Lock v-if="!permReadonly && selectedPerms.has(btn.key) && isImplicitRequired(btn.key)" class="w-3 h-3 opacity-70" />
                   </div>
                 </div>
               </div>
-              <div v-else class="text-xs text-text-tertiary">请先勾选上方菜单，这里会显示对应菜单下的操作权限</div>
+              <div v-else class="text-xs text-text-tertiary">请先勾选上方菜单，这里会显示对应页面下的按钮权限</div>
             </div>
           </div>
 
           <div class="flex justify-end mt-6">
             <button
+              v-if="can('role:edit')"
               @click="saveEditRole"
               :disabled="saving || selectedRole.name === 'admin'"
               class="px-6 py-2.5 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-all"
@@ -319,13 +328,14 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { Plus, Trash2 } from 'lucide-vue-next'
+import { useRouter, useRoute } from 'vue-router'
+import { Plus, Trash2, Lock } from 'lucide-vue-next'
 import { API_BASE, getLoginToken } from '../../lib/apiBase'
 import AppDialog from '../../components/AppDialog.vue'
 import { loadPermissions, can } from '../../composables/usePermissions.js'
 
 const router = useRouter()
+const route = useRoute()
 const getToken = () => getLoginToken()
 
 const roles = ref([])
@@ -362,11 +372,12 @@ const isAdminRole = computed(() => {
 })
 
 // 后台/用户侧操作权限 key 清单
+// 后台操作权限 key 清单（不含 model:sync/mcp:sync:它们是旧版按资源同步的孤儿权限,无 chip/无菜单隐式引用,前端也不调用对应端点,继承授予只会产生无法在 UI 移除的隐形权限）
 const ADMIN_OP_KEYS = new Set([
-  'model:view', 'model:sync', 'skill:view', 'skill:edit', 'skill:delete', 'mcp:view', 'mcp:sync',
-  'user:view', 'user:create', 'user:edit', 'user:delete',
+  'model:view', 'skill:view', 'skill:edit', 'skill:publish', 'skill:delete', 'skill:review', 'mcp:view',
+  'user:view', 'user:create', 'user:edit', 'user:password', 'user:batch-password', 'user:assign', 'user:delete',
   'role:view', 'role:create', 'role:edit', 'role:delete',
-  'group:view', 'group:create', 'group:edit', 'group:delete', 'group:assign',
+  'group:view', 'group:create', 'group:edit', 'group:delete', 'group:assign', 'group:panel-sync',
   'system:config',
 ])
 const PORTAL_OP_KEYS = new Set([
@@ -374,28 +385,41 @@ const PORTAL_OP_KEYS = new Set([
   'skill:view', 'skill:create', 'mcp:view',
 ])
 
-// 菜单→该菜单下操作权限映射
-const MENU_TO_OPS = {
-  'menu:admin-stats': ['user:view'],
-  'menu:admin-review': ['skill:edit', 'user:view'],
-  'menu:admin-models': ['model:view', 'system:config'],
-  'menu:admin-skills': ['skill:view', 'skill:edit', 'skill:delete', 'system:config'],
-  'menu:admin-mcps': ['mcp:view', 'system:config'],
-  'menu:admin-groups': ['group:view', 'group:create', 'group:edit', 'group:delete'],
-  'menu:admin-assignments': ['group:view', 'group:assign', 'user:view'],
-  'menu:admin-users': ['user:view', 'user:create', 'user:edit', 'user:delete'],
-  'menu:admin-roles': ['role:view', 'role:create', 'role:edit', 'role:delete'],
-  'menu:admin-config': ['system:config'],
-  'menu:admin-oauth': ['system:config'],
-  'menu:admin-panel': ['group:view', 'group:edit'],
-  'menu:models': ['model:view'],
-  'menu:skills': ['skill:view'],
-  'menu:mcp': ['mcp:view'],
-  'menu:docs': [],
-  'menu:api-keys': ['key:view', 'key:create', 'key:edit', 'key:delete'],
-  'menu:my-skills': ['skill:create'],
-  'menu:submit': ['skill:create'],
+// 菜单→该页面的权限映射，分两层：
+//   buttons  = 页面内的「操作按钮」权限（新增/编辑/删除/保存/审核/同步/授权成员/配置…），在按钮区展示、可单独勾选
+//   implicit = 进页面就该有的「查看类/辅助」权限（model:view/user:view…），不展示，勾菜单即默认授予
+// key 是后端 requirePermission 校验的权限位，label 是按钮在页面上的功能名（对齐 docs/rbac-permissions-checklist.md）。
+// 菜单→该页面的权限映射，分两层。去重原则：每个权限位只在唯一一处展示/控制，避免勾选时联动其它页面。
+//   buttons  = 页面内的「操作按钮」，chip 展示、可单独勾选。共享权限只放主页面，不在每页重复展示。
+//   implicit = 进页面就「必需」的权限（页面数据加载/功能依赖），勾菜单即默认带上、不展示、不可单独取消。
+// 关键：system:config 是「配置+全量同步」的单一后端权限（17 个路由共用 panel-config/sync-now/oauth）。
+//       模型/技能/MCP 页的「同步」按钮本质都是它，若按页各摆一个 chip，勾一个会联动全部——故只作隐式授予，不设独立按钮。
+const MENU_TO_BUTTONS = {
+  'menu:admin-stats': { buttons: [], implicit: ['user:view'] },
+  'menu:admin-review': { buttons: [], implicit: ['user:view', 'skill:review'] },
+  'menu:admin-models': { buttons: [], implicit: ['model:view'] },
+  'menu:admin-skills': { buttons: [{ key: 'skill:edit', label: '编辑' }, { key: 'skill:publish', label: '上架/下架' }, { key: 'skill:delete', label: '删除' }], implicit: ['skill:view'] },
+  'menu:admin-mcps': { buttons: [], implicit: ['mcp:view'] },
+  'menu:admin-groups': { buttons: [{ key: 'group:create', label: '新建' }, { key: 'group:edit', label: '编辑' }, { key: 'group:delete', label: '删除' }], implicit: ['group:view'] },
+  'menu:admin-assignments': { buttons: [{ key: 'group:assign', label: '授权成员' }], implicit: ['group:view', 'user:view'] },
+  'menu:admin-users': { buttons: [{ key: 'user:create', label: '新建' }, { key: 'user:edit', label: '同步用户' }, { key: 'user:password', label: '修改密码' }, { key: 'user:batch-password', label: '批量改密' }, { key: 'user:assign', label: '分配角色' }, { key: 'user:delete', label: '删除' }], implicit: ['user:view'] },
+  'menu:admin-roles': { buttons: [{ key: 'role:create', label: '新建' }, { key: 'role:edit', label: '编辑' }, { key: 'role:delete', label: '删除' }], implicit: ['role:view'] },
+  'menu:admin-config': { buttons: [], implicit: ['system:config'] },
+  'menu:admin-oauth': { buttons: [], implicit: ['system:config'] },
+  'menu:admin-panel': { buttons: [{ key: 'group:panel-sync', label: '同步' }], implicit: ['group:view'] },
+  'menu:models': { buttons: [], implicit: ['model:view'] },
+  'menu:skills': { buttons: [], implicit: ['skill:view'] },
+  'menu:mcp': { buttons: [], implicit: ['mcp:view'] },
+  'menu:docs': { buttons: [], implicit: [] },
+  'menu:api-keys': { buttons: [{ key: 'key:create', label: '新建' }, { key: 'key:edit', label: '重置' }, { key: 'key:delete', label: '删除' }], implicit: ['key:view'] },
+  'menu:my-skills': { buttons: [{ key: 'skill:create', label: '提交' }], implicit: [] },
+  'menu:submit': { buttons: [{ key: 'skill:create', label: '提交' }], implicit: [] },
 }
+
+// 菜单→该菜单关联的全部权限 key（显示按钮 + 隐式默认），供菜单勾选时联动授予
+const MENU_TO_OPS = Object.fromEntries(
+  Object.entries(MENU_TO_BUTTONS).map(([menu, cfg]) => [menu, [...cfg.buttons.map(b => b.key), ...cfg.implicit]])
+)
 
 // 菜单展示顺序
 const MENU_ORDER = [
@@ -453,45 +477,51 @@ const orderedMenuList = computed(() => {
   })
 })
 
-// 全部权限分组（按 module 分组，按角色类型过滤后台/用户侧）
-// 与菜单权限联动:只展示已勾选菜单对应的操作权限;内置角色不联动展示全部
-const allOperationGroups = computed(() => {
-  const allowKeys = isAdminRole.value ? ADMIN_OP_KEYS : PORTAL_OP_KEYS
-  const isSystem = !isCreating.value && selectedRole.value?.is_system
-  // 汇总已勾选菜单对应的操作权限 key（内置角色跳过联动，展示全部）
-  const linkedOpKeys = new Set()
-  if (!isSystem) {
-    for (const m of orderedMenuList.value) {
-      if (selectedPerms.value.has(m.key)) {
-        for (const k of (MENU_TO_OPS[m.key] || [])) linkedOpKeys.add(k)
-      }
-    }
+// 只读态:内置角色(is_system)权限集不可改,或操作者没有 role:edit 时整个权限区只读展示
+const permReadonly = computed(() => !isCreating.value && (!!selectedRole.value?.is_system || !can('role:edit')))
+
+// 「全权限」模板化展示仅适用于内置 admin 角色(is_system 且 name==='admin',其权限走 is_portal_admin 超管旁路,DB 无逐条授权)。
+// 其余角色(含内置 user、自定义角色、只读查看)一律按真实 selectedPerms 显示选中态——否则只读查看者会把最简角色误看成全权限。
+const showAllPerms = computed(() => !isCreating.value && !!selectedRole.value?.is_system && selectedRole.value?.name === 'admin')
+
+// 按钮权限分组（按页面/菜单归组，只展示「操作按钮」；查看类为隐式默认随菜单授予，不展示）
+// 与菜单权限联动:只展示已勾选页面的按钮;内置角色(permReadonly)不联动,展示该类型全部页面按钮
+const buttonGroups = computed(() => {
+  const rows = []
+  for (const m of orderedMenuList.value) {
+    const cfg = MENU_TO_BUTTONS[m.key]
+    const buttons = cfg ? cfg.buttons : []
+    if (!buttons.length) continue
+    if (!permReadonly.value && !selectedPerms.value.has(m.key)) continue
+    rows.push({ menuKey: m.key, menuName: m.name, buttons })
   }
-  const map = {}
-  for (const p of allPermissions.value) {
-    if (p.module === 'menu') continue
-    if (!allowKeys.has(p.key)) continue
-    if (!isSystem && !linkedOpKeys.has(p.key)) continue
-    if (!map[p.module]) map[p.module] = { module: p.module, permissions: [] }
-    map[p.module].permissions.push(p)
-  }
-  const list = Object.values(map)
-  // 按逻辑顺序排列: 分组顺序(模型→Key→技能→MCP→用户→角色→资源组→系统); 组内(查看→创建→编辑→删除→同步→配置)
-  const MODULE_ORDER = ['model', 'key', 'skill', 'mcp', 'user', 'role', 'group', 'system']
-  const ACTION_ORDER = ['view', 'create', 'edit', 'delete', 'sync', 'config']
-  const modIdx = m => MODULE_ORDER.indexOf(m) !== -1 ? MODULE_ORDER.indexOf(m) : 999
-  const actIdx = a => ACTION_ORDER.indexOf(a) !== -1 ? ACTION_ORDER.indexOf(a) : 999
-  list.sort((a, b) => modIdx(a.module) - modIdx(b.module))
-  for (const g of list) g.permissions.sort((a, b) => actIdx(a.action) - actIdx(b.action))
-  return list
+  return rows
 })
 
-function groupLabel(module) {
-  const labels = {
-    model: '模型', key: 'API Key', skill: '技能', mcp: 'MCP',
-    user: '用户', role: '角色', group: '资源组', system: '系统',
+// 每行（每个页面）按钮的全选/半选/切换（只切该行按钮，不动菜单勾选）
+function rowAllSelected(row) {
+  return row.buttons.length > 0 && row.buttons.every(b => selectedPerms.value.has(b.key))
+}
+function rowSomeSelected(row) {
+  return row.buttons.some(b => selectedPerms.value.has(b.key))
+}
+function toggleRowAll(row) {
+  const newSet = new Set(selectedPerms.value)
+  const allSel = rowAllSelected(row)
+  const kept = []
+  for (const b of row.buttons) {
+    if (allSel) {
+      // 取消整行按钮: 保留被其它勾选菜单「隐式必需」的权限(避免破坏依赖它的页面)
+      if (isImplicitRequired(b.key)) kept.push(b.key)
+      else newSet.delete(b.key)
+    } else {
+      newSet.add(b.key)
+    }
   }
-  return labels[module] || module
+  if (kept.length) {
+    showToast(`「${kept.join('」「')}」被其他菜单必需,已保留;先取消对应菜单即可移除`, 'error')
+  }
+  selectedPerms.value = newSet
 }
 
 function displayName(role) {
@@ -535,26 +565,46 @@ function toggleGroupAll(group) {
   selectedPerms.value = newSet
 }
 
+// 某操作权限被哪些勾选菜单「隐式必需」(其页面功能依赖,如审核页需 skill:edit、配置页需 system:config),返回菜单名列表,用于锁定标识与解锁提示
+function implicitRequiredBy(key) {
+  return orderedMenuList.value
+    .filter(m => selectedPerms.value.has(m.key) && (MENU_TO_BUTTONS[m.key]?.implicit || []).includes(key))
+    .map(m => m.name)
+}
+// 是否被任一勾选菜单隐式必需(必需则不可单独移除)
+function isImplicitRequired(key) {
+  return implicitRequiredBy(key).length > 0
+}
+// chip 被锁时的提示文案
+function lockedHint(key) {
+  const req = implicitRequiredBy(key)
+  return req.length ? `该权限被「${req.join('」「')}」菜单必需,先取消对应菜单即可移除` : ''
+}
+
 function togglePerm(key) {
   const newSet = new Set(selectedPerms.value)
   if (newSet.has(key)) {
-    newSet.delete(key)
-    // 移除菜单时,同步移除该菜单对应的操作权限(但保留其他勾选菜单仍引用的权限)
     if (key.startsWith('menu:')) {
-      const linkedOps = MENU_TO_OPS[key] || []
-      for (const opKey of linkedOps) {
+      newSet.delete(key)
+      // 移除菜单时,同步移除该菜单对应的操作权限(但保留其他勾选菜单仍引用的权限)
+      for (const opKey of (MENU_TO_OPS[key] || [])) {
         const stillReferenced = orderedMenuList.value.some(m =>
           newSet.has(m.key) && (MENU_TO_OPS[m.key] || []).includes(opKey)
         )
         if (!stillReferenced) newSet.delete(opKey)
       }
+    } else if (isImplicitRequired(key)) {
+      // 该按钮被其它勾选菜单「隐式必需」(如审核页加载依赖 skill:edit),取消会破坏依赖它的页面 → 拒绝并提示
+      showToast(lockedHint(key) || '该权限被其他菜单必需,先取消对应菜单即可移除', 'error')
+      return
+    } else {
+      newSet.delete(key)
     }
   } else {
     newSet.add(key)
     // 添加菜单时,同步添加该菜单对应的操作权限
     if (key.startsWith('menu:')) {
-      const linkedOps = MENU_TO_OPS[key] || []
-      for (const opKey of linkedOps) newSet.add(opKey)
+      for (const opKey of (MENU_TO_OPS[key] || [])) newSet.add(opKey)
     }
   }
   selectedPerms.value = newSet
@@ -568,8 +618,8 @@ function applyInherit() {
       if (p.module === 'menu' && p.action.startsWith('admin-')) newSet.add(p.key)
       if (p.module !== 'menu' && ADMIN_OP_KEYS.has(p.key)) newSet.add(p.key)
     } else if (inheritFrom.value === 'user') {
-      // 用户侧角色: 用户侧菜单 + 用户侧操作(menu:profile 为默认权限,不纳入配置)
-      if (p.module === 'menu' && p.key !== 'menu:profile' && !p.action.startsWith('admin-')) newSet.add(p.key)
+      // 用户侧角色: 用户侧菜单 + 用户侧操作(menu:profile 为默认权限、menu:submit 归入「我的技能」不独立展示,都不授予)
+      if (p.module === 'menu' && p.key !== 'menu:profile' && p.key !== 'menu:submit' && !p.action.startsWith('admin-')) newSet.add(p.key)
       if (p.module !== 'menu' && PORTAL_OP_KEYS.has(p.key)) newSet.add(p.key)
     }
     // 'custom': 保持为空，从零开始
@@ -595,10 +645,11 @@ async function fetchRoles() {
       if (updated) selectedRole.value = updated
       else selectedRole.value = null
     }
-    // 默认选中第一个自定义角色
+    // 恢复选中: 优先按 URL ?role= 还原上次位置, 否则默认第一个自定义角色
     if (!selectedRole.value && !isCreating.value) {
-      const firstCustom = customRoles.value[0]
-      if (firstCustom) selectRole(firstCustom)
+      const qid = Number(route.query.role)
+      const target = (qid && roles.value.find(r => r.id === qid)) || customRoles.value[0]
+      if (target) selectRole(target)
     }
   } catch (err) {
     showToast(err.message, 'error')
@@ -622,6 +673,8 @@ function selectRole(role) {
   selectedRole.value = role
   formDesc.value = role.description || ''
   selectedPerms.value = new Set(role.permissions || [])
+  // 持久化选中位置到 URL query, 刷新后据此恢复(否则回落到第一个)
+  router.replace({ query: { ...route.query, role: String(role.id) } })
 }
 
 function startNewRole() {
@@ -728,8 +781,9 @@ async function doDelete() {
   }
 }
 
-onMounted(async () => {
-  await loadPermissions()
+onMounted(() => {
+  // 三请求并行: roles/permissions 不消费 loadPermissions 结果, 无需 await 白等一个 RTT
+  loadPermissions()
   fetchRoles()
   fetchPermissions()
 })

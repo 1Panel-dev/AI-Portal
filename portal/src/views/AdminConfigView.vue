@@ -58,6 +58,7 @@
             </div>
             <div v-else-if="activeStorageType === 'cos'" class="text-right">
               <button
+                v-if="can('system:config')"
                 @click="confirmSwitch('local')"
                 :disabled="switching"
                 class="px-5 py-2.5 border border-[rgba(0,0,0,0.06)] text-sm font-medium rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"
@@ -87,6 +88,7 @@
             <p class="text-xs text-text-secondary mt-1">Skill 包文件存储的本地目录，留空使用默认路径</p>
           </div>
           <button
+            v-if="can('system:config')"
             @click="saveLocalPath"
             :disabled="savingLocal"
             class="mt-4 px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
@@ -160,6 +162,7 @@
           </div>
           <div class="flex items-center gap-3 mt-4">
             <button
+              v-if="can('system:config')"
               @click="testCOS"
               :disabled="testing"
               class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"
@@ -171,6 +174,7 @@
             </span>
           </div>
           <button
+            v-if="can('system:config')"
             @click="saveCOSConfig"
             :disabled="savingCOS"
             class="mt-4 px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
@@ -323,6 +327,7 @@
           <!-- 操作按钮 -->
           <div class="flex items-center gap-3 mt-4 flex-wrap">
             <button
+              v-if="can('system:config')"
               @click="testPanel"
               :disabled="panelTesting"
               class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"
@@ -330,6 +335,7 @@
               <PlugZap class="w-4 h-4" />{{ panelTesting ? '测试中...' : '测试连接' }}
             </button>
             <button
+              v-if="can('system:config')"
               @click="syncNow"
               :disabled="panelSyncing"
               class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"
@@ -337,6 +343,7 @@
               <RefreshCw class="w-4 h-4" />{{ panelSyncing ? '同步中...' : '立即同步' }}
             </button>
             <button
+              v-if="can('system:config')"
               @click="savePanelConfig"
               :disabled="panelSaving"
               class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
@@ -389,6 +396,7 @@
           </div>
           <div class="mt-4 flex items-center gap-3">
             <button
+              v-if="can('system:config')"
               @click="saveModelExample"
               :disabled="modelExampleSaving"
               class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
@@ -433,12 +441,12 @@
                 </div>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2 flex-wrap">
-                    <label class="px-3 py-1.5 text-xs border border-[rgba(0,0,0,0.1)] rounded-lg cursor-pointer hover:bg-surface-secondary transition-all">
+                    <label v-if="can('system:config')" class="px-3 py-1.5 text-xs border border-[rgba(0,0,0,0.1)] rounded-lg cursor-pointer hover:bg-surface-secondary transition-all">
                       <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="hidden" @change="onUploadBranding('logo', $event)" />
                       {{ uploadingLogo ? '上传中...' : (brandingForm.site_logo ? '替换图片' : '上传图片') }}
                     </label>
                     <button
-                      v-if="brandingForm.site_logo"
+                      v-if="can('system:config') && brandingForm.site_logo"
                       @click="brandingForm.site_logo = ''"
                       class="px-3 py-1.5 text-xs text-red-500 border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-red-50 transition-all"
                     >
@@ -463,12 +471,12 @@
                 </div>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2 flex-wrap">
-                    <label class="px-3 py-1.5 text-xs border border-[rgba(0,0,0,0.1)] rounded-lg cursor-pointer hover:bg-surface-secondary transition-all">
+                    <label v-if="can('system:config')" class="px-3 py-1.5 text-xs border border-[rgba(0,0,0,0.1)] rounded-lg cursor-pointer hover:bg-surface-secondary transition-all">
                       <input type="file" accept="image/png,image/svg+xml,image/x-icon,image/vnd.microsoft.icon,image/webp" class="hidden" @change="onUploadBranding('favicon', $event)" />
                       {{ uploadingFavicon ? '上传中...' : (brandingForm.site_favicon ? '替换图标' : '上传图标') }}
                     </label>
                     <button
-                      v-if="brandingForm.site_favicon"
+                      v-if="can('system:config') && brandingForm.site_favicon"
                       @click="brandingForm.site_favicon = ''"
                       class="px-3 py-1.5 text-xs text-red-500 border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-red-50 transition-all"
                     >
@@ -486,6 +494,7 @@
 
           <div class="mt-6 flex items-center gap-3">
             <button
+              v-if="can('system:config')"
               @click="saveBranding"
               :disabled="brandingSaving"
               class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
@@ -561,6 +570,7 @@
 
           <div class="mt-6 flex items-center gap-3">
             <button
+              v-if="can('system:config')"
               @click="saveAnnouncement"
               :disabled="announcementSaving"
               class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
@@ -633,6 +643,7 @@ import { useRouter } from 'vue-router'
 import { Cloud, HardDrive, Eye, EyeOff, PlugZap, RefreshCw, Check } from 'lucide-vue-next'
 
 import { getLoginToken } from '../lib/apiBase'
+import { can, loadPermissions } from '../composables/usePermissions.js'
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const router = useRouter()
 
@@ -1273,6 +1284,7 @@ onMounted(() => {
     router.push('/admin/login')
     return
   }
+  loadPermissions()
   fetchConfig()
   fetchPanelConfig()
   fetchModelExample()

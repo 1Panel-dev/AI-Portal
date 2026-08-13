@@ -36,7 +36,7 @@
         <button
           v-for="tab in tabs"
           :key="tab.id"
-          @click="currentTab = tab.id"
+          @click="switchTab(tab.id)"
           class="px-4 py-2 text-sm font-medium transition-all"
           :class="currentTab === tab.id
             ? 'text-accent border-b-2 border-accent'
@@ -58,7 +58,7 @@
       </div>
 
       <!-- Empty -->
-      <div v-else-if="filteredSubmissions.length === 0" class="text-center py-20">
+      <div v-else-if="submissions.length === 0" class="text-center py-20">
         <component :is="emptyIcon" class="w-12 h-12 mx-auto mb-4 text-text-tertiary" />
         <p class="text-text-secondary">{{ emptyText }}</p>
       </div>
@@ -66,7 +66,7 @@
       <!-- Submissions List -->
       <div v-else class="space-y-4">
         <div
-          v-for="sub in filteredSubmissions"
+          v-for="sub in submissions"
           :key="sub.id"
           class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-5 shadow-sm"
         >
@@ -115,6 +115,7 @@
           <!-- Actions (only for pending) -->
           <div v-if="sub.status === 'pending'" class="flex items-center gap-3 mt-4 pt-4 border-t border-[rgba(0,0,0,0.06)]">
             <button
+              v-if="can('skill:review')"
               @click="approve(sub.id)"
               :disabled="processing[sub.id]"
               class="inline-flex items-center justify-center gap-1.5 flex-1 py-2 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
@@ -122,6 +123,7 @@
               <Check class="w-4 h-4" />{{ processing[sub.id] ? '处理中...' : '通过' }}
             </button>
             <button
+              v-if="can('skill:review')"
               @click="showRejectDialog(sub.id)"
               :disabled="processing[sub.id]"
               class="inline-flex items-center justify-center gap-1.5 flex-1 py-2 border border-red-300 text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 transition-all disabled:opacity-50"
@@ -129,6 +131,16 @@
               <X class="w-4 h-4" />拒绝
             </button>
           </div>
+        </div>
+      </div>
+
+      <!-- Pagination -->
+      <div v-if="totalPages > 1" class="flex items-center justify-between mt-6 text-sm text-text-secondary">
+        <span class="text-[13px]">共 {{ total }} 条</span>
+        <div class="flex items-center gap-2">
+          <button @click="goPage(page - 1)" :disabled="page <= 1" class="w-8 h-8 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">‹</button>
+          <span class="text-[13px]">{{ page }} / {{ totalPages }}</span>
+          <button @click="goPage(page + 1)" :disabled="page >= totalPages" class="w-8 h-8 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">›</button>
         </div>
       </div>
     <!-- Reject Dialog -->
@@ -165,12 +177,13 @@
 </template>
 
 <script setup>
-import { ref, computed, watchEffect, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Clock, CheckCircle2, ClipboardList, Inbox, Check, X } from 'lucide-vue-next'
 import { avatarColors } from '../data/categories.js'
 
 import { getLoginToken } from '../lib/apiBase'
+import { can, loadPermissions } from '../composables/usePermissions.js'
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 
 const router = useRouter()
@@ -195,17 +208,10 @@ const tabs = [
 ]
 
 const stats = ref({ pending: 0, approved: 0, rejected: 0 })
-watchEffect(() => {
-  let pending = 0, approved = 0, rejected = 0
-  for (const s of submissions.value) {
-    switch (s.status) {
-      case 'pending': pending++; break
-      case 'approved': approved++; break
-      case 'rejected': rejected++; break
-    }
-  }
-  stats.value = { pending, approved, rejected }
-})
+const page = ref(1)
+const limit = ref(20)
+const total = ref(0)
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / limit.value)))
 
 const displayPackageName = (submission) => {
   if (submission.package_name) return submission.package_name
@@ -213,13 +219,6 @@ const displayPackageName = (submission) => {
   if (!filePath) return ''
   return filePath.split(/[\\/]/).filter(Boolean).pop() || ''
 }
-
-const filteredSubmissions = computed(() => {
-  if (currentTab.value === 'all') {
-    return submissions.value
-  }
-  return submissions.value.filter(s => s.status === currentTab.value)
-})
 
 const emptyIcon = computed(() => {
   const map = { pending: Clock, approved: CheckCircle2, rejected: ClipboardList, all: Inbox }
@@ -287,10 +286,16 @@ const fetchDashboardStats = async () => {
   }
 }
 
-const fetchSubmissions = async () => {
+const fetchSubmissions = async (resetPage = true) => {
+  if (resetPage) page.value = 1
   loading.value = true
   try {
-    const response = await fetch(`${API_BASE}/admin/submissions/all`, {
+    const params = new URLSearchParams({
+      status: currentTab.value,
+      page: String(page.value),
+      limit: String(limit.value),
+    })
+    const response = await fetch(`${API_BASE}/admin/submissions/all?${params.toString()}`, {
       headers: {
         'Authorization': `Bearer ${getToken()}`,
       },
@@ -305,11 +310,33 @@ const fetchSubmissions = async () => {
       throw new Error('获取列表失败')
     }
 
-    submissions.value = await response.json()
+    const result = await response.json()
+    submissions.value = result.data || []
+    stats.value = result.counts || { pending: 0, approved: 0, rejected: 0 }
+    total.value = result.pagination?.total || 0
   } catch (err) {
     console.error('Error:', err)
   } finally {
     loading.value = false
+  }
+}
+
+function switchTab(id) {
+  currentTab.value = id
+  fetchSubmissions(true)
+}
+
+function goPage(p) {
+  page.value = Math.min(Math.max(1, p), totalPages.value)
+  fetchSubmissions(false)
+}
+
+// 审核后刷新当前页; 当前页因操作变空时回退一页
+async function refetchCurrent() {
+  await fetchSubmissions(false)
+  if (submissions.value.length === 0 && page.value > 1) {
+    page.value--
+    await fetchSubmissions(false)
   }
 }
 
@@ -324,7 +351,7 @@ const approve = async (id) => {
     })
 
     if (response.ok) {
-      await fetchSubmissions()
+      await refetchCurrent()
     } else {
       showReviewError('审核失败')
     }
@@ -354,7 +381,7 @@ const reject = async (id) => {
 
     if (response.ok) {
       rejectingId.value = null
-      await fetchSubmissions()
+      await refetchCurrent()
     } else {
       showReviewError('操作失败')
     }
@@ -371,6 +398,7 @@ onMounted(() => {
     router.push('/admin/login')
     return
   }
+  loadPermissions()
   fetchSubmissions()
   fetchDashboardStats()
 })

@@ -5,7 +5,7 @@
         <h1 class="text-2xl font-bold text-text">AI 网关同步信息</h1>
         <p class="text-text-secondary text-sm mt-1">同步 1Panel 用户组 / 模型组作只读参考；交集数据从成员 key 的 allowedModels 实时取</p>
       </div>
-      <button @click="syncPanelGroups" :disabled="syncing" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50">
+      <button v-if="can('group:panel-sync')" @click="syncPanelGroups" :disabled="syncing" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50">
         <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': syncing }" />{{ syncing ? '同步中...' : '手动同步' }}
       </button>
     </div>
@@ -74,6 +74,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { RefreshCw } from 'lucide-vue-next'
 import { API_BASE, getLoginToken } from '../../lib/apiBase'
+import { can, loadPermissions } from '../../composables/usePermissions.js'
 
 const router = useRouter()
 const getToken = () => getLoginToken()
@@ -130,6 +131,6 @@ async function syncPanelGroups() {
   }
 }
 
-onMounted(fetchPanelGroups)
+onMounted(() => { loadPermissions(); fetchPanelGroups() })
 onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 </script>

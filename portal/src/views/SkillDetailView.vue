@@ -172,11 +172,10 @@ import { useRoute, useRouter } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
 import AppDialog from '../components/AppDialog.vue'
 import { avatarColors, categoryLabels } from '../data/categories.js'
-import { useSkills } from '../composables/useSkills.js'
+import { getSkillBySlug } from '../composables/useSkills.js'
 
 const route = useRoute()
 const router = useRouter()
-const { getSkillBySlug } = useSkills()
 const loginDialogOpen = ref(false)
 const featureFlags = ref({ panelEndpoint: '' })
 const skillctlToken = ref('')
@@ -281,10 +280,12 @@ const formatDate = (v) => {
 }
 
 const loadVersions = async () => {
-  if (!skill.value) return
+  // 直接用路由 slug, 不依赖 skill 加载完成——与 loadSkill 并行发出
+  const slug = route.params.slug
+  if (!slug) return
   versionsLoading.value = true
   try {
-    const res = await fetch(`${API_BASE}/skills/${encodeURIComponent(skill.value.slug)}/versions`)
+    const res = await fetch(`${API_BASE}/skills/${encodeURIComponent(slug)}/versions`)
     const json = await res.json()
     const data = Array.isArray(json?.data) ? json.data : []
     // 过滤掉没有 version 字段的脏数据
@@ -304,7 +305,6 @@ const loadSkill = async () => {
     const result = await getSkillBySlug(route.params.slug)
     if (result) {
       skill.value = result
-      loadVersions()
     } else {
       error.value = '技能不存在'
     }
@@ -345,10 +345,11 @@ const fetchSkillctlToken = async () => {
 
 onMounted(() => {
   loadSkill()
+  loadVersions()
   loadFeatureFlags()
   fetchSkillctlToken()
 })
 
 // Reload if route param changes
-watch(() => route.params.slug, loadSkill)
+watch(() => route.params.slug, () => { loadSkill(); loadVersions() })
 </script>

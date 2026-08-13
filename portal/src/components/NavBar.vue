@@ -103,6 +103,7 @@ import { siteName, siteLogo, siteLogoIsDefault } from '../composables/useSiteBra
 import { bannerEnabled, bannerHtml, bannerVisible } from '../composables/useAnnouncement.js'
 import { loadPermissions, isPortalAdmin, showAdminEntry, isAdminRoleUser, can } from '../composables/usePermissions.js'
 import { useRoute, useRouter } from 'vue-router'
+import { clearAuth } from '../lib/apiBase'
 
 const route = useRoute()
 const router = useRouter()
@@ -141,9 +142,9 @@ const userInitial = computed(() => {
 
 const logout = () => {
   showDropdown.value = false
-  localStorage.removeItem('token')
-  localStorage.removeItem('admin_token')
-  localStorage.removeItem('user')
+  // 统一走 clearAuth: 除 token 外还要清 login_token_type 与 sessionStorage.login_identity,
+  // 否则身份标记残留会让下一位登录的用户首次进入被误判强退
+  clearAuth()
   router.push('/login')
 }
 

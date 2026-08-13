@@ -50,6 +50,7 @@ function setTokenAndGo(data) {
     localStorage.setItem('token', data.token)
     localStorage.setItem('login_token_type', 'portal')
   }
+  sessionStorage.removeItem('login_identity')
   const target = data.auto_created
     ? `${returnPath}?welcome=1`
     : returnPath

@@ -153,7 +153,7 @@ import { Sun, Puzzle, LayoutGrid, ArrowRight, Sparkles, ShieldCheck, Users, Refr
 import SimpleHeader from '../components/SimpleHeader.vue'
 import { siteName } from '../composables/useSiteBranding.js'
 import { bannerEnabled, bannerHtml, bannerVisible } from '../composables/useAnnouncement.js'
-import { API_BASE } from '../lib/apiBase.js'
+import { API_BASE, getLoginToken } from '../lib/apiBase.js'
 
 const hasVisibleBanner = computed(() => bannerEnabled.value && bannerVisible.value && !!bannerHtml.value)
 

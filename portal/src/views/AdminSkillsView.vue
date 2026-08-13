@@ -10,6 +10,7 @@
         </div>
         <div class="flex gap-3">
           <button
+            v-if="can('system:config')"
             @click="syncSkills" :disabled="syncing"
             class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"
           >
@@ -130,6 +131,7 @@
             <!-- Actions -->
             <div class="flex items-center gap-2">
               <button
+                v-if="can('skill:edit')"
                 @click="editSkill(skill)"
                 class="p-2 text-text-secondary hover:text-accent transition-all"
                 title="编辑"
@@ -137,6 +139,7 @@
                 <Pencil class="w-4 h-4" />
               </button>
               <button
+                v-if="can('skill:publish')"
                 @click="toggleSkill(skill)"
                 :disabled="processing[skill.id]"
                 class="p-2 text-text-secondary hover:text-accent transition-all"
@@ -145,6 +148,7 @@
                 <component :is="skill.is_active ? Eye : EyeOff" class="w-4 h-4" />
               </button>
               <button
+                v-if="can('skill:delete')"
                 @click="confirmDelete(skill)"
                 class="p-2 text-text-secondary hover:text-red-500 transition-all"
                 title="删除"
@@ -297,6 +301,7 @@ import { ChevronDown, Search, ArrowUpDown, Inbox, Pencil, Eye, EyeOff, Trash2, X
 import { avatarColors, categories } from '../data/categories.js'
 
 import { getLoginToken } from '../lib/apiBase'
+import { can, loadPermissions } from '../composables/usePermissions.js'
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 
 const router = useRouter()
@@ -333,6 +338,8 @@ const pagination = ref({
 
 // 搜索防抖
 let searchTimeout = null
+// 请求版本号: 丢弃过期响应
+let fetchSeq = 0
 
 const tabs = [
   { id: 'all', name: '全部' },
@@ -424,9 +431,12 @@ const fetchSkills = async (reset = false) => {
     skills.value = []
   }
 
-  if (loading.value && !reset) return
+  if (loading.value && !reset) { loadingMore.value = false; return }
 
-  loading.value = true
+  // 过期响应丢弃: 快速切tab/搜索时, 后到的新请求生效, 旧响应不覆盖
+  const mySeq = ++fetchSeq
+  // 加载更多保持列表可见(只用 loadingMore 按钮态), 不再闪全屏 loading
+  if (reset) loading.value = true
   try {
     const params = new URLSearchParams()
     params.append('page', pagination.value.page.toString())
@@ -458,6 +468,8 @@ const fetchSkills = async (reset = false) => {
 
     const result = await response.json()
 
+    if (mySeq !== fetchSeq) return
+
     if (reset || pagination.value.page === 1) {
       skills.value = result.data
     } else {
@@ -468,8 +480,10 @@ const fetchSkills = async (reset = false) => {
   } catch (err) {
     console.error('Error:', err)
   } finally {
-    loading.value = false
-    loadingMore.value = false
+    if (mySeq === fetchSeq) {
+      loading.value = false
+      loadingMore.value = false
+    }
   }
 }
 
@@ -601,6 +615,7 @@ onMounted(() => {
     router.push('/admin/login')
     return
   }
+  loadPermissions()
   fetchSkills(true)
 })
 </script>

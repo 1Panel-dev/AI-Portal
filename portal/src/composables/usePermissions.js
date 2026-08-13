@@ -38,7 +38,20 @@ function checkIdentityChange() {
   }
 }
 
-export async function loadPermissions() {
+// 并发去重: 进任意页面时 NavBar/AdminLayout 与页面自身会同时调 loadPermissions(),
+// 共享同一个在途请求, 避免 /api/my/permissions 每次进页面被打两次。
+// 只合并在途请求(按 token 区分), 完成后再次调用会重新拉取——不影响「切页重新校验身份」语义。
+let inflightPromise = null
+let inflightToken = null
+export function loadPermissions() {
+  const token = getLoginToken()
+  if (inflightPromise && inflightToken === token) return inflightPromise
+  inflightToken = token
+  inflightPromise = doLoadPermissions().finally(() => { inflightPromise = null; inflightToken = null })
+  return inflightPromise
+}
+
+async function doLoadPermissions() {
   const token = getLoginToken()
   if (!token) {
     permissions.value = []
@@ -93,8 +106,8 @@ export const isAdminRoleUser = computed(() => {
 export const ADMIN_PERMS = [
   'role:view','role:create','role:edit','role:delete',
   'group:view','group:create','group:edit','group:delete',
-  'user:view','user:edit','user:create','user:delete',
-  'skill:edit','skill:delete','system:config',
+  'user:view','user:edit','user:create','user:delete','user:password','user:batch-password','user:assign',
+  'skill:edit','skill:delete','skill:publish','skill:review','group:panel-sync','system:config',
 ]
 
 // 是否显示「管理后台」入口:超管或持有任一管理权限位

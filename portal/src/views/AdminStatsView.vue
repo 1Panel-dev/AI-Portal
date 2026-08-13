@@ -15,7 +15,7 @@
         <div class="text-4xl mb-4">⚙️</div>
         <p class="text-text-secondary mb-2">尚未配置 1Panel 网关</p>
         <p class="text-sm text-text-tertiary mb-4">请先在「系统配置」中填写 1Panel Base URL 和 API Key</p>
-        <button @click="$router.push('/admin/config')" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">前往配置</button>
+        <button v-if="can('system:config')" @click="$router.push('/admin/config')" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">前往配置</button>
       </div>
 
       <template v-else-if="globalData">
@@ -158,6 +158,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 echarts.use([BarChart, LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
 import { getLoginToken } from '../lib/apiBase'
+import { can } from '../composables/usePermissions.js'
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const router = useRouter()
 
@@ -600,10 +601,7 @@ async function fetchStats(isUserSwitch = false) {
     if (selectedUser.value) params.set('userId', String(selectedUser.value))
     const qs = params.toString()
     const url = `${API_BASE}/admin/usage-statistics${qs ? '?' + qs : ''}`
-    const [statsRes, usersRes] = await Promise.all([
-      fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } }),
-      fetch(`${API_BASE}/admin/portal-users/map`, { headers: { Authorization: `Bearer ${getToken()}` } }),
-    ])
+    const statsRes = await fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } })
     if (statsRes.ok) {
       const result = await statsRes.json()
       data.value = result
@@ -624,14 +622,21 @@ async function fetchStats(isUserSwitch = false) {
       data.value = null
       globalData.value = null
     }
-    if (usersRes.ok) {
-      usersMap.value = await usersRes.json()
-    }
   } catch (e) {
     console.error('获取统计失败:', e)
   } finally {
     topLoading.value = false
     loading.value = false
+  }
+}
+
+// 用户映射表是静态数据, 只在进页面时拉一次, 不随筛选条件重拉
+async function fetchUsersMap() {
+  try {
+    const res = await fetch(`${API_BASE}/admin/portal-users/map`, { headers: { Authorization: `Bearer ${getToken()}` } })
+    if (res.ok) usersMap.value = await res.json()
+  } catch (e) {
+    console.error('获取用户映射失败:', e)
   }
 }
 
@@ -641,14 +646,13 @@ function clearFilters() {
   selectedUser.value = ''
   usernameFilter.value = ''
   userDropdownOpen.value = false
-  fetchStats()
+  // 不再手动 fetchStats: 状态变更由 watch 统一触发(月份=本地重绘, 用户=重拉), 避免双发
 }
 
 function clearUser() {
   selectedUser.value = ''
   usernameFilter.value = ''
   userDropdownOpen.value = false
-  fetchStats(true)
 }
 
 function pickUser(u) {
@@ -682,8 +686,13 @@ function onResize() {
   distChart?.resize()
 }
 
-watch([selectedUser, selectedMonth], () => {
+watch(selectedUser, () => {
   fetchStats(true)
+})
+
+// 月份筛选是纯前端过滤(trends 本地过滤, 接口参数不含月份), 数据无需重拉——只本地重绘趋势图
+watch(selectedMonth, () => {
+  nextTick(() => initTrendChart())
 })
 
 onMounted(() => {
@@ -692,6 +701,7 @@ onMounted(() => {
   const token = getToken()
   if (!token) { router.push('/admin/login'); return }
   fetchStats()
+  fetchUsersMap()
 })
 onUnmounted(() => {
   document.removeEventListener('click', onGlobalClick)

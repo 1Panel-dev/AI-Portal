@@ -38,6 +38,7 @@ onMounted(async () => {
       localStorage.setItem('login_token_type', 'portal')
     }
     localStorage.setItem('user', JSON.stringify(data.user))
+    sessionStorage.removeItem('login_identity')
     sessionStorage.setItem('wecom_oauth_completed', '1')
     // 用全路径跳转(兼容企微客户端 webview, router.replace 可能不生效)
     const appBase = (window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__'))

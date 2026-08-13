@@ -3,6 +3,7 @@ import { ref, reactive, watch } from 'vue'
 import { CheckCircle2, XCircle } from 'lucide-vue-next'
 
 import { getLoginToken } from '../../lib/apiBase'
+import { can } from '../../composables/usePermissions.js'
 const props = defineProps({
   provider: { type: Object, required: true },
   apiBase: { type: String, required: true },
@@ -186,7 +187,7 @@ async function doSave() {
         上次保存:{{ provider.updated_at ? new Date(provider.updated_at).toLocaleString() : '从未' }}
       </p>
       <div class="flex gap-2">
-        <button @click="doTest" :disabled="testing"
+        <button v-if="can('system:config')" @click="doTest" :disabled="testing"
           class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary disabled:opacity-50">
           {{ testing ? '测试中...' : '测试连接' }}
         </button>
@@ -194,7 +195,7 @@ async function doSave() {
           class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary">
           重置
         </button>
-        <button @click="doSave" :disabled="saving"
+        <button v-if="can('system:config')" @click="doSave" :disabled="saving"
           class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50">
           {{ saving ? '保存中...' : '保存配置' }}
         </button>
