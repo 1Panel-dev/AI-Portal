@@ -285,7 +285,7 @@
             <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
               <div class="flex items-center justify-between gap-3 mb-6">
                 <h2 class="text-lg font-semibold text-text">{{ can('skill:review') ? '技能审核' : '我的技能' }}</h2>
-                <router-link v-if="can('skill:create') && featureFlags.skillSubmitEnabled" to="/submit" class="shrink-0 px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all no-underline">提交技能</router-link>
+                <button v-if="can('skill:create')" @click="showSubmitDialog = true" class="shrink-0 px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">提交技能</button>
               </div>
               <div v-if="mySkillsLoading" class="py-10 text-center text-text-secondary text-sm">加载中...</div>
               <div v-else-if="mySkills.length === 0" class="py-12 text-center">
@@ -294,19 +294,39 @@
                 </div>
                 <p class="text-text-secondary text-sm">{{ can('skill:review') ? '暂无待审核的技能' : '暂未提交任何技能' }}</p>
               </div>
-              <div v-else class="space-y-3">
-                <div v-for="skill in mySkills" :key="skill.id" class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 border border-[rgba(0,0,0,0.06)] rounded-xl">
-                  <div class="min-w-0 flex-1">
+              <div v-else class="overflow-x-auto -mx-2 px-2">
+                <div class="grid grid-cols-[1.5fr_90px_90px_110px_150px] gap-4 px-3 py-3 text-xs font-medium text-text-tertiary border-b border-[rgba(0,0,0,0.06)] min-w-[620px]">
+                  <span>技能</span>
+                  <span>版本</span>
+                  <span>状态</span>
+                  <span>提交时间</span>
+                  <span class="text-right">操作</span>
+                </div>
+                <div v-for="skill in mySkills" :key="skill.id" class="grid grid-cols-[1.5fr_90px_90px_110px_150px] gap-4 px-3 py-3 border-b border-[rgba(0,0,0,0.05)] last:border-b-0 items-center min-w-[620px]">
+                  <div class="min-w-0">
                     <div class="text-sm font-medium text-text truncate">{{ skill.title }}</div>
                     <div class="text-xs text-text-tertiary mt-0.5 truncate">{{ skill.skill_id }} · {{ skill.category }}</div>
                     <div v-if="skill.package_name" class="text-xs text-text-tertiary mt-1 truncate">技能包：{{ skill.package_name }}</div>
                   </div>
-                  <div class="flex shrink-0 items-center gap-2">
-                    <span class="w-fit text-xs px-2 py-0.5 rounded-full"
-                      :class="skill.status === 'pending' ? 'text-amber-600 bg-amber-50' : skill.status === 'approved' ? 'text-green-600 bg-green-50' : skill.status === 'deleted' ? 'text-slate-600 bg-slate-100' : 'text-red-500 bg-red-50'">
-                      {{ skill.status === 'pending' ? '待审核' : skill.status === 'approved' ? '已通过' : skill.status === 'deleted' ? '已删除' : '已拒绝' }}
-                    </span>
-                    <button v-if="skill.status !== 'rejected' && skill.status !== 'deleted'" @click="openSkillDetail(skill)" class="px-2.5 py-1 text-xs text-text-secondary border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary hover:text-text transition-colors">查看</button>
+                  <span class="text-sm font-mono text-text-secondary">{{ skill.version || 'v1.0.0' }}</span>
+                  <span class="w-fit text-xs px-2 py-0.5 rounded-full"
+                    :class="skill.status === 'pending' ? 'text-amber-600 bg-amber-50' : skill.status === 'approved' ? 'text-green-600 bg-green-50' : skill.status === 'deleted' || skill.status === 'withdrawn' ? 'text-slate-600 bg-slate-100' : 'text-red-500 bg-red-50'">
+                    {{ skill.status === 'pending' ? '待审核' : skill.status === 'approved' ? '已通过' : skill.status === 'deleted' ? '已删除' : skill.status === 'withdrawn' ? '已撤销' : '已拒绝' }}
+                  </span>
+                  <span class="text-sm text-text-secondary">{{ formatDate(skill.submitted_at) }}</span>
+                  <div class="flex items-center justify-end gap-2 flex-wrap">
+                    <button v-if="skill.status === 'pending'" @click="showSubmitDialog = true" class="px-2.5 py-1 text-xs text-accent border border-accent/30 rounded-lg hover:bg-accent/5 transition-colors">替换</button>
+                    <button v-if="skill.status === 'pending'" @click="confirmWithdrawSkill(skill)" class="px-2.5 py-1 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">撤销</button>
+                    <button v-if="skill.status === 'approved'" @click="openSkillDetail(skill)" class="px-2.5 py-1 text-xs text-text-secondary border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary hover:text-text transition-colors">查看</button>
+                  </div>
+                </div>
+
+                <div v-if="mySkillsTotalPages > 1" class="flex items-center justify-between px-3 py-3 border-t border-[rgba(0,0,0,0.06)] text-sm text-text-secondary">
+                  <span class="text-[13px]">共 {{ mySkillsTotal }} 条</span>
+                  <div class="flex items-center gap-2">
+                    <button @click="goSkillsPage(mySkillsPage - 1)" :disabled="mySkillsPage <= 1" class="w-8 h-8 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">‹</button>
+                    <span class="text-[13px]">{{ mySkillsPage }} / {{ mySkillsTotalPages }}</span>
+                    <button @click="goSkillsPage(mySkillsPage + 1)" :disabled="mySkillsPage >= mySkillsTotalPages" class="w-8 h-8 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">›</button>
                   </div>
                 </div>
               </div>
@@ -519,6 +539,8 @@
       <div class="text-[11px] text-white/70">缓存: <span class="font-mono text-white">{{ fmtNum(modelHover.cachedTokens) }}</span></div>
     </div>
   </Teleport>
+
+  <SubmitSkillDialog :open="showSubmitDialog" @close="showSubmitDialog = false" @submitted="onSkillSubmitted" />
 </div>
 </template>
 <script setup>
@@ -528,6 +550,7 @@ import NavBar from '../components/NavBar.vue'
 import SkillDetailModal from '../components/SkillDetailModal.vue'
 import AppDialog from '../components/AppDialog.vue'
 import SkillctlGuide from '../components/SkillctlGuide.vue'
+import SubmitSkillDialog from '../components/SubmitSkillDialog.vue'
 import { loadPermissions, can, isPortalAdmin, showAdminEntry, roles } from '../composables/usePermissions.js'
 import * as echarts from 'echarts/core'
 import { BarChart, LineChart } from 'echarts/charts'
@@ -549,10 +572,14 @@ const deletingKey = ref(false)
 const copied = ref(false)
 const mySkills = ref([])
 const mySkillsLoading = ref(false)
+const mySkillsPage = ref(1)
+const mySkillsLimit = ref(20)
+const mySkillsTotal = ref(0)
+const mySkillsTotalPages = computed(() => Math.max(1, Math.ceil(mySkillsTotal.value / mySkillsLimit.value)))
 const showResetDialog = ref(false)
 const showDeleteDialog = ref(false)
 const selectedSkill = ref(null)
-const featureFlags = ref({ skillSubmitEnabled: false, skillctlDocUrl: '' })
+const featureFlags = ref({ skillctlDocUrl: '' })
 const keyError = ref('')
 const keyErrorOk = ref(false)
 // 调用地址(Base URL):与模型广场同源,来自 model_example_endpoint
@@ -824,6 +851,7 @@ const tabs = computed(() => {
 })
 const showChangePasswordDialog = ref(false)
 const showSuccessDialog = ref(false)
+const showSubmitDialog = ref(false)
 const newPassword = ref('')
 const confirmNewPassword = ref('')
 const showNewPassword = ref(false)
@@ -877,13 +905,47 @@ const copyBaseUrl = async () => {
   copiedBaseUrl.value = true
   setTimeout(() => { copiedBaseUrl.value = false }, 2000)
 }
-const fetchMySkills = async () => {
+const fetchMySkills = async (resetPage = false) => {
+  if (resetPage) mySkillsPage.value = 1
   mySkillsLoading.value = true
   try {
     const token = localStorage.getItem('token')
-    const res = await fetch(`${API_BASE}/my/skills`, { headers: { Authorization: `Bearer ${token}` } })
-    if (res.ok) { const d = await res.json(); mySkills.value = d.data || d }
+    const res = await fetch(`${API_BASE}/my/skills?page=${mySkillsPage.value}&limit=${mySkillsLimit.value}`, { headers: { Authorization: `Bearer ${token}` } })
+    if (res.ok) { const d = await res.json(); mySkills.value = d.data || []; mySkillsTotal.value = d.pagination?.total || 0 }
   } catch (e) { console.error(e) } finally { mySkillsLoading.value = false }
+}
+const goSkillsPage = (p) => {
+  mySkillsPage.value = Math.min(Math.max(1, p), mySkillsTotalPages.value)
+  fetchMySkills()
+}
+const onSkillSubmitted = () => {
+  // 弹框内部已展示「提交成功」成功态, 这里只刷新我的技能列表(回到第 1 页)
+  fetchMySkills(true)
+}
+const confirmWithdrawSkill = (skill) => {
+  showDialog(`确定撤销「${skill.title}」吗？撤销后需重新上传才能再次提交。`, {
+    title: '撤销提交',
+    type: 'confirm',
+    onConfirm: async () => {
+      dialogOpen.value = false
+      await doWithdrawSkill(skill)
+    },
+  })
+}
+const doWithdrawSkill = async (skill) => {
+  try {
+    const token = localStorage.getItem('token')
+    const res = await fetch(`${API_BASE}/my/skills/${skill.id}/withdraw`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || data.reason || '撤销失败')
+    showToast('已撤销，可重新上传提交')
+    fetchMySkills()
+  } catch (e) {
+    showToast(e.message || '撤销失败')
+  }
 }
 const toDetailSkill = (skill) => ({
   id: skill.skill_id,

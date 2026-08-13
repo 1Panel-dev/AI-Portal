@@ -760,7 +760,7 @@ router.post('/api/admin/config/test-cos', verifyUser, requirePermission('system:
 router.get('/api/admin/panel-config', verifyUser, requirePermission('system:config'), async (req, res) => {
   try {
     const [cfgRes, syncRes, panelRoles] = await Promise.all([
-      global.pool.query("SELECT key, value FROM system_config WHERE key LIKE 'panel_%'"),
+      global.pool.query("SELECT key, value FROM system_config WHERE key LIKE 'panel_%' OR key = 'site_skillctl_doc_url'"),
       global.pool.query(`
         SELECT sync_type, created_at, status, message, total_count, success_count
         FROM portal_sync_log
@@ -801,9 +801,7 @@ router.get('/api/admin/panel-config', verifyUser, requirePermission('system:conf
       timeout: parseInt(map.panel_api_timeout || panelCfg.timeout, 10),
       syncEnabled: map.panel_sync_enabled !== 'false',
       syncIntervalMinutes: parseInt(map.panel_sync_interval_minutes || '10', 10),
-      skillUploadEnabled: map.panel_skill_upload_enabled === 'true',
       panelUserRoleId: parseInt(map.panel_user_role_id || '4', 10),
-      skillSubmitEnabled: map.panel_skill_submit_enabled === 'true',
       skillctlDocUrl: map.site_skillctl_doc_url || '',
       panelRoles,
       lastSync,
@@ -871,8 +869,8 @@ router.post('/api/admin/panel-config', verifyUser, requirePermission('system:con
   try {
     const {
       baseUrl, apiKey, timeout,
-      syncEnabled, syncIntervalMinutes, skillUploadEnabled, panelUserRoleId,
-      skillSubmitEnabled, skillctlDocUrl,
+      syncEnabled, syncIntervalMinutes, panelUserRoleId,
+      skillctlDocUrl,
     } = req.body;
 
     const configs = [['panel_base_url', baseUrl || '']];
@@ -888,9 +886,6 @@ router.post('/api/admin/panel-config', verifyUser, requirePermission('system:con
     if (typeof syncEnabled === 'boolean') {
       configs.push(['panel_sync_enabled', syncEnabled ? 'true' : 'false']);
     }
-    if (typeof skillUploadEnabled === 'boolean') {
-      configs.push(['panel_skill_upload_enabled', skillUploadEnabled ? 'true' : 'false']);
-    }
     if (syncIntervalMinutes !== undefined && syncIntervalMinutes !== null) {
       const m = parseInt(syncIntervalMinutes, 10);
       if (!Number.isNaN(m) && m > 0) configs.push(['panel_sync_interval_minutes', String(m)]);
@@ -898,9 +893,6 @@ router.post('/api/admin/panel-config', verifyUser, requirePermission('system:con
     if (panelUserRoleId !== undefined && panelUserRoleId !== null) {
       const r = parseInt(panelUserRoleId, 10);
       if (!Number.isNaN(r) && r > 0) configs.push(['panel_user_role_id', String(r)]);
-    }
-    if (typeof skillSubmitEnabled === 'boolean') {
-      configs.push(['portal_skill_submit_enabled', skillSubmitEnabled ? 'true' : 'false']);
     }
     if (skillctlDocUrl !== undefined && skillctlDocUrl !== null) {
       configs.push(['site_skillctl_doc_url', String(skillctlDocUrl).trim()]);

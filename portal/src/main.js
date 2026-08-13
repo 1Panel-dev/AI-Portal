@@ -18,7 +18,6 @@ const routes = [
   { path: '/skills', component: () => import('./views/HomeView.vue'), meta: { requiresLogin: true } },
   { path: '/mcp', component: () => import('./views/McpPlazaView.vue'), meta: { requiresLogin: true } },
   { path: '/skill/:slug', component: () => import('./views/SkillDetailView.vue'), meta: { requiresLogin: true } },
-  { path: '/submit', component: () => import('./views/SubmitSkillView.vue'), meta: { requiresUserAuth: true } },
   { path: '/my-skills', component: () => import('./views/MySkillsView.vue'), meta: { requiresUserAuth: true } },
   { path: '/docs', component: () => import('./views/DocsView.vue'), meta: { public: true } },
   { path: '/login', component: () => import('./views/LoginView.vue'), meta: { public: true } },

@@ -384,12 +384,11 @@ router.get('/api/config/feature-flags', async (req, res) => {
   try {
     const result = await global.pool.query(`
       SELECT key, value FROM system_config
-      WHERE key IN ('portal_skill_submit_enabled', 'site_skillctl_doc_url', 'panel_base_url')
+      WHERE key IN ('site_skillctl_doc_url', 'panel_base_url')
     `);
     const map = {};
     for (const row of result.rows) map[row.key] = row.value;
     res.json({
-      skillSubmitEnabled: map.portal_skill_submit_enabled === 'true',
       skillctlDocUrl: map.site_skillctl_doc_url || '',
       panelEndpoint: map.panel_base_url || '',
     });

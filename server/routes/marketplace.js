@@ -36,20 +36,6 @@ function panelBizError(response) {
   return null;
 }
 
-async function isPanelSkillUploadEnabled() {
-  const result = await global.pool.query(
-    "SELECT value FROM system_config WHERE key = 'panel_skill_upload_enabled' LIMIT 1"
-  );
-  return result.rows[0]?.value === 'true';
-}
-
-async function isSkillSubmitEnabled() {
-  const result = await global.pool.query(
-    "SELECT value FROM system_config WHERE key = 'portal_skill_submit_enabled' LIMIT 1"
-  );
-  return result.rows[0]?.value === 'true';
-}
-
 function buildPanelSkillName(originalName, skillId) {
   const base = path.basename(String(originalName || ''), path.extname(String(originalName || ''))).trim();
   return base || skillId;
@@ -170,7 +156,7 @@ async function listPanelSkillIds() {
   return ids;
 }
 
-async function uploadSkillToPanel({ skillId, title, description, category, version, author, filePath, originalName }) {
+async function uploadSkillToPanel({ skillId, title, description, category, version, author, fileContent, originalName }) {
   const panelName = buildPanelSkillName(originalName, skillId);
   const beforeRemoteIds = await listPanelSkillIds();
   const response = await panel.postMultipart('/api/v2/core/enterprise/skills-hub/upload', {
@@ -186,7 +172,7 @@ async function uploadSkillToPanel({ skillId, title, description, category, versi
       name: 'file',
       filename: originalName,
       contentType: 'application/zip',
-      content: fs.readFileSync(filePath),
+      content: fileContent,
     }],
   });
   const bizError = panelBizError(response);
@@ -500,106 +486,215 @@ router.post('/api/skills/:id/download', downloadLimiter, async (req, res) => {
 
 // ============ Skill 包上传/下载 API ============
 
-// 上传 Skill 包（zip）
-router.post('/api/skills/upload', verifyUser, requirePermission('skill:create'), uploadLimiter, upload.single('file'), async (req, res) => {
+// 从上传 zip 的 skill.md 读取标准 frontmatter 元数据(name/version/description/category/author 等)。
+// 1Panel 新版会按包内元数据校验上传字段, 故所有字段以包内为准。
+async function parseSkillMd(filePath) {
   try {
-    if (!(await isSkillSubmitEnabled())) {
-      return res.status(403).json({
-        code: 'SKILL_SUBMIT_DISABLED',
-        error: '提交技能功能暂未开放',
-      });
+    const AdmZip = require('adm-zip');
+    const zip = new AdmZip(filePath);
+    // 找 skill.md / SKILL.md（根目录或子目录均可）
+    const entry = zip.getEntries().find(e => /(^|\/)skill\.md$/i.test(e.entryName));
+    if (!entry) return null;
+    let content = entry.getData().toString('utf8');
+    // 去 BOM
+    content = content.replace(/^﻿/, '');
+
+    // 优先 YAML frontmatter(--- 包裹), 没有则回退到全文逐行扫 key: value
+    const fm = content.match(/^---\s*\r?\n([\s\S]*?)\r?\n---/);
+    const scope = fm ? fm[1] : content;
+
+    const meta = {};
+    for (const line of scope.split(/\r?\n/)) {
+      const m = line.match(/^\s*([A-Za-z0-9_-]+)\s*:\s*(.*?)\s*$/);
+      if (m) {
+        const key = m[1].toLowerCase();
+        const val = m[2].replace(/^['"]|['"]$/g, '').trim();
+        if (val) meta[key] = val;
+      }
     }
+    return meta;
+  } catch (err) {
+    console.warn('[skill-upload] 解析 skill.md 失败:', err.message);
+    return {};
+  }
+}
 
-    const { skill_id, title, description, category, version = 'v1.0.0' } = req.body;
+// 版本号向上叠加: "1.2.6"→"1.2.7", "0.1.0"→"0.1.1"; 解析不了回退 "0.1.0"
+function bumpVersion(v) {
+  const parts = String(v || '').trim().replace(/^v/i, '').split('.');
+  const nums = parts.map(p => parseInt(p, 10));
+  if (!nums.length || nums.some(n => !Number.isFinite(n))) return '0.1.0';
+  nums[nums.length - 1] += 1;
+  return nums.join('.');
+}
 
-    if (!skill_id || !title || !category) {
-      return res.status(400).json({ error: '缺少必填字段' });
+// 把确认后的字段写回 zip 内 skill.md 的 frontmatter(保证传 1Panel 的 version 与包内一致)
+function rewriteSkillMdMeta(zipBuffer, fields) {
+  const AdmZip = require('adm-zip');
+  const zip = new AdmZip(zipBuffer);
+  const entry = zip.getEntries().find(e => /(^|\/)skill\.md$/i.test(e.entryName));
+  if (!entry) return zipBuffer;
+  let content = entry.getData().toString('utf8').replace(/^﻿/, '');
+  const fm = content.match(/^---\s*\r?\n([\s\S]*?)\r?\n---/);
+  const meta = {};
+  let rest = content;
+  if (fm) {
+    for (const line of fm[1].split(/\r?\n/)) {
+      const m = line.match(/^\s*([A-Za-z0-9_-]+)\s*:\s*(.*?)\s*$/);
+      if (m) meta[m[1].toLowerCase()] = m[2].trim();
     }
+    rest = content.slice(fm[0].length);
+  }
+  // 合并确认字段(覆盖同名, 追加缺的), 其余字段与正文原样保留
+  const merged = { ...meta };
+  if (fields.name) merged.name = fields.name;
+  if (fields.version) merged.version = fields.version;
+  if (fields.description) merged.description = fields.description;
+  if (fields.category) merged.category = fields.category;
+  const lines = Object.entries(merged).map(([k, v]) => `${k}: ${v}`);
+  const newContent = `---\n${lines.join('\n')}\n---\n${rest}`;
+  zip.updateFile(entry.entryName, Buffer.from(newContent, 'utf8'));
+  return zip.toBuffer();
+}
 
+// 解析技能包: 返回 skill.md 元数据 + 建议版本号(上一个版本 +1), 供前端两步表单预填
+router.post('/api/skills/parse', verifyUser, requirePermission('skill:create'), uploadLimiter, upload.single('file'), async (req, res) => {
+  try {
     if (!req.file) {
       return res.status(400).json({ error: '请上传 .zip 文件' });
     }
+    const meta = await parseSkillMd(req.file.path);
+    if (meta === null) {
+      return res.status(400).json({ error: '技能包缺少 skill.md 文件' });
+    }
+    const name = String(meta.name || meta.id || meta.slug || '').trim();
+    const version = String(meta.version || '').trim();
+    const description = String(meta.description || '').trim();
+    const category = String(meta.category || 'skill').trim();
 
-    const submitter = req.portalUser;
-    const submittedBy = submitter.name || submitter.username;
-    const author = submittedBy;
-    const packageName = req.file.originalname;
-    let panelUpload = null;
-
-    if (await isPanelSkillUploadEnabled()) {
-      try {
-        panelUpload = await uploadSkillToPanel({
-          skillId: skill_id,
-          title,
-          description: description || '',
-          category,
-          version,
-          author,
-          filePath: req.file.path,
-          originalName: packageName,
-        });
-      } catch (e) {
-        console.error('[skill-upload] 1Panel 上传失败:', e.message);
-        if (fs.existsSync(req.file.path)) {
-          fs.unlinkSync(req.file.path);
-        }
-        return res.status(502).json({
-          error: '上传到 1Panel Skills Hub 失败',
-          reason: e.message,
-          code: e.code || 'PANEL_SKILL_UPLOAD_FAILED',
-        });
-      }
+    // 上一个提交的版本(任意状态, 取最近一条), 用于自动叠加
+    let lastVersion = '';
+    if (name) {
+      const last = await global.pool.query(
+        'SELECT version FROM skill_submissions WHERE skill_id = $1 ORDER BY submitted_at DESC, id DESC LIMIT 1',
+        [name]
+      );
+      if (last.rowCount) lastVersion = last.rows[0].version || '';
     }
 
-    // 开关开启且 1Panel 已上传成功时,不再上传到 COS/local storage。
-    // 只保留 panel_skill_id,后续下载走 1Panel skills-hub/download。
-    const filePath = panelUpload ? null : await storage.upload(skill_id, req.file.path, version);
+    // 建议版本: 有历史 → 叠加; 无历史但 skill.md 有版本 → 用它; 否则 0.1.0
+    const suggestedVersion = lastVersion ? bumpVersion(lastVersion) : (version || '0.1.0');
 
-    // 删除 multer 临时文件
-    if (fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-    const installCommand = `skillctl install ${skill_id}`;
-    const installUrl = `/api/skills/${skill_id}/download`;
+    // 删临时文件
+    if (fs.existsSync(req.file.path)) { try { fs.unlinkSync(req.file.path); } catch {} }
 
-    // 写入待审核表
-    // 同 skill_id + 同 version → 覆盖（用户可能传错文件重新上传）
-    // 同 skill_id + 不同 version → 新增（版本迭代）
-    const existing = await global.pool.query(
+    res.json({ name, description, category, version, lastVersion, suggestedVersion });
+  } catch (err) {
+    console.error('Error parsing skill:', err);
+    res.status(500).json({ error: '解析技能包失败' });
+  }
+});
+
+// 上传 Skill 包（zip）
+router.post('/api/skills/upload', verifyUser, requirePermission('skill:create'), uploadLimiter, upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: '请上传 .zip 文件' });
+  }
+
+  const submitter = req.portalUser;
+  const submittedBy = submitter.name || submitter.username;
+  const author = submittedBy;
+
+  // 确认后的字段(两步表单第二步提交)
+  const skill_id = String(req.body.name || '').trim();
+  const title = skill_id;   // 显示名暂用 name(与 1Panel sync 逻辑一致)
+  const description = String(req.body.description || '').trim();
+  const version = String(req.body.version || '').trim();
+  const category = String(req.body.category || 'skill').trim();
+
+  if (!skill_id) {
+    return res.status(400).json({ error: '缺少技能 name' });
+  }
+  if (!version) {
+    return res.status(400).json({ error: '缺少版本号' });
+  }
+
+  const packageName = req.file.originalname;
+  const installCommand = `skillctl install ${skill_id}`;
+  const installUrl = `/api/skills/${skill_id}/download`;
+
+  // 把确认后的字段写回 skill.md, 保证传 1Panel 的 version 与包内一致
+  let fileContent;
+  try {
+    fileContent = rewriteSkillMdMeta(fs.readFileSync(req.file.path), { name: skill_id, version, description, category });
+  } catch (e) {
+    console.error('[skill-upload] 写回 skill.md 失败:', e.message);
+    fileContent = fs.readFileSync(req.file.path);
+  }
+
+  const client = await global.pool.connect();
+  try {
+    // 事务: 先写本地待审核, 再同步 1Panel; 任一步失败整体回滚(本地也不留)。
+    await client.query('BEGIN');
+
+    // 1. 写本地待审核记录。文件统一放 1Panel(file_path 空), 下载走 skills-hub/download。
+    //    同 skill_id + 同 version → 覆盖; 同 skill_id + 不同 version → 新增(版本迭代)。
+    const existing = await client.query(
       'SELECT id FROM skill_submissions WHERE skill_id = $1 AND version = $2 AND status = $3',
       [skill_id, version, 'pending']
     );
 
     if (existing.rows.length > 0) {
-      // 已有待审核的同版本记录，更新文件
-      await global.pool.query(`
+      await client.query(`
         UPDATE skill_submissions
-        SET file_path = $1, title = $2, description = $3, category = $4,
-            author = $5, submitted_by = $6, submitted_by_user_id = $7,
-            package_name = $8,
-            panel_skill_id = $9, panel_status = $10, panel_raw_data = $11,
-            panel_uploaded_at = CASE WHEN $9::integer IS NULL THEN panel_uploaded_at ELSE CURRENT_TIMESTAMP END,
+        SET title = $1, description = $2, category = $3, author = $4,
+            submitted_by = $5, submitted_by_user_id = $6, package_name = $7,
             submitted_at = CURRENT_TIMESTAMP
-        WHERE skill_id = $12 AND version = $13 AND status = 'pending'
-      `, [filePath, title, description || '', category, author, submittedBy, submitter.id,
-          packageName, panelUpload?.id || null, panelUpload?.status || null, panelUpload?.raw || {},
-          skill_id, version]);
+        WHERE skill_id = $8 AND version = $9 AND status = 'pending'
+      `, [title, description || '', category, author, submittedBy, submitter.id, packageName, skill_id, version]);
     } else {
-      // 新版本或首次提交，创建新记录
-      await global.pool.query(`
+      await client.query(`
         INSERT INTO skill_submissions (
           skill_id, title, slug, description, category, author,
-          install_command, install_url, version, file_path, package_name,
-          panel_skill_id, panel_status, panel_raw_data, panel_uploaded_at,
+          install_command, install_url, version, package_name,
           status, submitted_by, submitted_by_user_id, submitted_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
-                  $12, $13, $14, CASE WHEN $12::integer IS NULL THEN NULL ELSE CURRENT_TIMESTAMP END,
-                  'pending', $15, $16, CURRENT_TIMESTAMP)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', $11, $12, CURRENT_TIMESTAMP)
       `, [skill_id, title, skill_id, description || '', category, author,
-          installCommand, installUrl, version, filePath, packageName,
-          panelUpload?.id || null, panelUpload?.status || null, panelUpload?.raw || {},
-          submittedBy, submitter.id]);
+          installCommand, installUrl, version, packageName, submittedBy, submitter.id]);
     }
+
+    // 2. 同步到 1Panel Skills Hub(总是执行)
+    let panelUpload;
+    try {
+      panelUpload = await uploadSkillToPanel({
+        skillId: skill_id,
+        title,
+        description: description || '',
+        category,
+        version,
+        author,
+        fileContent,
+        originalName: packageName,
+      });
+    } catch (e) {
+      console.error('[skill-upload] 1Panel 上传失败, 回滚本地:', e.message);
+      await client.query('ROLLBACK');
+      return res.status(502).json({
+        error: '上传到 1Panel Skills Hub 失败',
+        reason: e.message,
+        code: e.code || 'PANEL_SKILL_UPLOAD_FAILED',
+      });
+    }
+
+    // 3. 回填 1Panel 技能标识, 提交事务
+    await client.query(`
+      UPDATE skill_submissions
+      SET panel_skill_id = $1, panel_status = $2, panel_raw_data = $3,
+          panel_uploaded_at = CURRENT_TIMESTAMP
+      WHERE skill_id = $4 AND version = $5 AND status = 'pending'
+    `, [panelUpload.id || null, panelUpload.status || null, panelUpload.raw || {}, skill_id, version]);
+
+    await client.query('COMMIT');
 
     res.json({
       success: true,
@@ -610,12 +705,23 @@ router.post('/api/skills/upload', verifyUser, requirePermission('skill:create'),
     });
   } catch (err) {
     console.error('Error uploading skill:', err);
+    try { await client.query('ROLLBACK'); } catch {}
     res.status(500).json({ error: '上传失败' });
+  } finally {
+    client.release();
+    // 删除 multer 临时文件
+    if (req.file && fs.existsSync(req.file.path)) {
+      try { fs.unlinkSync(req.file.path); } catch {}
+    }
   }
 });
 
 router.get('/api/my/skills', verifyUser, async (req, res) => {
   try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+    const offset = (page - 1) * limit;
+
     const result = await global.pool.query(`
       SELECT
         s.id,
@@ -633,17 +739,80 @@ router.get('/api/my/skills', verifyUser, async (req, res) => {
         s.reviewed_at,
         s.review_note,
         live.is_active,
-        live.downloads
+        live.downloads,
+        COUNT(*) OVER() AS _total
       FROM skill_submissions s
       LEFT JOIN skills live ON live.id = s.skill_id
       WHERE s.submitted_by_user_id = $1
       ORDER BY s.submitted_at DESC
-    `, [req.portalUser.id]);
+      LIMIT $2 OFFSET $3
+    `, [req.portalUser.id, limit, offset]);
 
-    res.json({ data: result.rows });
+    const total = result.rows.length > 0 ? parseInt(result.rows[0]._total) : 0;
+    const data = result.rows.map(({ _total, ...row }) => row);
+
+    res.json({
+      data,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
   } catch (err) {
     console.error('Error fetching my skills:', err);
     res.status(500).json({ error: '获取我的技能失败' });
+  }
+});
+
+// 删除 1Panel 上的技能(撤销提交时同步删除远端 pending 技能)
+async function deletePanelSkill(panelSkillId) {
+  const response = await panel.post('/api/v2/core/enterprise/skills-hub/delete', { id: panelSkillId });
+  const bizError = panelBizError(response);
+  if (response.status < 200 || response.status >= 300 || bizError) {
+    const err = new Error(bizError || `HTTP ${response.status}`);
+    err.code = 'PANEL_SKILL_DELETE_FAILED';
+    throw err;
+  }
+}
+
+// 撤销提交(用户侧): 仅 pending 可撤销; 同步删除 1Panel 对应技能, 本地标记 withdrawn(留记录)
+router.post('/api/my/skills/:id/withdraw', verifyUser, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const submission = await global.pool.query(
+      'SELECT id, title, panel_skill_id, status FROM skill_submissions WHERE id = $1 AND submitted_by_user_id = $2',
+      [id, req.portalUser.id]
+    );
+    if (submission.rowCount === 0) {
+      return res.status(404).json({ error: '提交记录不存在' });
+    }
+    const row = submission.rows[0];
+    if (row.status !== 'pending') {
+      return res.status(400).json({ error: '只有待审核的提交可以撤销' });
+    }
+
+    // 始终保持与 1Panel 同步: 删除远端 pending 技能
+    if (row.panel_skill_id) {
+      try {
+        await deletePanelSkill(row.panel_skill_id);
+      } catch (e) {
+        console.error('[withdraw] 1Panel 删除失败:', e.message);
+        return res.status(502).json({
+          error: '1Panel 技能删除失败',
+          reason: e.message,
+          code: e.code || 'PANEL_SKILL_DELETE_FAILED',
+        });
+      }
+    }
+
+    await global.pool.query(
+      `UPDATE skill_submissions
+       SET status = 'withdrawn', reviewed_at = CURRENT_TIMESTAMP, review_note = '用户已撤销'
+       WHERE id = $1`,
+      [id]
+    );
+
+    res.json({ success: true, message: '已撤销' });
+  } catch (err) {
+    console.error('Error withdrawing skill:', err);
+    res.status(500).json({ error: '撤销失败' });
   }
 });
 
