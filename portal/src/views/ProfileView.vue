@@ -1293,10 +1293,5 @@ watch(tabs, (newTabs) => {
   if (!newTabs.find(t => t.id === activeTab.value) && newTabs.length > 0) {
     activeTab.value = newTabs[0].id
   }
-  // 刚登录且有后台权限:自动跳后台(只触发一次,避免手动进 profile 被反复跳走)
-  if (sessionStorage.getItem('login_just_now') === '1' && showAdminEntry.value) {
-    sessionStorage.removeItem('login_just_now')
-    router.replace('/admin/stats')
-  }
 }, { deep: true })
 </script>

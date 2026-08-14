@@ -149,6 +149,10 @@ async function deletePanelSkill(panelSkillId) {
   const response = await panel.post('/api/v2/core/enterprise/skills-hub/delete', { id: panelSkillId });
   const biz = inspectPanelBiz(response);
   if (response.status < 200 || response.status >= 300 || !biz.ok) {
+    // 1Panel 若已不存在该技能(record not found), 视为删除成功, 不阻断删除流程
+    if (biz.message && /not found|不存在|未找到/i.test(String(biz.message))) {
+      return response.data;
+    }
     const reason = biz.message || `HTTP ${response.status} code=${biz.code}`;
     const err = new Error(reason);
     err.code = 'PANEL_SKILL_DELETE_FAILED';

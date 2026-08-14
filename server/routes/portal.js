@@ -152,6 +152,10 @@ router.post('/api/auth/login', async (req, res) => {
       token = signPortalToken(user);
     }
 
+    // 是否需直接进后台(超管 / 后台角色 / 持有管理权限位)——供前端登录后一次跳对页面
+    const { hasAdminEntry } = require('../lib/permission');
+    const has_admin_entry = await hasAdminEntry(user.id);
+
     res.json({
       token,
       user: {
@@ -160,6 +164,8 @@ router.post('/api/auth/login', async (req, res) => {
         name: user.name,
         role: user.role,
         status: user.status,
+        is_portal_admin: !!user.is_portal_admin,
+        has_admin_entry,
       }
     });
   } catch (err) {

@@ -34,19 +34,6 @@
           </router-link>
         </div>
       </section>
-
-      <!-- 数据统计条 -->
-      <section class="relative max-w-[860px] mx-auto px-6 pb-16">
-        <div class="grid grid-cols-3 gap-4">
-          <div v-for="s in stats" :key="s.label"
-            class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-5 text-center shadow-[0_2px_8px_rgba(15,23,42,0.03)]">
-            <div class="text-[32px] font-bold text-text leading-none mb-1.5 tabular-nums">{{ s.value }}</div>
-            <div class="text-[13px] text-text-secondary flex items-center justify-center gap-1.5">
-              <component :is="s.icon" class="w-3.5 h-3.5 text-text-tertiary" /> {{ s.label }}
-            </div>
-          </div>
-        </div>
-      </section>
     </section>
 
     <!-- 2. 三个广场介绍 -->
@@ -148,24 +135,13 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue'
+import { computed } from 'vue'
 import { Sun, Puzzle, LayoutGrid, ArrowRight, Sparkles, ShieldCheck, Users, RefreshCw, Boxes, KeyRound, Cpu } from 'lucide-vue-next'
 import SimpleHeader from '../components/SimpleHeader.vue'
 import { siteName } from '../composables/useSiteBranding.js'
 import { bannerEnabled, bannerHtml, bannerVisible } from '../composables/useAnnouncement.js'
-import { API_BASE, getLoginToken } from '../lib/apiBase.js'
 
 const hasVisibleBanner = computed(() => bannerEnabled.value && bannerVisible.value && !!bannerHtml.value)
-
-// 数据统计（懒加载，初始 -- 不卡首屏）
-const modelCount = ref('--')
-const skillCount = ref('--')
-const mcpCount = ref('--')
-const stats = computed(() => [
-  { label: '可用模型', value: modelCount.value, icon: Sun },
-  { label: '技能资源', value: skillCount.value, icon: Puzzle },
-  { label: 'MCP 服务', value: mcpCount.value, icon: LayoutGrid },
-])
 
 const plazas = [
   { to: '/models', title: '模型广场', desc: '查找可调用的 AI 模型，复制模型名称与调用地址快速接入', icon: Sun, bg: 'bg-[rgba(0,94,235,0.08)]', color: 'text-accent', tags: ['对话', 'Embedding', '多模态'] },
@@ -186,26 +162,4 @@ const steps = [
   { title: '选用模型 / 技能', desc: '在广场挑选模型、安装技能、接入 MCP', icon: Cpu },
   { title: '开始调用', desc: '复制调用地址与模型名，接入业务', icon: ArrowRight },
 ]
-
-// 懒拉统计数字（失败保持 --，不报错）
-// 三广场接口已改 verifyUser(需登录):未登录不拉,数字保持 --;登录用户带 token 拉各自可见资源的统计
-onMounted(async () => {
-  const token = getLoginToken()
-  if (!token) return
-  try {
-    const headers = { Authorization: `Bearer ${token}` }
-    const [modelsRes, skillsRes, mcpRes] = await Promise.allSettled([
-      fetch(`${API_BASE}/models`, { headers }).then(r => r.json()),
-      fetch(`${API_BASE}/skills?page=1&limit=1`, { headers }).then(r => r.json()),
-      fetch(`${API_BASE}/mcp/search?page=1&pageSize=1`, { headers }).then(r => r.json()),
-    ])
-    if (modelsRes.status === 'fulfilled') {
-      let n = 0
-      for (const g of (modelsRes.value.groups || [])) n += (g.models || []).length
-      modelCount.value = n
-    }
-    if (skillsRes.status === 'fulfilled') skillCount.value = skillsRes.value.pagination?.total ?? skillsRes.value.data?.length ?? '--'
-    if (mcpRes.status === 'fulfilled') mcpCount.value = mcpRes.value.pagination?.total ?? mcpRes.value.data?.length ?? '--'
-  } catch { /* 静默，保持 -- */ }
-})
 </script>

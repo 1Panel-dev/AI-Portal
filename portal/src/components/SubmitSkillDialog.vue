@@ -15,17 +15,18 @@
       <div v-if="!canSubmit" class="mb-3 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">
         你没有提交技能的权限（skill:create）。
       </div>
-      <p class="text-xs text-text-secondary mb-4">上传 .zip 技能包，下一步会读取包内 <b>skill.md</b> 的信息，可补充/修改后提交。</p>
+      <p class="text-xs text-text-secondary mb-4">上传 Skill 包，下一步会读取包内 <b>skill.md</b> 的信息，可补充/修改后提交。</p>
 
       <div
         @drop.prevent="handleDrop" @dragover.prevent="isDragging = true" @dragleave="isDragging = false" @click="triggerFileInput"
         class="border-2 border-dashed rounded-[14px] p-8 text-center cursor-pointer transition-all duration-200"
         :class="[fileError ? 'border-[#ff3b30] bg-[rgba(255,59,48,0.02)]' : isDragging ? 'border-text bg-[rgba(0,0,0,0.02)]' : selectedFile ? 'border-text bg-white' : 'border-[#d2d2d7] bg-[#fafafa] hover:border-[#86868b] hover:bg-surface-secondary']">
-        <input ref="fileInput" type="file" accept=".zip" @change="handleFileSelect" class="hidden">
+        <input ref="fileInput" type="file" accept=".zip,.7z,.tar,.gz,.tgz" @change="handleFileSelect" class="hidden">
         <div v-if="!selectedFile">
           <svg class="mx-auto mb-2.5 text-text-tertiary" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          <p class="text-sm text-text-secondary">拖拽 .zip 文件到这里，或点击选择</p>
-          <p class="text-[11px] text-text-tertiary mt-1.5">包含 skill.md，可选 scripts/、requirements.txt</p>
+          <p class="text-sm text-text-secondary">拖拽 Skill 包到此处，或点击上传</p>
+          <p class="text-[11px] text-text-tertiary mt-1.5">支持格式：.zip、.7z、.tar、.tar.gz</p>
+          <p class="text-[11px] text-text-tertiary">单个文件不超过 5MB · 包内必须包含 skill.md</p>
         </div>
         <div v-else class="flex items-center justify-center gap-2.5">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1d1d1f" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -42,6 +43,9 @@
 
     <!-- 第二步：确认表单 -->
     <div v-else class="max-h-[65vh] overflow-y-auto -mx-1 px-1">
+      <div v-if="manual" class="mb-4 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs leading-relaxed">
+        该格式暂不支持自动读取 skill.md，请手动填写下方字段。版本号须与包内 skill.md 一致。
+      </div>
       <div class="mb-4">
         <label class="block text-[13px] font-medium text-text mb-1">技能名称 (name) <span class="text-[#ff3b30] ml-0.5">*</span></label>
         <input v-model="form.name" type="text" placeholder="my-awesome-skill"
@@ -109,20 +113,27 @@ const submitting = ref(false)
 const submitted = ref(false)
 const form = ref({ name: '', description: '', category: 'skill', version: '' })
 const lastVersion = ref('')
+const manual = ref(false)
 const fileError = ref('')
 const errorMessage = ref('')
 const submitInstallCmd = ref('')
 const canSubmit = computed(() => can('skill:create'))
 
 const triggerFileInput = () => { fileInput.value.click() }
-const handleFileSelect = (e) => {
-  const file = e.target.files[0]
-  if (file && file.name.endsWith('.zip')) { selectedFile.value = file; fileError.value = '' }
+const isSupportedArchive = (name) => {
+  const n = (name || '').toLowerCase()
+  return n.endsWith('.zip') || n.endsWith('.7z') || n.endsWith('.tar') || n.endsWith('.tar.gz') || n.endsWith('.tgz')
 }
+const pickFile = (file) => {
+  if (!file) return
+  if (!isSupportedArchive(file.name)) { fileError.value = '仅支持 .zip / .7z / .tar / .tar.gz 格式'; return }
+  if (file.size > 5 * 1024 * 1024) { fileError.value = '单个文件不能超过 5MB'; return }
+  selectedFile.value = file; fileError.value = ''
+}
+const handleFileSelect = (e) => { pickFile(e.target.files[0]) }
 const handleDrop = (e) => {
   isDragging.value = false
-  const file = e.dataTransfer.files[0]
-  if (file && file.name.endsWith('.zip')) { selectedFile.value = file; fileError.value = '' }
+  pickFile(e.dataTransfer.files[0])
 }
 const removeFile = () => {
   selectedFile.value = null
@@ -136,7 +147,7 @@ const formatSize = (bytes) => {
 
 // 第一步 → 解析 skill.md, 预填表单
 const goParse = async () => {
-  if (!selectedFile.value) { fileError.value = '请上传 .zip 技能包'; return }
+  if (!selectedFile.value) { fileError.value = '请上传技能包'; return }
   parsing.value = true
   errorMessage.value = ''
   try {
@@ -159,6 +170,7 @@ const goParse = async () => {
       version: data.suggestedVersion || '0.1.0',
     }
     lastVersion.value = data.lastVersion || ''
+    manual.value = !!data.manual
     step.value = 'form'
   } catch (e) {
     errorMessage.value = '网络错误，请稍后重试'
@@ -209,6 +221,7 @@ const reset = () => {
   selectedFile.value = null
   form.value = { name: '', description: '', category: 'skill', version: '' }
   lastVersion.value = ''
+  manual.value = false
   if (fileInput.value) fileInput.value.value = ''
 }
 

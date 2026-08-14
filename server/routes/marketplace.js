@@ -16,15 +16,28 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 
 const upload = multer({
   dest: path.join(UPLOAD_DIR, '_tmp'),
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'application/zip' || file.originalname.endsWith('.zip')) {
+    const name = String(file.originalname || '').toLowerCase();
+    const ok = name.endsWith('.zip') || name.endsWith('.7z')
+      || name.endsWith('.tar') || name.endsWith('.tar.gz') || name.endsWith('.tgz');
+    if (ok) {
       cb(null, true);
     } else {
-      cb(new Error('仅支持 .zip 文件'));
+      cb(new Error('仅支持 .zip / .7z / .tar / .tar.gz 格式'));
     }
   },
 });
+
+// 按文件名后缀判断技能包格式（.zip 可读写 skill.md；.7z/.tar/.tar.gz 只能原样转发 1Panel）
+function skillArchiveFormat(filename) {
+  const name = String(filename || '').toLowerCase();
+  if (name.endsWith('.zip')) return 'zip';
+  if (name.endsWith('.7z')) return '7z';
+  if (name.endsWith('.tar.gz') || name.endsWith('.tgz')) return 'tar.gz';
+  if (name.endsWith('.tar')) return 'tar';
+  return 'unknown';
+}
 
 function panelBizError(response) {
   const data = response?.data;
@@ -156,17 +169,17 @@ async function listPanelSkillIds() {
   return ids;
 }
 
-async function uploadSkillToPanel({ skillId, title, description, category, version, author, fileContent, originalName }) {
+async function uploadSkillToPanel({ skillId, title, version, fileContent, originalName }) {
   const panelName = buildPanelSkillName(originalName, skillId);
   const beforeRemoteIds = await listPanelSkillIds();
+  console.log('[skill-upload] 发送给 1Panel 的参数:');
+  console.log('  version =', JSON.stringify(version));
+  console.log('  confirmMetadataOverwrite = false');
+  console.log('  file    =', JSON.stringify(originalName), `(${fileContent ? fileContent.length : 0} bytes)`);
   const response = await panel.postMultipart('/api/v2/core/enterprise/skills-hub/upload', {
     fields: {
-      name: panelName,
-      title,
-      description: description || '',
-      category,
       version,
-      author,
+      confirmMetadataOverwrite: 'false',
     },
     files: [{
       name: 'file',
@@ -175,6 +188,7 @@ async function uploadSkillToPanel({ skillId, title, description, category, versi
       content: fileContent,
     }],
   });
+  console.log('[skill-upload] 1Panel 原始响应:', response.status, JSON.stringify(response.data));
   const bizError = panelBizError(response);
   if (response.status < 200 || response.status >= 300 || bizError) {
     const reason = bizError || `HTTP ${response.status}`;
@@ -528,40 +542,16 @@ function bumpVersion(v) {
   return nums.join('.');
 }
 
-// 把确认后的字段写回 zip 内 skill.md 的 frontmatter(保证传 1Panel 的 version 与包内一致)
-function rewriteSkillMdMeta(zipBuffer, fields) {
-  const AdmZip = require('adm-zip');
-  const zip = new AdmZip(zipBuffer);
-  const entry = zip.getEntries().find(e => /(^|\/)skill\.md$/i.test(e.entryName));
-  if (!entry) return zipBuffer;
-  let content = entry.getData().toString('utf8').replace(/^﻿/, '');
-  const fm = content.match(/^---\s*\r?\n([\s\S]*?)\r?\n---/);
-  const meta = {};
-  let rest = content;
-  if (fm) {
-    for (const line of fm[1].split(/\r?\n/)) {
-      const m = line.match(/^\s*([A-Za-z0-9_-]+)\s*:\s*(.*?)\s*$/);
-      if (m) meta[m[1].toLowerCase()] = m[2].trim();
-    }
-    rest = content.slice(fm[0].length);
-  }
-  // 合并确认字段(覆盖同名, 追加缺的), 其余字段与正文原样保留
-  const merged = { ...meta };
-  if (fields.name) merged.name = fields.name;
-  if (fields.version) merged.version = fields.version;
-  if (fields.description) merged.description = fields.description;
-  if (fields.category) merged.category = fields.category;
-  const lines = Object.entries(merged).map(([k, v]) => `${k}: ${v}`);
-  const newContent = `---\n${lines.join('\n')}\n---\n${rest}`;
-  zip.updateFile(entry.entryName, Buffer.from(newContent, 'utf8'));
-  return zip.toBuffer();
-}
-
 // 解析技能包: 返回 skill.md 元数据 + 建议版本号(上一个版本 +1), 供前端两步表单预填
 router.post('/api/skills/parse', verifyUser, requirePermission('skill:create'), uploadLimiter, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ error: '请上传 .zip 文件' });
+      return res.status(400).json({ error: '请上传技能包' });
+    }
+    // 非 zip 格式(7z/tar/tar.gz)暂不解析 skill.md, 直接返回手动填写标记
+    if (skillArchiveFormat(req.file.originalname) !== 'zip') {
+      if (fs.existsSync(req.file.path)) { try { fs.unlinkSync(req.file.path); } catch {} }
+      return res.json({ name: '', description: '', category: 'skill', version: '', lastVersion: '', suggestedVersion: '0.1.0', manual: true });
     }
     const meta = await parseSkillMd(req.file.path);
     if (meta === null) {
@@ -598,7 +588,7 @@ router.post('/api/skills/parse', verifyUser, requirePermission('skill:create'), 
 // 上传 Skill 包（zip）
 router.post('/api/skills/upload', verifyUser, requirePermission('skill:create'), uploadLimiter, upload.single('file'), async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ error: '请上传 .zip 文件' });
+    return res.status(400).json({ error: '请上传技能包' });
   }
 
   const submitter = req.portalUser;
@@ -623,14 +613,9 @@ router.post('/api/skills/upload', verifyUser, requirePermission('skill:create'),
   const installCommand = `skillctl install ${skill_id}`;
   const installUrl = `/api/skills/${skill_id}/download`;
 
-  // 把确认后的字段写回 skill.md, 保证传 1Panel 的 version 与包内一致
-  let fileContent;
-  try {
-    fileContent = rewriteSkillMdMeta(fs.readFileSync(req.file.path), { name: skill_id, version, description, category });
-  } catch (e) {
-    console.error('[skill-upload] 写回 skill.md 失败:', e.message);
-    fileContent = fs.readFileSync(req.file.path);
-  }
+  // 直接上传原始包, 不做 skill.md 重写。1Panel 会自行递归解析包内 skill.md(大小写不敏感)拿 name;
+  // 版本号通过 confirmMetadataOverwrite=true 让输入版本覆盖包内版本, 避免「package version vs input version」不一致。
+  const fileContent = fs.readFileSync(req.file.path);
 
   const client = await global.pool.connect();
   try {
@@ -669,10 +654,7 @@ router.post('/api/skills/upload', verifyUser, requirePermission('skill:create'),
       panelUpload = await uploadSkillToPanel({
         skillId: skill_id,
         title,
-        description: description || '',
-        category,
         version,
-        author,
         fileContent,
         originalName: packageName,
       });
@@ -766,6 +748,10 @@ async function deletePanelSkill(panelSkillId) {
   const response = await panel.post('/api/v2/core/enterprise/skills-hub/delete', { id: panelSkillId });
   const bizError = panelBizError(response);
   if (response.status < 200 || response.status >= 300 || bizError) {
+    // 1Panel 若已不存在该技能(record not found), 视为删除成功, 不阻断撤销/删除流程
+    if (bizError && /not found|不存在|未找到/i.test(String(bizError))) {
+      return;
+    }
     const err = new Error(bizError || `HTTP ${response.status}`);
     err.code = 'PANEL_SKILL_DELETE_FAILED';
     throw err;

@@ -2,7 +2,7 @@
   <div class="relative z-10 min-h-screen">
     <SimpleHeader right="login-page" />
 
-    <main class="max-w-[400px] mx-auto px-6 pt-[160px] pb-20 animate-fade-up">
+    <main class="max-w-[400px] mx-auto px-6 pt-[172px] pb-20 animate-fade-up">
       <!-- 企微客户端内自动登录:显示 loading,不渲染表单,避免页面闪现 -->
       <div v-if="autoRedirecting" class="text-center py-20">
         <p class="text-text-secondary text-sm">正在登录...</p>
@@ -211,13 +211,11 @@ const login = async () => {
     // 登录成功后重置身份基线, 确保 checkIdentityChange 以本次登录为准(防上一会话残留误判)
     sessionStorage.removeItem('login_identity')
 
-    // 跳转:超管直接进后台,普通用户先进 profile 由页面自己判断权限
-    // 不在此处串行调 /api/my/permissions(避免接口慢时登录卡住)
-    if (data.user.role === 'admin') {
+    // 跳转:超管 / 后台角色(有后台入口)直接进后台, 普通用户进 profile
+    // has_admin_entry 由登录接口返回(超管 / menu:admin-* / 管理权限位), 避免先落 /profile 再闪跳后台
+    if (data.user.role === 'admin' || data.user.has_admin_entry) {
       router.push('/admin/stats')
     } else {
-      // 标记"刚登录",ProfileView 加载权限后若有后台权限自动跳后台
-      sessionStorage.setItem('login_just_now', '1')
       router.push('/profile')
     }
   } catch (err) {

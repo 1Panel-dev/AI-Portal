@@ -28,7 +28,7 @@ let requestSeq = 0
 
 // 当前筛选状态
 const currentCategory = ref('all')
-const currentSource = ref('panel')
+const currentSource = ref('all')
 const searchQuery = ref('')
 const sortBy = ref('default')
 

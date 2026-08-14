@@ -1,6 +1,6 @@
 ﻿<template>
   <nav
-    class="fixed left-0 right-0 z-[260] h-[52px] border-b border-[rgba(0,0,0,0.06)] bg-white shadow-[0_1px_10px_rgba(15,23,42,0.04)]"
+    class="fixed left-0 right-0 z-[260] h-16 border-b border-[rgba(0,0,0,0.06)] bg-white shadow-[0_1px_10px_rgba(15,23,42,0.04)]"
     :class="hasVisibleBanner ? 'top-10' : 'top-0'"
   >
     <div class="max-w-[1024px] mx-auto px-6 h-full flex items-center md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:gap-4">
@@ -17,11 +17,6 @@
       </router-link>
 
       <div class="flex items-center gap-1 ml-6 md:ml-0 md:justify-self-center">
-        <router-link to="/"
-          class="px-3 py-1.5 text-[14px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
-          :class="isActive('/') ? 'font-semibold text-text' : 'text-text-secondary'">
-          首页
-        </router-link>
         <router-link v-if="isLoggedIn && (can('menu:models') || isAdminRoleUser)" to="/models"
           class="px-3 py-1.5 text-[14px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
           :class="isActive('/models') ? 'font-semibold text-text' : 'text-text-secondary'">

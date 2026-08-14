@@ -2,7 +2,7 @@
   <div class="relative z-10 min-h-screen">
     <SimpleHeader right="register" />
 
-    <main class="max-w-[400px] mx-auto px-6 pt-[160px] pb-20 animate-fade-up">
+    <main class="max-w-[400px] mx-auto px-6 pt-[172px] pb-20 animate-fade-up">
       <div class="text-center mb-8">
         <h1 class="text-[28px] font-bold text-text tracking-[-0.5px] mb-2">注册</h1>
         <p class="text-text-secondary text-sm">创建 1Panel AI 门户账号</p>

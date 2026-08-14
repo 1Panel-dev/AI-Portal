@@ -9,6 +9,8 @@ export const categories = [
 ]
 
 export const sources = [
+  { id: 'all', name: '全部' },
+  { id: 'local', name: '用户提交' },
   { id: 'panel', name: '1Panel' },
 ]
 

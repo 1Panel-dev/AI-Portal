@@ -115,6 +115,26 @@ async function isAdminRoleUser(userId) {
   return r.rowCount > 0;
 }
 
+// 管理类权限位清单(与前端 usePermissions.js 的 ADMIN_PERMS 保持一致)——
+// 用于判断登录后是否应直接进后台: 超管 / 后台角色(menu:admin-*) / 持有任一管理操作权限。
+const ADMIN_PERMS = [
+  'role:view','role:create','role:edit','role:delete',
+  'group:view','group:create','group:edit','group:delete',
+  'user:view','user:edit','user:create','user:delete','user:password','user:batch-password','user:assign',
+  'skill:edit','skill:delete','skill:publish','skill:review','group:panel-sync','system:config',
+];
+
+/**
+ * 用户是否有后台入口(等价前端 showAdminEntry): 超管 / 有 menu:admin-* / 有任一管理权限位。
+ * 供登录接口返回, 让前端登录后一次跳到正确页面, 避免先落 /profile 再闪跳后台。
+ */
+async function hasAdminEntry(userId) {
+  const { permissions, is_portal_admin } = await getUserPermissions(userId);
+  if (is_portal_admin) return true;
+  return permissions.some(k => k.startsWith('menu:admin-'))
+    || ADMIN_PERMS.some(k => permissions.includes(k));
+}
+
 /**
  * 某用户能否访问某技能（下载/详情）。
  * 超管/后台角色 -> 放行; 普通用户 -> 必须其资源组勾选了该技能 slug。
@@ -178,6 +198,6 @@ async function getVisibleResourcesForUser(userId) {
 }
 
 module.exports = {
-  getPortalUser, getUserPermissions, hasPermission, isAdminRoleUser, canUserAccessSkill,
+  getPortalUser, getUserPermissions, hasPermission, isAdminRoleUser, hasAdminEntry, canUserAccessSkill,
   getVisibleResourcesForUser, getAllResources, getUserAllowedModels,
 };

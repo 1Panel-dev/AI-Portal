@@ -2,7 +2,7 @@
   <div class="relative z-10 min-h-screen">
     <SimpleHeader right="none" />
 
-    <main class="max-w-[400px] mx-auto px-6 py-20 pt-[160px]">
+    <main class="max-w-[400px] mx-auto px-6 py-20 pt-[172px]">
       <div class="text-center mb-8">
         <h1 class="text-2xl font-bold text-text mb-2">管理员登录</h1>
         <p class="text-text-secondary text-sm">1Panel AI 门户 技能审核后台</p>

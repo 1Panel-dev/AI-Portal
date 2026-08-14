@@ -390,6 +390,15 @@ async function syncSkillsFromPanel() {
     // 用事务,UPSERT 一条一条来——技能数据 100 个以内,串行 UPSERT 成本可接受,
     // 且每条字段映射有差异(slug/install_command 等需要根据 name 派生),不适合一次性批量 INSERT
     for (const item of published) {
+      // 用户提交并审核通过的技能(source='local')已持有该 panel_skill_id(上传到 1Panel 后回填),
+      // 跳过, 避免 INSERT 撞 idx_skills_panel_unique 唯一索引(同一 1Panel 技能只保留一行)。
+      // 仅跳过 source='local' 的行; source='panel' 的仍走下方 UPSERT 更新。
+      const dup = await global.pool.query(
+        "SELECT 1 FROM skills WHERE panel_skill_id = $1 AND source = 'local' LIMIT 1",
+        [item.id]
+      );
+      if (dup.rowCount > 0) continue;
+
       const skillId = `1panel-${item.id}`;       // 1panel- 前缀避免和本地 skill_id 撞
       const slug = `1panel-${item.name}`;         // slug 也加 1panel- 前缀,避免与本地 skill 同名冲突 UNIQUE 约束
       const title = item.name;                   // 远端没单独 title,name 兼任
