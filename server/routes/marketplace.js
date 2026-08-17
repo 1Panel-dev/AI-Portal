@@ -518,13 +518,25 @@ async function parseSkillMd(filePath) {
     const scope = fm ? fm[1] : content;
 
     const meta = {};
-    for (const line of scope.split(/\r?\n/)) {
-      const m = line.match(/^\s*([A-Za-z0-9_-]+)\s*:\s*(.*?)\s*$/);
-      if (m) {
-        const key = m[1].toLowerCase();
-        const val = m[2].replace(/^['"]|['"]$/g, '').trim();
-        if (val) meta[key] = val;
+    const lines = scope.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(/^\s*([A-Za-z0-9_-]+)\s*:\s*(.*?)\s*$/);
+      if (!m) continue;
+      const key = m[1].toLowerCase();
+      let val = m[2].replace(/^['"]|['"]$/g, '').trim();
+      // YAML 块标量(description: | 保留换行 / > 折叠换行): 后续缩进行都是该字段的值
+      if (val === '|' || val === '>') {
+        const sep = val === '|' ? '\n' : ' ';
+        const parts = [];
+        let j = i + 1;
+        while (j < lines.length && /^\s+/.test(lines[j])) {
+          parts.push(lines[j].trim());
+          j++;
+        }
+        i = j - 1;
+        val = parts.join(sep);
       }
+      if (val) meta[key] = val;
     }
     return meta;
   } catch (err) {
