@@ -116,8 +116,9 @@ async function resolvePanelVersionId({ skillId, title, packageName, version }) {
 }
 
 /**
- * 拿指定技能的最新发布版本号(1Panel versions 里 isLatest=true 的那条)。
- * 用于 skills 表 version 展示: 审核旧版本时不应把 skills.version 覆盖成旧版本号。
+ * 拿指定技能的最新发布版本(1Panel versions 里 isLatest=true 的那条)。
+ * 返回 { version, id }, 用于 skills 表 version + panel_skill_id 展示:
+ * 审核旧版本时不应把 skills 的 version/panel_skill_id 覆盖成旧版本的值。
  */
 async function getLatestPanelVersion({ skillId, title, packageName }) {
   const latestId = await resolvePanelSkillId({ skillId, title, packageName });
@@ -128,7 +129,11 @@ async function getLatestPanelVersion({ skillId, title, packageName }) {
     if (verRes.status >= 200 && verRes.status < 300 && biz.ok) {
       const versions = getPanelItems(verRes.data) || [];
       const latest = versions.find(v => v.isLatest === true || v.isLatest === 'true') || versions[0];
-      return latest ? String(latest.version || '') : null;
+      if (!latest) return null;
+      return {
+        version: String(latest.version || ''),
+        id: getPanelSkillId(latest) || latestId,
+      };
     }
   } catch (e) {
     console.warn('[getLatestPanelVersion] 查询版本历史失败:', e.message);
@@ -318,11 +323,16 @@ router.post('/api/admin/approve/:id', verifyUser, requirePermission('skill:revie
     const detected = await detectSkillType(skill.file_path);
     const panelApprovedStatus = skill.panel_skill_id ? 'published' : (skill.panel_status || null);
 
-    // 展示版本用 1Panel 最新发布版本(isLatest), 避免审核旧版本时把 skills.version 覆盖成旧版本号
+    // 展示版本 + panel_skill_id 都用 1Panel 最新发布版本(isLatest),
+    // 避免审核旧版本时把 skills 的 version/panel_skill_id 覆盖成旧版本的值
     let displayVersion = skill.version;
+    let displayPanelSkillId = effectivePanelSkillId;
     if (skill.panel_skill_id) {
-      const latestVersion = await getLatestPanelVersion({ skillId: skill.skill_id, title: skill.title, packageName: skill.package_name });
-      if (latestVersion) displayVersion = latestVersion;
+      const latest = await getLatestPanelVersion({ skillId: skill.skill_id, title: skill.title, packageName: skill.package_name });
+      if (latest) {
+        displayVersion = latest.version;
+        if (latest.id) displayPanelSkillId = latest.id;
+      }
     }
 
     // 插入到正式表（使用 COALESCE 处理可能的 NULL 值）
@@ -365,7 +375,7 @@ router.post('/api/admin/approve/:id', verifyUser, requirePermission('skill:revie
     `, [skill.skill_id, skill.title, skill.slug, skill.description,
         skill.avatar, skill.avatar_color, displayVersion, skill.category,
         skill.author, skill.install_command, skill.install_url, skill.file_path,
-        detected.type, detected.runtime, effectivePanelSkillId || null, panelApprovedStatus]);
+        detected.type, detected.runtime, displayPanelSkillId || null, panelApprovedStatus]);
 
     // 更新提交记录状态
     await global.pool.query(`
