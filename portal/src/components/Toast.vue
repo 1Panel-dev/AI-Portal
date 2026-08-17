@@ -16,11 +16,15 @@ const typeClass = computed(() => ({
   <Teleport to="body">
     <div
       v-if="toast.show"
-      class="fixed top-24 left-1/2 -translate-x-1/2 z-[400] px-6 py-3 rounded-xl text-sm font-medium shadow-lg transition-all animate-fade-up max-w-[80vw] break-words"
-      :class="typeClass"
-      @click="toast.show = false"
+      class="fixed inset-0 z-[400] flex items-center justify-center pointer-events-none px-6"
     >
-      {{ toast.message }}
+      <div
+        class="pointer-events-auto px-6 py-3 rounded-xl text-sm font-medium text-center shadow-lg transition-all animate-fade-up max-w-[80vw] break-words"
+        :class="typeClass"
+        @click="toast.show = false"
+      >
+        {{ toast.message }}
+      </div>
     </div>
   </Teleport>
 </template>
