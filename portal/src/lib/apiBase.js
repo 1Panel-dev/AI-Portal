@@ -78,6 +78,16 @@ export function cleanSlug(slug) {
 }
 
 /**
+ * 统一错误信息提取:优先具体原因(reason), 兜底通用 error, 再兜底 fallback。
+ * 后端 1Panel 相关错误返回 { error: 通用, reason: 具体(来自1Panel), code: 错误码 },
+ * 前端应优先展示 reason 便于排查(如「version 1.2.8 already exists」)。
+ */
+export function errMsg(data, fallback = '操作失败') {
+  if (!data || typeof data !== 'object') return fallback
+  return data.reason || data.error || fallback
+}
+
+/**
  * 当前登录身份使用的 token:按登录时记录的 login_token_type 选择。
  * 根治残留 token 问题:普通用户登录(存 token)后,若 localStorage 还残留有效 admin_token,
  * 不应再用它请求(否则权限错乱/越权)。登录时会清另一个 token + 记录 login_token_type。

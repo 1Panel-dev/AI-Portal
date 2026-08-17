@@ -558,7 +558,7 @@ import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/compon
 import { CanvasRenderer } from 'echarts/renderers'
 
 echarts.use([BarChart, LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
-import { getLoginToken, clearAuth } from '../lib/apiBase'
+import { getLoginToken, clearAuth, errMsg } from '../lib/apiBase'
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const router = useRouter()
 const route = useRoute()
@@ -940,7 +940,7 @@ const doWithdrawSkill = async (skill) => {
       headers: { Authorization: `Bearer ${token}` },
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || data.reason || '撤销失败')
+    if (!res.ok) throw new Error(errMsg(data, '撤销失败'))
     showToast('已撤销，可重新上传提交')
     fetchMySkills()
   } catch (e) {

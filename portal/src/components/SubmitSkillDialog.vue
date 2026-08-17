@@ -112,6 +112,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import AppDialog from './AppDialog.vue'
 import { loadPermissions, can } from '../composables/usePermissions.js'
+import { errMsg } from '../lib/apiBase.js'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 
@@ -237,7 +238,8 @@ const doSubmit = async () => {
     } else if (res.status === 401) {
       errorMessage.value = '登录已过期，请重新登录'
     } else {
-      errorMessage.value = data.error || '上传失败'
+      // 优先展示具体原因(reason), 兜底通用 error —— 便于排查(如 1Panel 版本已存在等)
+      errorMessage.value = errMsg(data, '上传失败')
     }
   } catch (e) {
     errorMessage.value = '网络错误，请稍后重试'
