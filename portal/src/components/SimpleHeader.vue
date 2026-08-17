@@ -18,10 +18,10 @@ const props = defineProps({
 
 <template>
   <nav
-    class="fixed left-0 right-0 z-[260] h-[52px] border-b border-[rgba(0,0,0,0.06)] bg-white shadow-[0_1px_10px_rgba(15,23,42,0.04)]"
+    class="fixed left-0 right-0 mx-auto max-w-[1910px] z-[260] h-[52px] border-b border-[rgba(0,0,0,0.06)] bg-white shadow-[0_1px_10px_rgba(15,23,42,0.04)]"
     :class="hasVisibleBanner ? 'top-10' : 'top-0'"
   >
-    <div class="max-w-[1910px] mx-auto px-6 h-full flex items-center justify-between">
+    <div class="px-6 h-full flex items-center justify-between">
       <router-link to="/" class="flex min-w-0 items-center text-[18px] text-text no-underline">
         <img v-if="siteLogoIsDefault"
           :src="siteLogo"

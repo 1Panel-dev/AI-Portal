@@ -2,11 +2,11 @@
   <Teleport to="body">
     <div
       v-if="bannerVisible && bannerEnabled && bannerHtml"
-      class="fixed left-0 right-0 top-0 h-10 overflow-hidden bg-[#2563eb]/95 text-white shadow-[0_2px_12px_rgba(37,99,235,0.22)] backdrop-blur-xl transition-opacity"
+      class="fixed left-0 right-0 mx-auto max-w-[1910px] top-0 h-10 overflow-hidden bg-[#2563eb]/95 text-white shadow-[0_2px_12px_rgba(37,99,235,0.22)] backdrop-blur-xl transition-opacity"
       :class="visible ? 'z-[230] opacity-30' : 'z-[270]'"
       role="status"
     >
-      <div class="mx-auto flex h-full max-w-[1910px] items-center gap-2.5 px-6 text-[13.5px] leading-5 text-white">
+      <div class="flex h-full items-center gap-2.5 px-6 text-[13.5px] leading-5 text-white">
         <svg class="h-4 w-4 shrink-0 text-white/90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />
