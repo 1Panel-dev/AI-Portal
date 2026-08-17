@@ -1,9 +1,9 @@
 ﻿<template>
   <nav
-    class="fixed left-0 right-0 mx-auto max-w-[1910px] z-[260] h-[52px] border-b border-[rgba(0,0,0,0.06)] bg-white shadow-[0_1px_10px_rgba(15,23,42,0.04)]"
+    class="fixed left-0 right-0 z-[260] h-[52px] border-b border-[rgba(0,0,0,0.06)] bg-white shadow-[0_1px_10px_rgba(15,23,42,0.04)]"
     :class="hasVisibleBanner ? 'top-10' : 'top-0'"
   >
-    <div class="px-6 h-full flex items-center md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:gap-4">
+    <div class="max-w-[1024px] mx-auto px-6 h-full flex items-center md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:gap-4">
       <router-link to="/" class="flex min-w-0 items-center text-[18px] text-text no-underline md:w-full">
         <!-- 默认 logo 直接渲染 SVG 图片,避免小尺寸 mask 栅格化后边缘发虚。 -->
         <img v-if="siteLogoIsDefault"
