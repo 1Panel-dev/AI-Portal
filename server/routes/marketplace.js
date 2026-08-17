@@ -169,17 +169,17 @@ async function listPanelSkillIds() {
   return ids;
 }
 
-async function uploadSkillToPanel({ skillId, title, version, fileContent, originalName }) {
+async function uploadSkillToPanel({ skillId, title, version, fileContent, originalName, confirmOverwrite = false }) {
   const panelName = buildPanelSkillName(originalName, skillId);
   const beforeRemoteIds = await listPanelSkillIds();
   console.log('[skill-upload] 发送给 1Panel 的参数:');
   console.log('  version =', JSON.stringify(version));
-  console.log('  confirmMetadataOverwrite = false');
+  console.log('  confirmMetadataOverwrite =', String(confirmOverwrite));
   console.log('  file    =', JSON.stringify(originalName), `(${fileContent ? fileContent.length : 0} bytes)`);
   const response = await panel.postMultipart('/api/v2/core/enterprise/skills-hub/upload', {
     fields: {
       version,
-      confirmMetadataOverwrite: 'false',
+      confirmMetadataOverwrite: confirmOverwrite ? 'true' : 'false',
     },
     files: [{
       name: 'file',
@@ -613,9 +613,21 @@ router.post('/api/skills/upload', verifyUser, requirePermission('skill:create'),
   const installCommand = `skillctl install ${skill_id}`;
   const installUrl = `/api/skills/${skill_id}/download`;
 
-  // 直接上传原始包, 不做 skill.md 重写。1Panel 会自行递归解析包内 skill.md(大小写不敏感)拿 name;
-  // 版本号通过 confirmMetadataOverwrite=true 让输入版本覆盖包内版本, 避免「package version vs input version」不一致。
+  // 直接上传原始包, 不做 skill.md 重写。1Panel 会自行递归解析包内 skill.md(大小写不敏感)拿 name。
   const fileContent = fs.readFileSync(req.file.path);
+
+  // 只读解析包内 version, 判断是否与输入不一致 → 决定 confirmMetadataOverwrite。
+  // 1Panel 在「包内版本 != 填写版本」时会弹窗「是否以填写内容为准」, 确认即覆盖(confirmMetadataOverwrite=true)。
+  let confirmOverwrite = false;
+  if (skillArchiveFormat(req.file.originalname) === 'zip') {
+    try {
+      const meta = await parseSkillMd(req.file.path);
+      const pkgVersion = String((meta && meta.version) || '').trim();
+      confirmOverwrite = !!pkgVersion && pkgVersion !== version;
+    } catch (e) {
+      console.warn('[skill-upload] 读取包内 version 失败:', e.message);
+    }
+  }
 
   const client = await global.pool.connect();
   try {
@@ -657,6 +669,7 @@ router.post('/api/skills/upload', verifyUser, requirePermission('skill:create'),
         version,
         fileContent,
         originalName: packageName,
+        confirmOverwrite,
       });
     } catch (e) {
       console.error('[skill-upload] 1Panel 上传失败, 回滚本地:', e.message);
