@@ -1,6 +1,6 @@
 ﻿<template>
   <nav
-    class="fixed left-0 right-0 z-[260] h-16 border-b border-[rgba(0,0,0,0.06)] bg-white shadow-[0_1px_10px_rgba(15,23,42,0.04)]"
+    class="fixed left-0 right-0 z-[260] h-[52px] border-b border-[rgba(0,0,0,0.06)] bg-white shadow-[0_1px_10px_rgba(15,23,42,0.04)]"
     :class="hasVisibleBanner ? 'top-10' : 'top-0'"
   >
     <div class="max-w-[1024px] mx-auto px-6 h-full flex items-center md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:gap-4">

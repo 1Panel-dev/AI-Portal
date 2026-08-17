@@ -2,7 +2,7 @@
   <div class="relative z-10 min-h-screen">
     <SimpleHeader right="login-page" />
 
-    <main class="max-w-[400px] mx-auto px-6 pt-[172px] pb-20 animate-fade-up">
+    <main class="max-w-[400px] mx-auto px-6 pt-[160px] pb-20 animate-fade-up">
       <!-- 企微客户端内自动登录:显示 loading,不渲染表单,避免页面闪现 -->
       <div v-if="autoRedirecting" class="text-center py-20">
         <p class="text-text-secondary text-sm">正在登录...</p>
