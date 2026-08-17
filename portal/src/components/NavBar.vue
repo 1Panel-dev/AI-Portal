@@ -16,35 +16,35 @@
         <span class="min-w-0 truncate font-[900] [-webkit-text-stroke:0.5px_currentColor]">{{ siteName }}</span>
       </router-link>
 
-      <div class="flex items-center gap-1 ml-6 md:ml-0 md:justify-self-center">
+      <div class="flex items-center gap-2 ml-6 md:ml-0 md:justify-self-center">
         <router-link v-if="isLoggedIn && (can('menu:models') || isAdminRoleUser)" to="/models"
-          class="px-3 py-1.5 text-[14px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
+          class="px-4 py-2 text-[15px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
           :class="isActive('/models') ? 'font-semibold text-text' : 'text-text-secondary'">
           模型广场
         </router-link>
         <router-link v-if="isLoggedIn && (can('menu:skills') || isAdminRoleUser)" to="/skills"
-          class="px-3 py-1.5 text-[14px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
+          class="px-4 py-2 text-[15px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
           :class="isActive('/skills') ? 'font-semibold text-text' : 'text-text-secondary'">
           Skill 广场
         </router-link>
         <router-link v-if="isLoggedIn && (can('menu:mcp') || isAdminRoleUser)" to="/mcp"
-          class="px-3 py-1.5 text-[14px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
+          class="px-4 py-2 text-[15px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
           :class="isActive('/mcp') ? 'font-semibold text-text' : 'text-text-secondary'">
           MCP 广场
         </router-link>
 
       </div>
 
-      <div class="flex items-center gap-1 ml-auto md:ml-0 md:justify-self-end">
+      <div class="flex items-center gap-2 ml-auto md:ml-0 md:justify-self-end">
         <router-link v-if="!isLoggedIn || can('menu:docs')" to="/docs"
-          class="flex items-center gap-1.5 px-2 py-1.5 text-[13px] text-text-secondary rounded-lg transition-colors hover:bg-black/5 hover:text-text no-underline">
+          class="flex items-center gap-1.5 px-3 py-2 text-[14px] text-text-secondary rounded-lg transition-colors hover:bg-black/5 hover:text-text no-underline">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
           在线文档
         </router-link>
         <!-- User Dropdown (logged in) -->
         <div v-if="isLoggedIn" class="relative">
           <button @click="showDropdown = !showDropdown"
-            class="flex items-center gap-1.5 px-2 py-1.5 text-[13px] text-text rounded-lg transition-colors hover:bg-black/5">
+            class="flex items-center gap-1.5 px-2 py-2 text-[14px] text-text rounded-lg transition-colors hover:bg-black/5">
             <div class="w-6 h-6 bg-text rounded-full flex items-center justify-center">
               <span class="text-[10px] text-white font-medium">{{ userInitial }}</span>
             </div>
@@ -83,7 +83,7 @@
 
         <!-- Login button (not logged in) -->
         <router-link v-else to="/login"
-          class="ml-2 px-4 py-1.5 text-[13px] bg-accent text-white rounded-lg hover:bg-accent-hover transition-all no-underline">
+          class="ml-2 px-4 py-2 text-[14px] bg-accent text-white rounded-lg hover:bg-accent-hover transition-all no-underline">
           登录
         </router-link>
       </div>
