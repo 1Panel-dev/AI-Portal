@@ -646,13 +646,29 @@ router.post('/api/skills/upload', verifyUser, requirePermission('skill:create'),
     // 事务: 先写本地待审核, 再同步 1Panel; 任一步失败整体回滚(本地也不留)。
     await client.query('BEGIN');
 
-    // 1. 写本地待审核记录。文件统一放 1Panel(file_path 空), 下载走 skills-hub/download。
-    //    同 skill_id + 同 version → 覆盖; 同 skill_id + 不同 version → 新增(版本迭代)。
+    // 1. 查是否有同 skill_id + 同 version 的 pending 提交(替换场景)
     const existing = await client.query(
-      'SELECT id FROM skill_submissions WHERE skill_id = $1 AND version = $2 AND status = $3',
+      'SELECT id, panel_skill_id FROM skill_submissions WHERE skill_id = $1 AND version = $2 AND status = $3',
       [skill_id, version, 'pending']
     );
 
+    // 替换(同版本重传): 先删旧 1Panel 技能, 否则上传会报 version already exists
+    if (existing.rows.length > 0 && existing.rows[0].panel_skill_id) {
+      try {
+        await deletePanelSkill(existing.rows[0].panel_skill_id);
+      } catch (e) {
+        console.error('[skill-upload] 删除旧 1Panel 技能失败:', e.message);
+        await client.query('ROLLBACK');
+        return res.status(502).json({
+          error: '1Panel 旧技能删除失败',
+          reason: e.message,
+          code: e.code || 'PANEL_SKILL_DELETE_FAILED',
+        });
+      }
+    }
+
+    // 2. 写本地待审核记录。文件统一放 1Panel(file_path 空), 下载走 skills-hub/download。
+    //    同 skill_id + 同 version → 覆盖; 同 skill_id + 不同 version → 新增(版本迭代)。
     if (existing.rows.length > 0) {
       await client.query(`
         UPDATE skill_submissions
@@ -672,7 +688,7 @@ router.post('/api/skills/upload', verifyUser, requirePermission('skill:create'),
           installCommand, installUrl, version, packageName, submittedBy, submitter.id]);
     }
 
-    // 2. 同步到 1Panel Skills Hub(总是执行)
+    // 3. 同步到 1Panel Skills Hub(总是执行)
     let panelUpload;
     try {
       panelUpload = await uploadSkillToPanel({
