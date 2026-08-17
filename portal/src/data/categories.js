@@ -8,12 +8,6 @@ export const categories = [
   { id: 'skill', name: '技能' },
 ]
 
-export const sources = [
-  { id: 'all', name: '全部' },
-  { id: 'local', name: '用户提交' },
-  { id: 'panel', name: '1Panel' },
-]
-
 // 供应商中文名映射(与后端 portal.js PROVIDER_LABELS 保持同步)
 export const providerLabels = {
   deepseek: '深度求索',

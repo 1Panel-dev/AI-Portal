@@ -9,20 +9,13 @@
       <!-- 弹性间隔: 左对齐计数,右对齐过滤项 -->
       <div class="flex-1"></div>
 
-      <!-- 过滤项: 分类 -> 来源 -> 排序 (右对齐) -->
+      <!-- 过滤项: 分类 -> 排序 (右对齐) -->
       <div class="flex items-center gap-2 shrink-0 flex-wrap">
         <FilterItem
           label="分类"
           :options="categories"
           :model-value="currentCategory"
           @update:model-value="$emit('update:category', $event)"
-        />
-        <FilterItem
-          v-if="sources.length > 1"
-          label="来源"
-          :options="sources"
-          :model-value="currentSource"
-          @update:model-value="$emit('update:source', $event)"
         />
         <FilterItem
           label="排序"
@@ -37,14 +30,13 @@
 
 <script setup>
 import FilterItem from './FilterItem.vue'
-import { categories, sources, sorts } from '../data/categories.js'
+import { categories, sorts } from '../data/categories.js'
 
 defineProps({
   total: { type: Number, default: 0 },
   currentCategory: { type: String, default: 'all' },
-  currentSource: { type: String, default: 'all' },
   sortBy: { type: String, default: 'default' },
 })
 
-defineEmits(['update:category', 'update:source', 'update:sort'])
+defineEmits(['update:category', 'update:sort'])
 </script>

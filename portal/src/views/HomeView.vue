@@ -44,14 +44,12 @@
       </div>
     </section>
 
-    <!-- 筛选 Bar: 分类 + 来源 + 排序 -->
+    <!-- 筛选 Bar: 分类 + 排序 -->
     <FilterBar
       :total="total"
       :current-category="currentCategory"
-      :current-source="currentSource"
       :sort-by="sortBy"
       @update:category="currentCategory = $event"
-      @update:source="currentSource = $event"
       @update:sort="sortBy = $event"
     />
 
@@ -99,7 +97,7 @@ import { loadPermissions, can, isAdminRoleUser } from '../composables/usePermiss
 
 const router = useRouter()
 const {
-  skills, loading, error, stats, currentCategory, currentSource, searchQuery,
+  skills, loading, error, stats, currentCategory, searchQuery,
   sortBy, total, hasMore, loadMore, recordDownload,
 } = useSkills()
 

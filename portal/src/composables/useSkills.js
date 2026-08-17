@@ -28,7 +28,6 @@ let requestSeq = 0
 
 // 当前筛选状态
 const currentCategory = ref('all')
-const currentSource = ref('all')
 const searchQuery = ref('')
 const sortBy = ref('default')
 
@@ -75,9 +74,6 @@ export function useSkills() {
 
       if (currentCategory.value !== 'all') {
         params.append('category', currentCategory.value)
-      }
-      if (currentSource.value !== 'all') {
-        params.append('source', currentSource.value)
       }
       if (searchQuery.value) {
         params.append('search', searchQuery.value)
@@ -143,7 +139,7 @@ export function useSkills() {
   }
 
   // 监听筛选条件变化
-  watch([currentCategory, currentSource, sortBy], () => {
+  watch([currentCategory, sortBy], () => {
     debouncedLoad(true, 100)
   })
 
@@ -234,7 +230,6 @@ export function useSkills() {
     error,
     stats,
     currentCategory,
-    currentSource,
     searchQuery,
     sortBy,
     total,

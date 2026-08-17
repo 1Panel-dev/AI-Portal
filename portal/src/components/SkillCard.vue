@@ -15,12 +15,6 @@
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-1.5">
           <div class="text-[15px] font-semibold text-text leading-tight truncate">{{ skill.title }}</div>
-          <!-- 来源标签:1Panel 技能给个明显的标识(高风险/中风险 tag 已移除,改为顶部 source 过滤器) -->
-          <span
-            v-if="skill.source === 'panel'"
-            class="shrink-0 px-1.5 py-0.5 text-[10px] font-medium bg-blue-50 text-blue-600 rounded border border-blue-200"
-            title="来自 1Panel skills-hub"
-          >1Panel</span>
         </div>
         <div class="text-[11px] text-text-tertiary mt-0.5">{{ skill.version }}</div>
       </div>
