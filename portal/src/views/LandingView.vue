@@ -37,7 +37,7 @@
     </section>
 
     <!-- 2. 三个广场介绍 -->
-    <section class="max-w-[1910px] mx-auto px-6 pb-20">
+    <section class="max-w-[1024px] mx-auto px-6 pb-20">
       <div class="text-center mb-10">
         <h2 class="text-[30px] font-bold text-text tracking-[-0.6px] mb-2">探索三大广场</h2>
         <p class="text-[15px] text-text-secondary">按需选用 AI 能力，快速接入业务</p>
@@ -61,7 +61,7 @@
 
     <!-- 3. 核心特性 -->
     <section class="bg-white border-y border-[rgba(0,0,0,0.06)] py-20">
-      <div class="max-w-[1910px] mx-auto px-6">
+      <div class="max-w-[1024px] mx-auto px-6">
         <div class="text-center mb-12">
           <h2 class="text-[30px] font-bold text-text tracking-[-0.6px] mb-2">核心特性</h2>
           <p class="text-[15px] text-text-secondary">为企业 AI 落地而生</p>
@@ -81,7 +81,7 @@
     </section>
 
     <!-- 4. 使用流程 -->
-    <section class="max-w-[1910px] mx-auto px-6 py-20">
+    <section class="max-w-[1024px] mx-auto px-6 py-20">
       <div class="text-center mb-12">
         <h2 class="text-[30px] font-bold text-text tracking-[-0.6px] mb-2">四步开始使用</h2>
         <p class="text-[15px] text-text-secondary">从注册到调用，简单几步</p>
@@ -101,7 +101,7 @@
     </section>
 
     <!-- 5. CTA 行动区 -->
-    <section class="max-w-[1910px] mx-auto px-6 pb-20">
+    <section class="max-w-[1024px] mx-auto px-6 pb-20">
       <div class="relative overflow-hidden rounded-3xl px-8 py-14 text-center bg-gradient-to-br from-[rgba(0,94,235,0.95)] to-[rgba(0,58,150,0.95)] shadow-[0_12px_40px_rgba(0,94,235,0.25)]">
         <!-- 装饰光斑 -->
         <div class="absolute inset-0 pointer-events-none" aria-hidden="true">
@@ -126,7 +126,7 @@
     </section>
 
     <!-- 6. 底部品牌 -->
-    <footer class="max-w-[1910px] mx-auto px-6 pb-16 text-center">
+    <footer class="max-w-[1024px] mx-auto px-6 pb-16 text-center">
       <div class="border-t border-[rgba(0,0,0,0.06)] pt-8">
         <p class="text-[13px] text-text-tertiary">AI-Portal · 面向 1Panel 生态的 AI 门户与技能市场</p>
       </div>

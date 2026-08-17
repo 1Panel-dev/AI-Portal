@@ -54,13 +54,13 @@
     />
 
     <!-- 无查看权限横幅 -->
-    <div v-if="error" class="max-w-[1910px] mx-auto px-6 mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
+    <div v-if="error" class="max-w-[1024px] mx-auto px-6 mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2" class="mt-0.5 shrink-0"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
       <div class="text-sm text-red-700">{{ error }}</div>
     </div>
 
     <!-- Skill Grid: min-height 固定容器高度,防止筛选切换时内容塌缩造成页面跳动 -->
-    <div class="max-w-[1910px] mx-auto px-6 pb-20 min-h-[600px]">
+    <div class="max-w-[1024px] mx-auto px-6 pb-20 min-h-[600px]">
       <SkillGrid
         :skills="skills"
         :loading="loading"

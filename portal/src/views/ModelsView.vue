@@ -23,7 +23,7 @@
       </div>
     </section>
 
-    <section class="max-w-[1910px] mx-auto px-6 pb-20">
+    <section class="max-w-[1024px] mx-auto px-6 pb-20">
       <div class="flex justify-center gap-8 mb-10">
         <div class="text-center"><div class="text-xl font-bold text-text">{{ providerCount }}</div><div class="text-xs text-text-secondary mt-0.5">供应商</div></div>
         <div class="text-center"><div class="text-xl font-bold text-text">{{ totalModels }}</div><div class="text-xs text-text-secondary mt-0.5">模型</div></div>
