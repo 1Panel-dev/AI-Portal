@@ -76,14 +76,6 @@
         </p>
       </div>
 
-      <div v-if="confirmMismatch" class="mb-4 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs leading-relaxed">
-        <p class="mb-2">Skill 包内的版本号与当前填写内容不一致，包内版本：{{ pkgVersion }}，填写版本：{{ form.version }}，是否以当前填写内容为准？</p>
-        <div class="flex gap-2">
-          <button @click="confirmMismatch = false" class="px-3 py-1.5 border border-amber-300 text-amber-800 rounded-lg hover:bg-amber-100 transition-colors">返回修改</button>
-          <button @click="submit" :disabled="submitting" class="px-3 py-1.5 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors">{{ submitting ? '上传中...' : '确认提交' }}</button>
-        </div>
-      </div>
-
       <p v-if="errorMessage" class="text-xs text-red-500 mt-3">{{ errorMessage }}</p>
     </div>
 
@@ -100,6 +92,19 @@
         <button @click="submit" :disabled="submitting" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50">{{ submitting ? '上传中...' : '提交技能' }}</button>
       </template>
     </template>
+  </AppDialog>
+
+  <!-- 版本不一致确认弹框(套在提交弹框之上) -->
+  <AppDialog
+    :open="confirmMismatch"
+    title="版本号不一致"
+    type="confirm"
+    confirmText="以填写版本为准"
+    cancelText="返回修改"
+    @close="confirmMismatch = false"
+    @confirm="confirmSubmit"
+  >
+    Skill 包内的版本号与当前填写内容不一致，包内版本：{{ pkgVersion }}，填写版本：{{ form.version }}，是否以当前填写内容为准？
   </AppDialog>
 </template>
 
@@ -191,16 +196,21 @@ const goParse = async () => {
   }
 }
 
-// 第二步 → 提交(先校验, 版本不一致时二次确认)
+// 第二步 → 提交(先校验, 版本不一致时弹确认框)
 const submit = () => {
   if (!form.value.name.trim()) { errorMessage.value = '请填写技能名称'; return }
   if (!form.value.version.trim()) { errorMessage.value = '请填写版本号'; return }
-  // 手填版本与 skill.md 版本不一致 → 提示确认(等价 1Panel「是否以填写内容为准」)
-  if (pkgVersion.value && pkgVersion.value !== form.value.version.trim() && !confirmMismatch.value) {
+  // 手填版本与 skill.md 版本不一致 → 弹确认框(等价 1Panel「是否以填写内容为准」)
+  if (pkgVersion.value && pkgVersion.value !== form.value.version.trim()) {
     confirmMismatch.value = true
     errorMessage.value = ''
     return
   }
+  doSubmit()
+}
+
+// 确认以填写版本为准 → 正式提交
+const confirmSubmit = () => {
   confirmMismatch.value = false
   doSubmit()
 }
