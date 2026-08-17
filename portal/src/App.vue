@@ -2,6 +2,7 @@
   <div id="app" class="relative z-10">
     <AnnouncementModal />
     <router-view />
+    <Toast />
   </div>
 </template>
 
@@ -9,6 +10,7 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import AnnouncementModal from './components/AnnouncementModal.vue'
+import Toast from './components/Toast.vue'
 import { loadSiteBranding } from './composables/useSiteBranding.js'
 import { loadAnnouncement } from './composables/useAnnouncement.js'
 import { isTokenExpired, clearAuth } from './lib/apiBase.js'

@@ -144,13 +144,6 @@
       </template>
     </AppDialog>
 
-    <!-- Toast 通知 -->
-    <Teleport to="body">
-      <div v-if="toast.show" class="fixed top-24 left-1/2 -translate-x-1/2 z-[400] px-6 py-3 rounded-xl text-sm font-medium shadow-lg transition-all animate-fade-up" :class="toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'" @click="toast.show = false">
-        {{ toast.message }}
-      </div>
-    </Teleport>
-
     <NewUserDialog
       :open="showNewUserDialog"
       :api-base="API_BASE"
@@ -165,10 +158,11 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { RefreshCw, UserPlus, UserCog, KeyRound, Trash2, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-vue-next'
 import { can } from '../composables/usePermissions.js'
+import { showToast } from '../composables/useToast.js'
 import NewUserDialog from '../components/admin/NewUserDialog.vue'
 import AppDialog from '../components/AppDialog.vue'
 
-import { getLoginToken, parseJwt } from '../lib/apiBase'
+import { getLoginToken, parseJwt, errMsg } from '../lib/apiBase'
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const router = useRouter()
 const users = ref([])
@@ -207,14 +201,6 @@ const openBatchPassword = () => {
   passwordForm.value = { newPassword: '', confirmPassword: '', showNew: false, showConfirm: false }
   isBatchPassword.value = true
 }
-const toast = ref({ show: false, message: '', type: 'success' })
-let toastTimer = null
-
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, message, type }
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
-}
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
 const pageNumbers = computed(() => {
@@ -250,7 +236,7 @@ const fetchUsers = async (nextPage = page.value) => {
     const res = await fetch(`${API_BASE}/admin/portal-users?${params}`, { headers: { Authorization: `Bearer ${getToken()}` } })
     if (res.status === 401) return router.push('/admin/login')
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || '获取用户失败')
+    if (!res.ok) throw new Error(errMsg(data, '获取用户失败'))
     users.value = data.items || []
     total.value = data.total || 0
     page.value = data.page || page.value
@@ -270,7 +256,7 @@ const deleteUser = async () => {
   try {
     const res = await fetch(`${API_BASE}/admin/portal-users/${deletingUser.value.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` } })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.reason || data.error || '删除失败')
+    if (!res.ok) throw new Error(errMsg(data, '删除失败'))
     deletingUser.value = null
     await fetchUsers(page.value)
   } catch (err) {
@@ -285,7 +271,7 @@ const syncUsers = async () => {
   try {
     const res = await fetch(`${API_BASE}/admin/portal-users/sync`, { method: 'POST', headers: { Authorization: `Bearer ${getToken()}` } })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || data.reason || '同步失败')
+    if (!res.ok) throw new Error(errMsg(data, '同步失败'))
     const taskId = data.taskId
     if (!taskId) {
       // 降级：旧接口直接返回结果
@@ -348,7 +334,7 @@ const changePassword = async () => {
       body: JSON.stringify({ user_ids: ids, new_password: passwordForm.value.newPassword }),
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.reason || data.error || '修改失败')
+    if (!res.ok) throw new Error(errMsg(data, '修改失败'))
     closePasswordDialog()
     selectedUsers.value = new Set()
     showToast(`密码已修改，成功 ${data.success || 0} 个`, 'success')
@@ -411,7 +397,7 @@ const saveRoles = async () => {
       body: JSON.stringify({ roleIds: selectedRoleId.value ? [selectedRoleId.value] : [] }),
     })
     const data = await r.json().catch(() => ({}))
-    if (!r.ok) throw new Error(data.error || data.reason || '保存失败')
+    if (!r.ok) throw new Error(errMsg(data, '保存失败'))
     showRoleDialog.value = false
     showToast('角色已保存', 'success')
     await fetchUsers(page.value)

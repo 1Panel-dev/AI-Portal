@@ -69,13 +69,6 @@
       confirmText="确认撤销"
       @close="withdrawTarget = null"
       @confirm="doWithdraw" />
-
-    <!-- Toast -->
-    <Teleport to="body">
-      <div v-if="toast.show" class="fixed top-24 left-1/2 -translate-x-1/2 z-[400] px-6 py-3 rounded-xl text-sm font-medium shadow-lg" :class="toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'" @click="toast.show = false">
-        {{ toast.message }}
-      </div>
-    </Teleport>
   </div>
 </template>
 
@@ -87,6 +80,7 @@ import SubmitSkillDialog from '../components/SubmitSkillDialog.vue'
 import AppDialog from '../components/AppDialog.vue'
 import { loadPermissions, can } from '../composables/usePermissions.js'
 import { errMsg } from '../lib/apiBase.js'
+import { showToast } from '../composables/useToast.js'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const router = useRouter()
@@ -161,13 +155,6 @@ const onSkillSubmitted = () => {
 // —— 撤销 ——
 const withdrawTarget = ref(null)
 const withdrawing = ref(false)
-const toast = ref({ show: false, message: '', type: 'success' })
-let toastTimer = null
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, message, type }
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
-}
 const confirmWithdraw = (skill) => { withdrawTarget.value = skill }
 const doWithdraw = async () => {
   if (!withdrawTarget.value || withdrawing.value) return

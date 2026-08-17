@@ -104,20 +104,15 @@
       </template>
     </AppDialog>
 
-    <!-- Toast -->
-    <Teleport to="body">
-      <div v-if="toast.show" class="fixed top-24 left-1/2 -translate-x-1/2 z-[400] px-6 py-3 rounded-xl text-sm font-medium shadow-lg transition-all animate-fade-up" :class="toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'" @click="toast.show = false">
-        {{ toast.message }}
-      </div>
-    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { RefreshCw, Eye, Pencil } from 'lucide-vue-next'
-import { API_BASE, getLoginToken } from '../../lib/apiBase'
+import { API_BASE, getLoginToken, errMsg } from '../../lib/apiBase'
+import { showToast } from '../../composables/useToast.js'
 import AppDialog from '../../components/AppDialog.vue'
 
 const router = useRouter()
@@ -128,14 +123,6 @@ const loading = ref(false)
 const keyword = ref('')
 const page = ref(1)
 const pageSize = ref(20)
-
-const toast = ref({ show: false, message: '', type: 'success' })
-let toastTimer = null
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, message, type }
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
-}
 
 const filtered = computed(() => {
   const kw = keyword.value.trim().toLowerCase()
@@ -166,7 +153,7 @@ async function fetchGroups() {
     })
     if (res.status === 401 || res.status === 403) { router.push('/admin/login'); return }
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || '获取资源组失败')
+    if (!res.ok) throw new Error(errMsg(data, '获取资源组失败'))
     groups.value = data.data || []
   } catch (err) {
     showToast(err.message || '获取资源组失败', 'error')
@@ -192,7 +179,7 @@ async function fetchPreview(gId, userId) {
   })
   if (res.status === 401 || res.status === 403) { router.push('/admin/login'); return }
   const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.error || '获取预览失败')
+  if (!res.ok) throw new Error(errMsg(data, '获取预览失败'))
   return data.data || {}
 }
 
@@ -240,5 +227,4 @@ function closePreview() {
 }
 
 onMounted(fetchGroups)
-onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 </script>

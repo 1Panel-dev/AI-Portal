@@ -317,22 +317,17 @@
       @confirm="doDelete"
     />
 
-    <!-- Toast -->
-    <Teleport to="body">
-      <div v-if="toast.show" class="fixed top-24 left-1/2 -translate-x-1/2 z-[400] px-6 py-3 rounded-xl text-sm font-medium shadow-lg transition-all animate-fade-up" :class="toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'" @click="toast.show = false">
-        {{ toast.message }}
-      </div>
-    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Plus, Trash2, Lock } from 'lucide-vue-next'
-import { API_BASE, getLoginToken } from '../../lib/apiBase'
+import { API_BASE, getLoginToken, errMsg } from '../../lib/apiBase'
 import AppDialog from '../../components/AppDialog.vue'
 import { loadPermissions, can } from '../../composables/usePermissions.js'
+import { showToast } from '../../composables/useToast.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -350,14 +345,6 @@ const inheritFrom = ref('custom')
 const saving = ref(false)
 const deletingRole = ref(null)
 const deleting = ref(false)
-
-const toast = ref({ show: false, message: '', type: 'success' })
-let toastTimer = null
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, message, type }
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
-}
 
 // 角色分组
 const builtInRoles = computed(() => roles.value.filter(r => r.is_system))
@@ -637,7 +624,7 @@ async function fetchRoles() {
       return router.replace('/admin')
     }
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || '获取角色列表失败')
+    if (!res.ok) throw new Error(errMsg(data, '获取角色列表失败'))
     roles.value = data.data || []
     // 保持选中状态
     if (selectedRole.value) {
@@ -707,7 +694,7 @@ async function saveNewRole() {
     })
     if (!res.ok) {
       const err = await res.json().catch(() => ({}))
-      throw new Error(err.error || '新建角色失败')
+      throw new Error(errMsg(err, '新建角色失败'))
     }
     const data = await res.json()
     showToast('角色已创建', 'success')
@@ -742,7 +729,7 @@ async function saveEditRole() {
       })
       if (!permRes.ok) {
         const err = await permRes.json().catch(() => ({}))
-        throw new Error(err.error || '更新权限位失败')
+        throw new Error(errMsg(err, '更新权限位失败'))
       }
     }
     showToast('角色已更新', 'success')
@@ -765,7 +752,7 @@ async function doDelete() {
       headers: { Authorization: `Bearer ${getToken()}` },
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || '删除失败')
+    if (!res.ok) throw new Error(errMsg(data, '删除失败'))
     const deletedId = deletingRole.value.id
     deletingRole.value = null
     showToast('角色已删除', 'success')
@@ -787,5 +774,4 @@ onMounted(() => {
   fetchRoles()
   fetchPermissions()
 })
-onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 </script>

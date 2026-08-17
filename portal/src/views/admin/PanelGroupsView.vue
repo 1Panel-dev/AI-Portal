@@ -60,21 +60,16 @@
 
     <p class="text-xs text-text-tertiary mt-3">最近同步：{{ lastSyncedAt }} · 同步语义沿用保守策略（空响应不清表）</p>
 
-    <!-- Toast -->
-    <Teleport to="body">
-      <div v-if="toast.show" class="fixed top-24 left-1/2 -translate-x-1/2 z-[400] px-6 py-3 rounded-xl text-sm font-medium shadow-lg transition-all animate-fade-up" :class="toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'" @click="toast.show = false">
-        {{ toast.message }}
-      </div>
-    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { RefreshCw } from 'lucide-vue-next'
-import { API_BASE, getLoginToken } from '../../lib/apiBase'
+import { API_BASE, getLoginToken, errMsg } from '../../lib/apiBase'
 import { can, loadPermissions } from '../../composables/usePermissions.js'
+import { showToast } from '../../composables/useToast.js'
 
 const router = useRouter()
 const getToken = () => getLoginToken()
@@ -83,14 +78,6 @@ const activeTab = ref('userGroups')
 const userGroups = ref([])
 const modelGroups = ref([])
 const syncing = ref(false)
-
-const toast = ref({ show: false, message: '', type: 'success' })
-let toastTimer = null
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, message, type }
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
-}
 
 const lastSyncedAt = computed(() => {
   const times = [...userGroups.value, ...modelGroups.value].map(g => g.synced_at).filter(Boolean)
@@ -103,7 +90,7 @@ async function fetchPanelGroups() {
     const res = await fetch(`${API_BASE}/admin/panel-groups`, { headers: { Authorization: `Bearer ${getToken()}` } })
     if (res.status === 401) return router.push('/admin/login')
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || '获取 1Panel 授权信息失败')
+    if (!res.ok) throw new Error(errMsg(data, '获取 1Panel 授权信息失败'))
     userGroups.value = data.data?.userGroups || []
     modelGroups.value = data.data?.modelGroups || []
   } catch (err) {
@@ -120,7 +107,7 @@ async function syncPanelGroups() {
       headers: { Authorization: `Bearer ${getToken()}` },
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || data.reason || '同步失败')
+    if (!res.ok) throw new Error(errMsg(data, '同步失败'))
     const r = data.data || {}
     showToast(`同步完成：用户组 ${r.userGroups ?? 0} · 模型组 ${r.modelGroups ?? 0}`, 'success')
     await fetchPanelGroups()
@@ -132,5 +119,4 @@ async function syncPanelGroups() {
 }
 
 onMounted(() => { loadPermissions(); fetchPanelGroups() })
-onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 </script>

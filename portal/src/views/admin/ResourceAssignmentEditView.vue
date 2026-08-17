@@ -146,21 +146,16 @@
       </div>
     </div>
 
-    <!-- Toast -->
-    <Teleport to="body">
-      <div v-if="toast.show" class="fixed top-24 left-1/2 -translate-x-1/2 z-[400] px-6 py-3 rounded-xl text-sm font-medium shadow-lg transition-all animate-fade-up" :class="toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'" @click="toast.show = false">
-        {{ toast.message }}
-      </div>
-    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Info } from 'lucide-vue-next'
-import { API_BASE, getLoginToken } from '../../lib/apiBase'
+import { API_BASE, getLoginToken, errMsg } from '../../lib/apiBase'
 import { can, loadPermissions } from '../../composables/usePermissions.js'
+import { showToast } from '../../composables/useToast.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -195,14 +190,6 @@ function switchTab(key) {
 
 // 初始授权用户 id 集合（用于判断 dirty）
 const initialRightIds = ref(new Set())
-
-const toast = ref({ show: false, message: '', type: 'success' })
-let toastTimer = null
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, message, type }
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
-}
 
 const rightIds = computed(() => new Set(rightList.value.map(u => u.id)))
 const leftList = computed(() => allUsers.value.filter(u => !rightIds.value.has(u.id)))
@@ -272,7 +259,7 @@ async function fetchGroupDetail() {
     if (res.status === 401 || res.status === 403) { router.push('/admin/login'); return }
     if (res.status === 404) { showToast('资源组不存在', 'error'); router.push('/admin/resource-assignments'); return }
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || '获取详情失败')
+    if (!res.ok) throw new Error(errMsg(data, '获取详情失败'))
     group.value = data.data
     rightList.value = data.data?.members || []
     initialRightIds.value = new Set(rightList.value.map(u => u.id))
@@ -302,7 +289,7 @@ async function fetchAllUsersPaged(token) {
     const res = await fetch(`${API_BASE}/admin/portal-users?${params}`, { headers: { Authorization: `Bearer ${token}` } })
     if (res.status === 401 || res.status === 403) { router.push('/admin/login'); return { items: [], total: 0 } }
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || '获取用户失败')
+    if (!res.ok) throw new Error(errMsg(data, '获取用户失败'))
     return { items: data.items || [], total: data.total || 0 }
   }
   const first = await fetchPage(1)
@@ -322,7 +309,7 @@ async function save() {
       body: JSON.stringify({ userIds: rightList.value.map(u => u.id) }),
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || data.reason || '保存失败')
+    if (!res.ok) throw new Error(errMsg(data, '保存失败'))
     initialRightIds.value = new Set(rightList.value.map(u => u.id))
     showToast('授权已保存，已切换到「资源预览」', 'success')
     switchTab('preview')
@@ -350,7 +337,7 @@ async function fetchPreview() {
     })
     if (res.status === 401 || res.status === 403) { router.push('/admin/login'); return }
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || '获取预览失败')
+    if (!res.ok) throw new Error(errMsg(data, '获取预览失败'))
     preview.value = { loading: false, error: '', data: data.data || {}, loaded: true }
   } catch (err) {
     preview.value = { loading: false, error: err.message || '获取预览失败', data: {}, loaded: true }
@@ -362,5 +349,4 @@ onMounted(() => {
   fetchGroupDetail()
   fetchAllUsers()
 })
-onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 </script>

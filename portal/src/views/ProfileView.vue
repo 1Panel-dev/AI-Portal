@@ -559,6 +559,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 
 echarts.use([BarChart, LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 import { getLoginToken, clearAuth, errMsg } from '../lib/apiBase'
+import { showToast } from '../composables/useToast.js'
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 const router = useRouter()
 const route = useRoute()
@@ -941,10 +942,10 @@ const doWithdrawSkill = async (skill) => {
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(errMsg(data, '撤销失败'))
-    showToast('已撤销，可重新上传提交')
+    showToast('已撤销，可重新上传提交', 'success')
     fetchMySkills()
   } catch (e) {
-    showToast(e.message || '撤销失败')
+    showToast(e.message || '撤销失败', 'error')
   }
 }
 const toDetailSkill = (skill) => ({
@@ -1113,9 +1114,6 @@ function showDialog(msg, opts = {}) {
   dialogOpen.value = true
 }
 
-function showToast(msg) {
-  showDialog(msg, { title: '提示', type: 'info' })
-}
 const setPwdNew = ref('')
 const setPwdConfirm = ref('')
 const settingPassword = ref(false)
@@ -1148,10 +1146,10 @@ const startBindProvider = async (provider) => {
   try {
     const res = await fetch(`${API_BASE}/auth/oauth/wecom/url?intent=bind&return=/profile`, { headers: authHeader() })
     const data = await res.json()
-    if (!res.ok) { showToast(data.error || '发起绑定失败'); return }
+    if (!res.ok) { showToast(errMsg(data, '发起绑定失败'), 'error'); return }
     if (data.url) { window.location.href = data.url; return }
-    showToast('未拿到企业微信登录地址')
-  } catch (e) { showToast(e.message || '发起绑定失败') }
+    showToast('未拿到企业微信登录地址', 'error')
+  } catch (e) { showToast(e.message || '发起绑定失败', 'error') }
 }
 const unbindProvider = async (provider) => {
   const label = allProviders.value.find((p) => p.provider === provider)?.display_name || provider
@@ -1165,14 +1163,14 @@ const unbindProvider = async (provider) => {
         const data = await res.json().catch(() => ({}))
         if (!res.ok) {
           if (data.code === 'OAUTH_UNBIND_LAST_IDENTITY') {
-            showToast('解绑此身份后您将无法登录,请先在下方设置一个登录密码后再解绑。')
+            showToast('解绑此身份后您将无法登录,请先在下方设置一个登录密码后再解绑。', 'error')
           } else {
-            showToast(data.error || '解绑失败')
+            showToast(errMsg(data, '解绑失败'), 'error')
           }
           return
         }
         await loadOauthState()
-      } catch (e) { showToast(e.message || '解绑失败') }
+      } catch (e) { showToast(e.message || '解绑失败', 'error') }
     },
   })
 }
@@ -1270,7 +1268,7 @@ onMounted(() => {
   loadFeatureFlags()
   loadPermissions()
   if (route.query.bound === '1') {
-    setTimeout(() => showToast('已绑定企业微信'), 100)
+    setTimeout(() => showToast('已绑定企业微信', 'success'), 100)
   }
   if (route.query.welcome === '1') {
     showWelcomeBanner.value = true

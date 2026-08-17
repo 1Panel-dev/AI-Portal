@@ -88,21 +88,16 @@
       @confirm="doDelete"
     />
 
-    <!-- Toast -->
-    <Teleport to="body">
-      <div v-if="toast.show" class="fixed top-24 left-1/2 -translate-x-1/2 z-[400] px-6 py-3 rounded-xl text-sm font-medium shadow-lg transition-all animate-fade-up" :class="toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'" @click="toast.show = false">
-        {{ toast.message }}
-      </div>
-    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { RefreshCw, Plus, Pencil, Trash2 } from 'lucide-vue-next'
-import { API_BASE, getLoginToken } from '../../lib/apiBase'
+import { API_BASE, getLoginToken, errMsg } from '../../lib/apiBase'
 import { can, loadPermissions } from '../../composables/usePermissions.js'
+import { showToast } from '../../composables/useToast.js'
 import AppDialog from '../../components/AppDialog.vue'
 
 const router = useRouter()
@@ -116,14 +111,6 @@ const newDesc = ref('')
 const creating = ref(false)
 const deletingGroup = ref(null)
 const deleting = ref(false)
-
-const toast = ref({ show: false, message: '', type: 'success' })
-let toastTimer = null
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, message, type }
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
-}
 
 // resource_counts 形态: [{"model":3},{"skill":1}] 或 null。展平成 [{key,cnt}]
 function resourceCountEntries(rc) {
@@ -154,7 +141,7 @@ async function fetchGroups() {
     const res = await fetch(`${API_BASE}/admin/groups`, { headers: { Authorization: `Bearer ${getToken()}` } })
     if (res.status === 401) return router.push('/admin/login')
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || '获取资源组失败')
+    if (!res.ok) throw new Error(errMsg(data, '获取资源组失败'))
     groups.value = data.data || []
   } catch (err) {
     showToast(err.message || '获取资源组失败', 'error')
@@ -179,7 +166,7 @@ async function create() {
       body: JSON.stringify({ name: newName.value, description: newDesc.value }),
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || data.reason || '创建失败')
+    if (!res.ok) throw new Error(errMsg(data, '创建失败'))
     showNew.value = false
     showToast('资源组已创建', 'success')
     // 创建后直接跳编辑页配置资源/成员; 仅拿不到 id 停留本页时才刷新列表(避免跳转前白打一次)
@@ -204,7 +191,7 @@ async function doDelete() {
       headers: { Authorization: `Bearer ${getToken()}` },
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || data.reason || '删除失败')
+    if (!res.ok) throw new Error(errMsg(data, '删除失败'))
     deletingGroup.value = null
     showToast('资源组已删除', 'success')
     await fetchGroups()
@@ -216,5 +203,4 @@ async function doDelete() {
 }
 
 onMounted(() => { loadPermissions(); fetchGroups() })
-onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 </script>

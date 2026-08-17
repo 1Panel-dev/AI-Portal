@@ -63,20 +63,15 @@
 
     <!-- ===== 模型可见性预览（已移除：统一到「资源授权」页的资源预览 tab） ===== -->
 
-    <!-- Toast -->
-    <Teleport to="body">
-      <div v-if="toast.show" class="fixed top-24 left-1/2 -translate-x-1/2 z-[400] px-6 py-3 rounded-xl text-sm font-medium shadow-lg transition-all animate-fade-up" :class="toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'" @click="toast.show = false">
-        {{ toast.message }}
-      </div>
-    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { API_BASE, getLoginToken } from '../../lib/apiBase'
+import { API_BASE, getLoginToken, errMsg } from '../../lib/apiBase'
 import { can, loadPermissions } from '../../composables/usePermissions.js'
+import { showToast } from '../../composables/useToast.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -128,15 +123,6 @@ function toggleResource(id) {
   selectedResources[key] = new Set(s)
 }
 
-// ---- Toast ----
-const toast = ref({ show: false, message: '', type: 'success' })
-let toastTimer = null
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, message, type }
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
-}
-
 // ---- 拉取详情 + 资源类型 ----
 async function fetchGroupDetail() {
   try {
@@ -144,7 +130,7 @@ async function fetchGroupDetail() {
     if (res.status === 401) return router.push('/admin/login')
     if (res.status === 404) { showToast('资源组不存在', 'error'); router.push('/admin/groups'); return }
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || '获取详情失败')
+    if (!res.ok) throw new Error(errMsg(data, '获取详情失败'))
     group.value = data.data
     // 回填已选资源
     const items = data.data?.items || []
@@ -161,7 +147,7 @@ async function fetchResourceTypes() {
   try {
     const res = await fetch(`${API_BASE}/admin/resource-types`, { headers: { Authorization: `Bearer ${getToken()}` } })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || '获取资源类型失败')
+    if (!res.ok) throw new Error(errMsg(data, '获取资源类型失败'))
     resourceTypes.value = data.data || []
     // 初始化选中容器
     for (const rt of resourceTypes.value) {
@@ -183,7 +169,7 @@ async function fetchAllResources() {
   try {
     const res = await fetch(`${API_BASE}/admin/resources-list`, { headers: { Authorization: `Bearer ${getToken()}` } })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || data.reason || '获取资源失败')
+    if (!res.ok) throw new Error(errMsg(data, '获取资源失败'))
     for (const key of Object.keys(data.data || {})) {
       resourceCatalog[key] = (data.data[key] || []).map(r => ({ id: r.id, title: r.title, subtitle: r.subtitle }))
     }
@@ -209,7 +195,7 @@ async function saveItems() {
       body: JSON.stringify({ items }),
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || data.reason || '保存失败')
+    if (!res.ok) throw new Error(errMsg(data, '保存失败'))
     showToast('包含资源已保存', 'success')
   } catch (err) {
     showToast(err.message || '保存失败', 'error')
@@ -223,5 +209,4 @@ onMounted(async () => {
   // 详情 / 资源类型 / 全量资源 三请求并行, 一个往返时间内全部就绪
   await Promise.all([fetchGroupDetail(), fetchResourceTypes(), fetchAllResources()])
 })
-onUnmounted(() => { if (toastTimer) clearTimeout(toastTimer) })
 </script>

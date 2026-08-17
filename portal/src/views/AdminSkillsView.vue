@@ -285,12 +285,6 @@
         </div>
       </div>
     </div>
-    <!-- Toast -->
-    <Teleport to="body">
-      <div v-if="toast.show" class="fixed top-24 left-1/2 -translate-x-1/2 z-[400] px-6 py-3 rounded-xl text-sm font-medium shadow-lg transition-all" :class="toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'" @click="toast.show = false">
-        {{ toast.message }}
-      </div>
-    </Teleport>
   </div>
 </template>
 
@@ -300,8 +294,9 @@ import { useRouter } from 'vue-router'
 import { ChevronDown, Search, ArrowUpDown, Inbox, Pencil, Eye, EyeOff, Trash2, X, ArrowLeft, RefreshCw } from 'lucide-vue-next'
 import { avatarColors, categories } from '../data/categories.js'
 
-import { getLoginToken } from '../lib/apiBase'
+import { getLoginToken, errMsg } from '../lib/apiBase'
 import { can, loadPermissions } from '../composables/usePermissions.js'
+import { showToast } from '../composables/useToast.js'
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 
 const router = useRouter()
@@ -394,13 +389,6 @@ watchEffect(() => {
 const getToken = () => getLoginToken()
 
 const syncing = ref(false)
-const toast = ref({ show: false, message: '', type: 'success' })
-let toastTimer = null
-const showToast = (message, type = 'success') => {
-  toast.value = { show: true, message, type }
-  if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
-}
 
 const syncSkills = async () => {
   if (syncing.value) return
@@ -415,7 +403,7 @@ const syncSkills = async () => {
       return router.push('/admin/login')
     }
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || '同步失败')
+    if (!res.ok) throw new Error(errMsg(data, '同步失败'))
     showToast('同步完成', 'success')
     await fetchSkills(true)
   } catch (err) {
