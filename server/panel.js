@@ -390,12 +390,12 @@ async function syncSkillsFromPanel() {
     // 用事务,UPSERT 一条一条来——技能数据 100 个以内,串行 UPSERT 成本可接受,
     // 且每条字段映射有差异(slug/install_command 等需要根据 name 派生),不适合一次性批量 INSERT
     for (const item of published) {
-      // 用户提交并审核通过的技能(source='local')已持有该 panel_skill_id(上传到 1Panel 后回填),
-      // 跳过, 避免 INSERT 撞 idx_skills_panel_unique 唯一索引(同一 1Panel 技能只保留一行)。
-      // 仅跳过 source='local' 的行; source='panel' 的仍走下方 UPSERT 更新。
+      // 用户提交并审核通过的技能(source='local')已存在(本地 slug=技能名, 无 1panel- 前缀),
+      // 跳过, 避免重复展示 + 撞 idx_skills_panel_unique 唯一索引。
+      // 用 slug 而非 panel_skill_id 判断: panel_skill_id 会随版本迭代漂移, 不可靠。
       const dup = await global.pool.query(
-        "SELECT 1 FROM skills WHERE panel_skill_id = $1 AND source = 'local' LIMIT 1",
-        [item.id]
+        "SELECT 1 FROM skills WHERE source = 'local' AND slug = $1 LIMIT 1",
+        [item.name]
       );
       if (dup.rowCount > 0) continue;
 
@@ -514,6 +514,21 @@ async function syncSkillsFromPanel() {
 
   if (deactivatedCount > 0) {
     console.log(`[syncSkills] 软删除 ${deactivatedCount} 个 1Panel 已下架技能`);
+  }
+
+  // 面板技能若已存在同名本地技能(用户提交审核通过), 下架面板行, 避免前端重复展示
+  const dupDeactivated = await global.pool.query(`
+    UPDATE skills p
+    SET is_active = FALSE, updated_at = CURRENT_DATE
+    WHERE p.source = 'panel'
+      AND p.is_active = TRUE
+      AND EXISTS (
+        SELECT 1 FROM skills l
+        WHERE l.source = 'local' AND l.slug = substring(p.slug from 8)
+      )
+  `);
+  if (dupDeactivated.rowCount > 0) {
+    console.log(`[syncSkills] 下架 ${dupDeactivated.rowCount} 个与本地技能重复的 panel 技能`);
   }
 
   await global.pool.query(`
