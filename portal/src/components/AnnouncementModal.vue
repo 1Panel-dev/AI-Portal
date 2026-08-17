@@ -6,7 +6,7 @@
       :class="visible ? 'z-[230] opacity-30' : 'z-[270]'"
       role="status"
     >
-      <div class="mx-auto flex h-full max-w-[1024px] items-center gap-2.5 px-6 text-[13.5px] leading-5 text-white">
+      <div class="mx-auto flex h-full max-w-[1910px] items-center gap-2.5 px-6 text-[13.5px] leading-5 text-white">
         <svg class="h-4 w-4 shrink-0 text-white/90" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />

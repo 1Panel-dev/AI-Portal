@@ -1,7 +1,7 @@
 ﻿<template>
   <div>
     <NavBar />
-    <main class="max-w-[1024px] mx-auto px-6 pt-[132px] pb-20 animate-fade-up">
+    <main class="max-w-[1910px] mx-auto px-6 pt-[132px] pb-20 animate-fade-up">
       <h1 class="text-[24px] font-bold text-text mb-8">个人中心</h1>
       <div class="flex flex-col md:flex-row gap-6">
         <!-- Left Menu -->

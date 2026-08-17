@@ -1,5 +1,5 @@
 <template>
-  <div class="max-w-[1024px] mx-auto px-6 mb-6">
+  <div class="max-w-[1910px] mx-auto px-6 mb-6">
     <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl px-5 h-12 flex items-center gap-3 flex-wrap shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
       <!-- 结果计数 -->
       <div class="text-[13px] text-text-secondary shrink-0">
