@@ -89,6 +89,32 @@ async function resolvePanelSkillId({ skillId, title, packageName }) {
   return null;
 }
 
+/**
+ * 解析指定「版本」的 1Panel version id。
+ * 1Panel 版本管理: 同一技能每个版本有独立 id, status 操作(approve/reject/publish)需按版本 id,
+ * 不能拿 search 返回的最新技能 id 去操作旧版本(会报 only pending skills can be approved)。
+ */
+async function resolvePanelVersionId({ skillId, title, packageName, version }) {
+  // 先拿最新技能 id(versions 接口用它查版本历史)
+  const latestId = await resolvePanelSkillId({ skillId, title, packageName });
+  if (!latestId) return null;
+
+  try {
+    const verRes = await panel.post('/api/v2/core/enterprise/skills-hub/versions', { id: latestId });
+    const biz = inspectPanelBiz(verRes);
+    if (verRes.status >= 200 && verRes.status < 300 && biz.ok) {
+      const versions = getPanelItems(verRes.data) || [];
+      const matched = versions.find(v => String(v.version) === String(version));
+      const vid = matched ? getPanelSkillId(matched) : null;
+      if (vid) return vid;
+    }
+  } catch (e) {
+    console.warn('[resolvePanelVersionId] 查询版本历史失败:', e.message);
+  }
+  // 回退: 拿不到版本历史时用最新技能 id(保持旧行为)
+  return latestId;
+}
+
 async function operatePanelSkillStatus(panelSkillId, operate, errorCode) {
   const response = await panel.post('/api/v2/core/enterprise/skills-hub/status', {
     id: panelSkillId,
@@ -121,9 +147,14 @@ function disablePanelSkill(panelSkillId) {
 }
 
 async function operatePanelSkillStatusWithResolve({ panelSkillId, operate, errorCode, skillRef, preferResolve = false }) {
+  // 有 version 时解析到指定版本的 id(1Panel 版本管理); 否则解析到最新技能 id
+  const resolveTargetId = () => skillRef?.version
+    ? resolvePanelVersionId({ ...skillRef, version: skillRef.version })
+    : resolvePanelSkillId(skillRef);
+
   let targetId = panelSkillId;
   if (preferResolve) {
-    const resolvedId = await resolvePanelSkillId(skillRef);
+    const resolvedId = await resolveTargetId();
     if (resolvedId) targetId = resolvedId;
   }
 
@@ -135,7 +166,7 @@ async function operatePanelSkillStatusWithResolve({ panelSkillId, operate, error
     };
   } catch (err) {
     if (!isPanelRecordNotFound(err)) throw err;
-    const resolvedId = await resolvePanelSkillId(skillRef);
+    const resolvedId = await resolveTargetId();
     if (!resolvedId) throw err;
     return {
       panelSkillId: resolvedId,
@@ -238,7 +269,7 @@ router.post('/api/admin/approve/:id', verifyUser, requirePermission('skill:revie
           panelSkillId: skill.panel_skill_id,
           operate: 'approve',
           errorCode: 'PANEL_SKILL_APPROVE_FAILED',
-          skillRef: { skillId: skill.skill_id, title: skill.title, packageName: skill.package_name },
+          skillRef: { skillId: skill.skill_id, title: skill.title, packageName: skill.package_name, version: skill.version },
           preferResolve: true,
         });
         panelApproveData = approved.data;
@@ -248,7 +279,7 @@ router.post('/api/admin/approve/:id', verifyUser, requirePermission('skill:revie
           panelSkillId: effectivePanelSkillId,
           operate: 'publish',
           errorCode: 'PANEL_SKILL_PUBLISH_FAILED',
-          skillRef: { skillId: skill.skill_id, title: skill.title, packageName: skill.package_name },
+          skillRef: { skillId: skill.skill_id, title: skill.title, packageName: skill.package_name, version: skill.version },
         });
         panelPublishData = published.data;
         effectivePanelSkillId = published.panelSkillId;
@@ -345,7 +376,7 @@ router.post('/api/admin/reject/:id', verifyUser, requirePermission('skill:review
     const reviewer = 'admin';
 
     const submission = await global.pool.query(
-      'SELECT skill_id, title, package_name, panel_skill_id, panel_status FROM skill_submissions WHERE id = $1',
+      'SELECT skill_id, title, package_name, panel_skill_id, panel_status, version FROM skill_submissions WHERE id = $1',
       [id]
     );
     if (submission.rowCount === 0) {
@@ -362,7 +393,7 @@ router.post('/api/admin/reject/:id', verifyUser, requirePermission('skill:review
           panelSkillId,
           operate: 'reject',
           errorCode: 'PANEL_SKILL_REJECT_FAILED',
-          skillRef: { skillId: row.skill_id, title: row.title, packageName: row.package_name },
+          skillRef: { skillId: row.skill_id, title: row.title, packageName: row.package_name, version: row.version },
           preferResolve: true,
         });
         panelRejectData = rejected.data;
