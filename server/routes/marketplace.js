@@ -1061,9 +1061,9 @@ router.get('/api/skills/:slug/versions', async (req, res) => {
   try {
     const { slug } = req.params;
 
-    // 先查技能元信息（source + panel_skill_id）
+    // 先查技能元信息（source + panel_skill_id + version 用于 local 最新版本排序）
     const skillResult = await global.pool.query(`
-      SELECT id, source, panel_skill_id FROM skills
+      SELECT id, source, panel_skill_id, version FROM skills
       WHERE slug = $1 AND is_active = TRUE
     `, [slug]);
 
@@ -1128,15 +1128,26 @@ router.get('/api/skills/:slug/versions', async (req, res) => {
       return res.json({ data: [], source: 'panel', error: '1Panel 版本信息暂不可用' });
     }
 
-    // local 来源：查本地 skill_versions 表
+    // local 来源：查本地 skill_versions 表, 最新版本(与 skills.version 一致)排最上并标记 isLatest
     const result = await global.pool.query(`
-      SELECT sv.version, sv.file_path, sv.description, sv.created_at
+      SELECT sv.version, sv.file_path, sv.description, sv.created_at,
+             (sv.version = $2) AS is_latest
       FROM skill_versions sv
       WHERE sv.skill_id = $1
-      ORDER BY sv.created_at DESC
-    `, [skill.id]);
+      ORDER BY (sv.version = $2) DESC, sv.created_at DESC
+    `, [skill.id, skill.version]);
 
-    res.json({ data: result.rows, source: 'local' });
+    res.json({
+      data: result.rows.map(r => ({
+        version: r.version,
+        file_path: r.file_path,
+        description: r.description,
+        createdAt: r.created_at,
+        isLatest: !!r.is_latest,
+        status: 'published',
+      })),
+      source: 'local',
+    });
   } catch (err) {
     console.error('Error fetching versions:', err);
     res.status(500).json({ error: '获取版本列表失败' });
