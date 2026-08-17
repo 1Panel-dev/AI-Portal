@@ -584,8 +584,8 @@ router.post('/api/skills/parse', verifyUser, requirePermission('skill:create'), 
       if (last.rowCount) lastVersion = last.rows[0].version || '';
     }
 
-    // 建议版本: 有历史 → 叠加; 无历史但 skill.md 有版本 → 用它; 否则 0.1.0
-    const suggestedVersion = lastVersion ? bumpVersion(lastVersion) : (version || '0.1.0');
+    // 建议版本: 优先 skill.md 自带版本; 包内无版本才用「上一个版本 +1」; 都没有才 0.1.0
+    const suggestedVersion = version || (lastVersion ? bumpVersion(lastVersion) : '0.1.0');
 
     // 删临时文件
     if (fs.existsSync(req.file.path)) { try { fs.unlinkSync(req.file.path); } catch {} }

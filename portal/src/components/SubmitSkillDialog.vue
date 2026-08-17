@@ -69,10 +69,19 @@
         <label class="block text-[13px] font-medium text-text mb-1">版本号 <span class="text-[#ff3b30] ml-0.5">*</span></label>
         <input v-model="form.version" type="text" placeholder="0.1.0"
           class="w-full h-11 bg-white border border-[#d2d2d7] rounded-[10px] px-3.5 text-[15px] text-text outline-none focus:border-[#86868b] font-mono">
-        <p class="text-[11px] text-text-tertiary mt-1">
-          <template v-if="lastVersion">上一个版本 {{ lastVersion }}，已自动 +1，可修改</template>
-          <template v-else>起始版本，可修改</template>
+        <p class="text-[11px] mt-1" :class="pkgVersion ? 'text-text-tertiary' : 'text-amber-600'">
+          <template v-if="pkgVersion">版本来自 skill.md（{{ pkgVersion }}），可修改</template>
+          <template v-else-if="lastVersion">包内无版本，已按上一个版本 {{ lastVersion }} 自动 +1，请确认</template>
+          <template v-else>包内无版本，起始版本，可修改</template>
         </p>
+      </div>
+
+      <div v-if="confirmMismatch" class="mb-4 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs leading-relaxed">
+        <p class="mb-2">Skill 包内的版本号与当前填写内容不一致，包内版本：{{ pkgVersion }}，填写版本：{{ form.version }}，是否以当前填写内容为准？</p>
+        <div class="flex gap-2">
+          <button @click="confirmMismatch = false" class="px-3 py-1.5 border border-amber-300 text-amber-800 rounded-lg hover:bg-amber-100 transition-colors">返回修改</button>
+          <button @click="submit" :disabled="submitting" class="px-3 py-1.5 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors">{{ submitting ? '上传中...' : '确认提交' }}</button>
+        </div>
       </div>
 
       <p v-if="errorMessage" class="text-xs text-red-500 mt-3">{{ errorMessage }}</p>
@@ -113,7 +122,9 @@ const submitting = ref(false)
 const submitted = ref(false)
 const form = ref({ name: '', description: '', category: 'skill', version: '' })
 const lastVersion = ref('')
+const pkgVersion = ref('')       // skill.md 里带的版本(空 = 包内无版本)
 const manual = ref(false)
+const confirmMismatch = ref(false)  // 版本不一致确认态
 const fileError = ref('')
 const errorMessage = ref('')
 const submitInstallCmd = ref('')
@@ -170,6 +181,7 @@ const goParse = async () => {
       version: data.suggestedVersion || '0.1.0',
     }
     lastVersion.value = data.lastVersion || ''
+    pkgVersion.value = data.version || ''
     manual.value = !!data.manual
     step.value = 'form'
   } catch (e) {
@@ -179,10 +191,21 @@ const goParse = async () => {
   }
 }
 
-// 第二步 → 提交
-const submit = async () => {
+// 第二步 → 提交(先校验, 版本不一致时二次确认)
+const submit = () => {
   if (!form.value.name.trim()) { errorMessage.value = '请填写技能名称'; return }
   if (!form.value.version.trim()) { errorMessage.value = '请填写版本号'; return }
+  // 手填版本与 skill.md 版本不一致 → 提示确认(等价 1Panel「是否以填写内容为准」)
+  if (pkgVersion.value && pkgVersion.value !== form.value.version.trim() && !confirmMismatch.value) {
+    confirmMismatch.value = true
+    errorMessage.value = ''
+    return
+  }
+  confirmMismatch.value = false
+  doSubmit()
+}
+
+const doSubmit = async () => {
   submitting.value = true
   errorMessage.value = ''
   try {
@@ -221,7 +244,9 @@ const reset = () => {
   selectedFile.value = null
   form.value = { name: '', description: '', category: 'skill', version: '' }
   lastVersion.value = ''
+  pkgVersion.value = ''
   manual.value = false
+  confirmMismatch.value = false
   if (fileInput.value) fileInput.value.value = ''
 }
 
