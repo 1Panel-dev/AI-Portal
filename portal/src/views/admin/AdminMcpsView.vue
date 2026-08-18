@@ -40,21 +40,7 @@
       </div>
     </div>
 
-    <div v-if="totalPages > 1" class="flex items-center justify-between mt-6 text-sm text-text-secondary">
-      <span>共 {{ total }} 个 MCP</span>
-      <div class="flex items-center gap-1.5">
-        <button @click="goPage(1)" :disabled="page <= 1" class="w-9 h-9 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px] font-medium">«</button>
-        <button @click="goPage(page - 1)" :disabled="page <= 1" class="h-9 px-2 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">‹</button>
-        <span class="px-2 text-text-secondary">{{ page }} / {{ totalPages }}</span>
-        <button @click="goPage(page + 1)" :disabled="page >= totalPages" class="h-9 px-2 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">›</button>
-        <button @click="goPage(totalPages)" :disabled="page >= totalPages" class="w-9 h-9 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px] font-medium">»</button>
-      </div>
-      <select v-model.number="pageSize" @change="goPage(1)" class="px-2.5 py-1.5 border border-[rgba(0,0,0,0.1)] rounded-lg text-[13px] bg-white outline-none cursor-pointer">
-        <option :value="10">10 条/页</option>
-        <option :value="20">20 条/页</option>
-        <option :value="50">50 条/页</option>
-      </select>
-    </div>
+    <Pagination class="mt-6" :page="page" :total-pages="totalPages" :total="total" label="个 MCP" show-first-last :page-size="pageSize" @change="goPage" @page-size-change="pageSize = $event" />
   </div>
 </template>
 
@@ -62,6 +48,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { RefreshCw, Search } from 'lucide-vue-next'
+import Pagination from '../../components/Pagination.vue'
 import { API_BASE, getLoginToken, errMsg } from '../../lib/apiBase'
 import { can, loadPermissions } from '../../composables/usePermissions.js'
 import { showToast } from '../../composables/useToast.js'
