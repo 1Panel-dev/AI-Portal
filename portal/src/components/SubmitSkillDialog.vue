@@ -67,7 +67,7 @@
 
       <div class="mb-4">
         <label class="block text-[13px] font-medium text-text mb-1">版本号 <span class="text-[#ff3b30] ml-0.5">*</span></label>
-        <input v-model="form.version" type="text" placeholder="0.1.0"
+        <input v-model="form.version" type="text" placeholder="如 1.2.6"
           class="w-full h-11 bg-white border border-[#d2d2d7] rounded-[10px] px-3.5 text-[15px] text-text outline-none focus:border-[#86868b] font-mono">
         <p class="text-[11px] mt-1" :class="pkgVersion ? 'text-text-tertiary' : 'text-amber-600'">
           <template v-if="pkgVersion">版本来自 skill.md（{{ pkgVersion }}），可修改</template>
