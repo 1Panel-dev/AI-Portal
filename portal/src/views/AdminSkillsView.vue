@@ -159,18 +159,14 @@
           </div>
         </div>
 
-        <!-- Load More -->
-        <div v-if="pagination.hasMore" class="flex justify-center pt-4">
-          <button
-            @click="loadMore"
-            :disabled="loadingMore"
-            class="px-6 py-2 bg-white border border-[rgba(0,0,0,0.06)] rounded-lg text-sm font-medium hover:bg-accent-hover hover:text-white hover:border-text transition-all disabled:opacity-50"
-          >
-            {{ loadingMore ? '加载中...' : `加载更多 (${skills.length}/${pagination.total})` }}
-          </button>
-        </div>
-        <div v-else-if="skills.length > 0" class="text-center py-4 text-sm text-text-tertiary">
-          已加载全部 {{ pagination.total }} 个技能
+        <!-- Pagination -->
+        <div v-if="pagination.totalPages > 1" class="flex items-center justify-between pt-4 text-sm text-text-secondary">
+          <span class="text-[13px]">共 {{ pagination.total }} 条</span>
+          <div class="flex items-center gap-2">
+            <button @click="goPage(pagination.page - 1)" :disabled="pagination.page <= 1" class="w-8 h-8 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">‹</button>
+            <span class="text-[13px]">{{ pagination.page }} / {{ pagination.totalPages }}</span>
+            <button @click="goPage(pagination.page + 1)" :disabled="pagination.page >= pagination.totalPages" class="w-8 h-8 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">›</button>
+          </div>
         </div>
       </div>
     <!-- Edit Dialog -->
@@ -306,7 +302,6 @@ const currentCategory = ref('all')
 const searchQuery = ref('')
 const sortBy = ref('downloads')
 const loading = ref(true)
-const loadingMore = ref(false)
 const processing = ref({})
 const editingSkill = ref(null)
 const editForm = ref({})
@@ -328,7 +323,6 @@ const pagination = ref({
   limit: 20,
   total: 0,
   totalPages: 0,
-  hasMore: false
 })
 
 // 搜索防抖
@@ -419,12 +413,11 @@ const fetchSkills = async (reset = false) => {
     skills.value = []
   }
 
-  if (loading.value && !reset) { loadingMore.value = false; return }
+  if (loading.value) return
 
-  // 过期响应丢弃: 快速切tab/搜索时, 后到的新请求生效, 旧响应不覆盖
+  // 过期响应丢弃: 快速切tab/搜索/翻页时, 后到的新请求生效, 旧响应不覆盖
   const mySeq = ++fetchSeq
-  // 加载更多保持列表可见(只用 loadingMore 按钮态), 不再闪全屏 loading
-  if (reset) loading.value = true
+  loading.value = true
   try {
     const params = new URLSearchParams()
     params.append('page', pagination.value.page.toString())
@@ -458,28 +451,21 @@ const fetchSkills = async (reset = false) => {
 
     if (mySeq !== fetchSeq) return
 
-    if (reset || pagination.value.page === 1) {
-      skills.value = result.data
-    } else {
-      skills.value = [...skills.value, ...result.data]
-    }
-
+    skills.value = result.data
     pagination.value = result.pagination
   } catch (err) {
     console.error('Error:', err)
   } finally {
     if (mySeq === fetchSeq) {
       loading.value = false
-      loadingMore.value = false
     }
   }
 }
 
-const loadMore = async () => {
-  if (!pagination.value.hasMore || loadingMore.value) return
-  loadingMore.value = true
-  pagination.value.page++
-  await fetchSkills(false)
+const goPage = (p) => {
+  if (p < 1 || p > pagination.value.totalPages) return
+  pagination.value.page = p
+  fetchSkills()
 }
 
 const onTabChange = (tabId) => {
