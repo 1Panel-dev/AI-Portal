@@ -16,9 +16,9 @@ const error = ref(null)
 
 // 分页状态
 const currentPage = ref(1)
-const pageSize = ref(12)
+const pageSize = ref(10)
 const total = ref(0)
-const hasMore = ref(false)
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
 // 搜索防抖定时器
 let searchDebounceTimer = null
@@ -96,14 +96,8 @@ export function useSkills() {
         return
       }
 
-      if (reset || currentPage.value === 1) {
-        skills.value = result.data
-      } else {
-        skills.value = [...skills.value, ...result.data]
-      }
-
+      skills.value = result.data
       total.value = result.pagination.total
-      hasMore.value = result.pagination.hasMore
     } catch (err) {
       if (mySeq === requestSeq) {
         console.error('Error loading skills:', err)
@@ -131,11 +125,11 @@ export function useSkills() {
     }, delay)
   }
 
-  // 加载更多
-  const loadMore = async () => {
-    if (!hasMore.value || loading.value) return
-    currentPage.value++
-    await loadSkills(false)
+  // 翻页
+  const goPage = (p) => {
+    if (p < 1 || p > totalPages.value) return
+    currentPage.value = p
+    loadSkills()
   }
 
   // 监听筛选条件变化
@@ -233,8 +227,9 @@ export function useSkills() {
     searchQuery,
     sortBy,
     total,
-    hasMore,
-    loadMore,
+    currentPage,
+    totalPages,
+    goPage,
     getSkillBySlug,
     recordDownload,
     loadSkills,
