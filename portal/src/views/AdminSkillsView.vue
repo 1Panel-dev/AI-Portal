@@ -347,11 +347,6 @@ const sortOptions = [
 ]
 
 const stats = ref({ active: 0, inactive: 0 })
-watchEffect(() => {
-  let active = 0, inactive = 0
-  for (const s of skills.value) s.is_active ? active++ : inactive++
-  stats.value = { active, inactive }
-})
 
 // 缓存的排序结果，仅当 skills 或 sortBy 变化时才重新排序
 const sortedSkills = ref([])
@@ -452,6 +447,7 @@ const fetchSkills = async (reset = false) => {
     if (mySeq !== fetchSeq) return
 
     skills.value = result.data
+    stats.value = result.stats || { active: 0, inactive: 0 }
     pagination.value = result.pagination
   } catch (err) {
     console.error('Error:', err)

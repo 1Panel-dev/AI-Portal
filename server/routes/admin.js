@@ -578,8 +578,26 @@ router.get('/api/admin/skills', verifyUser, requirePermission('skill:view'), asy
     const total = result.rows.length > 0 ? parseInt(result.rows[0]._total) : 0;
     const data = result.rows.map(({ _total, ...row }) => row);
 
+    // 上架/下架计数: 忽略 status 筛选(这两个数字跨状态), 但跟随 category/search
+    const statsWhere = ['1=1'];
+    const statsParams = [];
+    let sp = 1;
+    if (category && category !== 'all') {
+      statsWhere.push(`category = $${sp}`); statsParams.push(category); sp++;
+    }
+    if (search) {
+      statsWhere.push(`(title ILIKE $${sp} OR id ILIKE $${sp} OR author ILIKE $${sp})`);
+      statsParams.push(`%${search}%`); sp++;
+    }
+    const statsResult = await global.pool.query(
+      `SELECT COUNT(*) FILTER (WHERE is_active = TRUE)::int AS active, COUNT(*) FILTER (WHERE is_active = FALSE)::int AS inactive FROM skills WHERE ${statsWhere.join(' AND ')}`,
+      statsParams
+    );
+    const stats = statsResult.rows[0] || { active: 0, inactive: 0 };
+
     res.json({
       data,
+      stats,
       pagination: {
         page: pageNum,
         limit: limitNum,
