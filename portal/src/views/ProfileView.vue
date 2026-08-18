@@ -65,7 +65,7 @@
               </div>
             </div>
             <div class="mt-3 flex justify-end gap-3">
-              <button v-if="showAdminEntry" @click="goToAdmin" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors">进入管理后台</button>
+              <button v-if="showAdminEntry" @click="goToAdmin" class="px-4 py-2 text-sm btn-primary transition-colors">进入管理后台</button>
               <button @click="openChangePasswordDialog" class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.12)] text-text-secondary rounded-lg hover:bg-surface-secondary transition-colors">修改密码</button>
             </div>
             <div class="mt-8 pt-5 border-t border-[rgba(0,0,0,0.06)] flex justify-end">
@@ -96,7 +96,7 @@
                 </button>
                 <button v-else-if="!findBoundIdentity(p.provider)"
                   @click="startBindProvider(p.provider)"
-                  class="shrink-0 px-3 py-1.5 text-xs bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors">
+                  class="shrink-0 px-3 py-1.5 text-xs btn-primary transition-colors">
                   绑定
                 </button>
               </div>
@@ -159,7 +159,7 @@
               </div>
               <p class="text-text-secondary text-sm mb-4">暂无 API Key</p>
               <button v-if="can('key:create')" @click="createKey" :disabled="creatingKey"
-                class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50">
+                class="px-4 py-2 text-sm btn-primary transition-all disabled:opacity-50">
                 {{ creatingKey ? '创建中...' : '申请 API Key' }}
               </button>
             </div>
@@ -191,7 +191,7 @@
               <div class="text-xs text-text-tertiary mb-4">创建于 {{ formatDate(apiKeyData.created_at) }}</div>
               <div class="flex items-center gap-3">
                 <button @click="copyFullKey"
-                  class="px-3 py-1.5 text-xs bg-accent text-white rounded-lg hover:bg-accent-hover transition-all flex items-center gap-1.5"
+                  class="px-3 py-1.5 text-xs btn-primary transition-all flex items-center gap-1.5"
                   :class="{ '!bg-green-600': copied }">
                   <svg v-if="!copied" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                   <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
@@ -285,7 +285,7 @@
             <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
               <div class="flex items-center justify-between gap-3 mb-6">
                 <h2 class="text-lg font-semibold text-text">{{ can('skill:review') ? '技能审核' : '我的技能' }}</h2>
-                <button v-if="can('skill:create')" @click="showSubmitDialog = true" class="shrink-0 px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">提交技能</button>
+                <button v-if="can('skill:create')" @click="showSubmitDialog = true" class="shrink-0 px-4 py-2 text-sm btn-primary transition-all">提交技能</button>
               </div>
               <div v-if="mySkillsLoading" class="py-10 text-center text-text-secondary text-sm">加载中...</div>
               <div v-else-if="mySkills.length === 0" class="py-12 text-center">
@@ -317,7 +317,7 @@
                   <div class="flex items-center justify-end gap-2 flex-wrap">
                     <button v-if="skill.status === 'pending'" @click="showSubmitDialog = true" class="px-2.5 py-1 text-xs text-accent border border-accent/30 rounded-lg hover:bg-accent/5 transition-colors">替换</button>
                     <button v-if="skill.status === 'pending'" @click="confirmWithdrawSkill(skill)" class="px-2.5 py-1 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">撤销</button>
-                    <button v-if="skill.status === 'approved'" @click="openSkillDetail(skill)" class="px-2.5 py-1 text-xs text-text-secondary border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary hover:text-text transition-colors">查看</button>
+                    <button v-if="skill.status === 'approved'" @click="openSkillDetail(skill)" class="px-2.5 py-1 text-xs text-text-secondary btn-secondary hover:text-text transition-colors">查看</button>
                   </div>
                 </div>
 

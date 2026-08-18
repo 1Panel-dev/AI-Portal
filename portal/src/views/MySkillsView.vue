@@ -8,7 +8,7 @@
           <h1 class="text-[30px] font-bold text-text tracking-[-0.4px]">我的技能</h1>
           <p class="text-sm text-text-secondary mt-1">查看你提交的技能审核状态</p>
         </div>
-        <button v-if="canSubmit" @click="showSubmitDialog = true" class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors">
+        <button v-if="canSubmit" @click="showSubmitDialog = true" class="px-4 py-2 text-sm font-medium btn-primary transition-colors">
           提交技能
         </button>
       </div>
@@ -20,7 +20,7 @@
       <div v-else-if="skills.length === 0" class="bg-white border border-[rgba(0,0,0,0.04)] rounded-xl p-10 text-center shadow-card">
         <p class="text-base font-semibold text-text mb-2">还没有提交过技能</p>
         <p class="text-sm text-text-secondary mb-5">提交后可以在这里查看审核进度</p>
-        <button v-if="canSubmit" @click="showSubmitDialog = true" class="inline-flex px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors">
+        <button v-if="canSubmit" @click="showSubmitDialog = true" class="inline-flex px-4 py-2 text-sm font-medium btn-primary transition-colors">
           去提交
         </button>
       </div>

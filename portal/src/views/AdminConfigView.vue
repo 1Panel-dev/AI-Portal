@@ -91,7 +91,7 @@
             v-if="can('system:config')"
             @click="saveLocalPath"
             :disabled="savingLocal"
-            class="mt-4 px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
+            class="mt-4 px-4 py-2 text-sm font-medium btn-primary transition-all disabled:opacity-50"
           >
             {{ savingLocal ? '保存中...' : '保存路径' }}
           </button>
@@ -165,7 +165,7 @@
               v-if="can('system:config')"
               @click="testCOS"
               :disabled="testing"
-              class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"
+              class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50"
             >
               <PlugZap class="w-4 h-4" />{{ testing ? '测试中...' : '测试连接' }}
             </button>
@@ -177,7 +177,7 @@
             v-if="can('system:config')"
             @click="saveCOSConfig"
             :disabled="savingCOS"
-            class="mt-4 px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
+            class="mt-4 px-4 py-2 text-sm font-medium btn-primary transition-all disabled:opacity-50"
           >
             {{ savingCOS ? '保存中...' : '保存 COS 配置' }}
           </button>
@@ -306,7 +306,7 @@
               v-if="can('system:config')"
               @click="testPanel"
               :disabled="panelTesting"
-              class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"
+              class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50"
             >
               <PlugZap class="w-4 h-4" />{{ panelTesting ? '测试中...' : '测试连接' }}
             </button>
@@ -314,7 +314,7 @@
               v-if="can('system:config')"
               @click="syncNow"
               :disabled="panelSyncing"
-              class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"
+              class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50"
             >
               <RefreshCw class="w-4 h-4" />{{ panelSyncing ? '同步中...' : '立即同步' }}
             </button>
@@ -322,7 +322,7 @@
               v-if="can('system:config')"
               @click="savePanelConfig"
               :disabled="panelSaving"
-              class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
+              class="px-4 py-2 text-sm font-medium btn-primary transition-all disabled:opacity-50"
             >
               {{ panelSaving ? '保存中...' : '保存配置' }}
             </button>
@@ -375,7 +375,7 @@
               v-if="can('system:config')"
               @click="saveModelExample"
               :disabled="modelExampleSaving"
-              class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
+              class="px-4 py-2 text-sm font-medium btn-primary transition-all disabled:opacity-50"
             >
               {{ modelExampleSaving ? '保存中...' : '保存' }}
             </button>
@@ -473,7 +473,7 @@
               v-if="can('system:config')"
               @click="saveBranding"
               :disabled="brandingSaving"
-              class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
+              class="px-4 py-2 text-sm font-medium btn-primary transition-all disabled:opacity-50"
             >
               {{ brandingSaving ? '保存中...' : '保存' }}
             </button>
@@ -549,7 +549,7 @@
               v-if="can('system:config')"
               @click="saveAnnouncement"
               :disabled="announcementSaving"
-              class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all disabled:opacity-50"
+              class="px-4 py-2 text-sm font-medium btn-primary transition-all disabled:opacity-50"
             >
               {{ announcementSaving ? '保存中...' : '保存公告' }}
             </button>
@@ -595,7 +595,7 @@
           <div class="flex items-center gap-3 justify-end">
             <button
               @click="showConfirm = false"
-              class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all"
+              class="px-4 py-2 text-sm btn-secondary transition-all"
             >
               取消
             </button>

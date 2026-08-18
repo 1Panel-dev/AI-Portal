@@ -132,7 +132,7 @@ onMounted(load)
               />
               <button
                 @click="copyCallbackUrl"
-                class="px-3 py-2 text-xs border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary whitespace-nowrap"
+                class="px-3 py-2 text-xs btn-secondary whitespace-nowrap"
               >
                 {{ copyHint || '复制' }}
               </button>

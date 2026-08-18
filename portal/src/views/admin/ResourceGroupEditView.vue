@@ -6,7 +6,7 @@
         <p class="text-text-secondary text-sm mt-1">配置资源组包含的资源；用户授权请在「资源授权」页管理</p>
       </div>
       <div class="flex items-center gap-3">
-        <button @click="$router.push('/admin/groups')" class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all">返回</button>
+        <button @click="$router.push('/admin/groups')" class="px-4 py-2 text-sm btn-secondary transition-all">返回</button>
       </div>
     </div>
 
@@ -34,7 +34,7 @@
             placeholder="搜索名称..."
             @keyup.enter="filterResources"
           />
-          <button @click="filterResources" class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover">搜索</button>
+          <button @click="filterResources" class="px-4 py-2 text-sm font-medium btn-primary">搜索</button>
         </div>
 
         <div v-if="resourceLoading" class="py-14 text-center text-sm text-text-secondary">加载中...</div>
@@ -56,7 +56,7 @@
 
         <p class="text-xs text-text-tertiary mt-3">已选 {{ selectedCount(activeResourceType) }} / 共 {{ totalCount(activeResourceType) }} 个{{ activeTypeName }}。</p>
         <div class="mt-4">
-          <button v-if="can('group:edit')" @click="saveItems" :disabled="savingItems" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50">{{ savingItems ? '保存中...' : '保存包含资源' }}</button>
+          <button v-if="can('group:edit')" @click="saveItems" :disabled="savingItems" class="px-4 py-2 text-sm btn-primary disabled:opacity-50">{{ savingItems ? '保存中...' : '保存包含资源' }}</button>
         </div>
       </template>
     </div>

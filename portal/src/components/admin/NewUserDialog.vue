@@ -104,11 +104,11 @@ async function submit() {
       </div>
       <div class="flex justify-end gap-3 mt-6">
         <button @click="$emit('close')" :disabled="loading"
-          class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary disabled:opacity-50">
+          class="px-4 py-2 text-sm btn-secondary disabled:opacity-50">
           取消
         </button>
         <button @click="submit" :disabled="loading"
-          class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50">
+          class="px-4 py-2 text-sm btn-primary disabled:opacity-50">
           {{ loading ? '创建中...' : '确认创建' }}
         </button>
       </div>

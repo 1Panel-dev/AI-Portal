@@ -6,16 +6,16 @@
           <p class="text-text-secondary text-sm mt-1">查看门户用户，删除时会先清理 1Panel 远端用户与 API Key</p>
         </div>
         <div class="flex items-center gap-3">
-          <button @click="refreshUsers" :disabled="loading" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"><RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />{{ loading ? '加载中...' : '刷新' }}</button>
-          <button v-if="can('user:edit')" @click="syncUsers" :disabled="syncing" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"><RefreshCw class="w-4 h-4" />{{ syncing ? '同步中...' : '同步用户' }}</button>
-          <button v-if="selectedUsers.size > 0 && can('user:batch-password')" @click="openBatchPassword" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">{{ `批量改密 (${selectedUsers.size})` }}</button>
-          <button v-if="can('user:create')" @click="showNewUserDialog = true" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all"><UserPlus class="w-4 h-4" />新增用户</button>
+          <button @click="refreshUsers" :disabled="loading" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50"><RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />{{ loading ? '加载中...' : '刷新' }}</button>
+          <button v-if="can('user:edit')" @click="syncUsers" :disabled="syncing" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50"><RefreshCw class="w-4 h-4" />{{ syncing ? '同步中...' : '同步用户' }}</button>
+          <button v-if="selectedUsers.size > 0 && can('user:batch-password')" @click="openBatchPassword" class="px-4 py-2 text-sm btn-primary transition-all">{{ `批量改密 (${selectedUsers.size})` }}</button>
+          <button v-if="can('user:create')" @click="showNewUserDialog = true" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-primary transition-all"><UserPlus class="w-4 h-4" />新增用户</button>
         </div>
       </div>
 
       <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4 mb-4 flex items-center gap-3">
         <input v-model="keyword" @keyup.enter="fetchUsers(1)" class="flex-1 px-3 py-2 border border-[rgba(0,0,0,0.08)] rounded-lg text-sm outline-none focus:border-text bg-surface-secondary" placeholder="搜索用户名或姓名..." />
-        <button @click="fetchUsers(1)" class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">搜索</button>
+        <button @click="fetchUsers(1)" class="px-4 py-2 text-sm font-medium btn-primary transition-all">搜索</button>
       </div>
 
       <div v-if="loading && users.length === 0" class="py-20 text-center text-text-secondary">加载中...</div>
@@ -91,7 +91,7 @@
           <h3 class="text-lg font-semibold text-text mb-2">确认删除用户</h3>
           <p class="text-sm text-text-secondary leading-6 mb-5">确定删除用户「{{ deletingUser.username }}」吗？系统会先删除 1Panel 远端用户和 API Key，成功后再删除本地记录。</p>
           <div class="flex justify-end gap-3">
-            <button @click="deletingUser = null" :disabled="deleting" class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary disabled:opacity-50">取消</button>
+            <button @click="deletingUser = null" :disabled="deleting" class="px-4 py-2 text-sm btn-secondary disabled:opacity-50">取消</button>
             <button @click="deleteUser" :disabled="deleting" class="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">{{ deleting ? '删除中...' : '确认删除' }}</button>
           </div>
         </div>
@@ -120,8 +120,8 @@
             </div>
           </div>
           <div class="flex justify-end gap-3">
-            <button @click="closePasswordDialog" :disabled="changingPassword" class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary disabled:opacity-50">取消</button>
-            <button @click="changePassword" :disabled="changingPassword || !passwordForm.newPassword || passwordForm.newPassword.length < 6 || passwordForm.newPassword !== passwordForm.confirmPassword" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50">{{ changingPassword ? '修改中...' : '确认修改' }}</button>
+            <button @click="closePasswordDialog" :disabled="changingPassword" class="px-4 py-2 text-sm btn-secondary disabled:opacity-50">取消</button>
+            <button @click="changePassword" :disabled="changingPassword || !passwordForm.newPassword || passwordForm.newPassword.length < 6 || passwordForm.newPassword !== passwordForm.confirmPassword" class="px-4 py-2 text-sm btn-primary disabled:opacity-50">{{ changingPassword ? '修改中...' : '确认修改' }}</button>
           </div>
         </div>
       </div>
@@ -139,8 +139,8 @@
         <div v-if="!loadingRoles && assignableRoles.length === 0" class="py-4 text-center text-xs text-text-tertiary">暂无可分配角色</div>
       </div>
       <template #footer>
-        <button @click="showRoleDialog = false" class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary">取消</button>
-        <button @click="saveRoles" :disabled="savingRoles" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50">{{ savingRoles ? '保存中…' : '保存' }}</button>
+        <button @click="showRoleDialog = false" class="px-4 py-2 text-sm btn-secondary">取消</button>
+        <button @click="saveRoles" :disabled="savingRoles" class="px-4 py-2 text-sm btn-primary disabled:opacity-50">{{ savingRoles ? '保存中…' : '保存' }}</button>
       </template>
     </AppDialog>
 

@@ -188,15 +188,15 @@ async function doSave() {
       </p>
       <div class="flex gap-2">
         <button v-if="can('system:config')" @click="doTest" :disabled="testing"
-          class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary disabled:opacity-50">
+          class="px-4 py-2 text-sm btn-secondary disabled:opacity-50">
           {{ testing ? '测试中...' : '测试连接' }}
         </button>
         <button @click="reset"
-          class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary">
+          class="px-4 py-2 text-sm btn-secondary">
           重置
         </button>
         <button v-if="can('system:config')" @click="doSave" :disabled="saving"
-          class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50">
+          class="px-4 py-2 text-sm btn-primary disabled:opacity-50">
           {{ saving ? '保存中...' : '保存配置' }}
         </button>
       </div>

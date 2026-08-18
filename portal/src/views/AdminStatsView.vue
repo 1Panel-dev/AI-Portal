@@ -15,7 +15,7 @@
         <div class="text-4xl mb-4">⚙️</div>
         <p class="text-text-secondary mb-2">尚未配置 1Panel 网关</p>
         <p class="text-sm text-text-tertiary mb-4">请先在「系统配置」中填写 1Panel Base URL 和 API Key</p>
-        <button v-if="can('system:config')" @click="$router.push('/admin/config')" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">前往配置</button>
+        <button v-if="can('system:config')" @click="$router.push('/admin/config')" class="px-4 py-2 text-sm btn-primary transition-all">前往配置</button>
       </div>
 
       <template v-else-if="globalData">

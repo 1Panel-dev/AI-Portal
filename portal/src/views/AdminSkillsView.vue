@@ -12,13 +12,13 @@
           <button
             v-if="can('system:config')"
             @click="syncSkills" :disabled="syncing"
-            class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"
+            class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50"
           >
             <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': syncing }" />{{ syncing ? '同步中...' : '同步' }}
           </button>
           <button
             @click="$router.push('/admin')"
-            class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all"
+            class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all"
           >
             <ArrowLeft class="w-4 h-4" />返回审核
           </button>

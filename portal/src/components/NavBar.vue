@@ -83,7 +83,7 @@
 
         <!-- Login button (not logged in) -->
         <router-link v-else to="/login"
-          class="ml-2 px-4 py-2 text-[14px] bg-accent text-white rounded-lg hover:bg-accent-hover transition-all no-underline">
+          class="ml-2 px-4 py-2 text-[14px] btn-primary transition-all no-underline">
           登录
         </router-link>
       </div>

@@ -61,8 +61,8 @@
         <p v-if="error" class="text-xs text-red-500">{{ error }}</p>
       </div>
       <template #footer>
-        <button class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary" @click="closePasswordDialog">取消</button>
-        <button class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50" :disabled="changing || !oldPassword || !newPassword || newPassword.length < 6" @click="doChangePassword">{{ changing ? '修改中...' : '确认修改' }}</button>
+        <button class="px-4 py-2 text-sm btn-secondary" @click="closePasswordDialog">取消</button>
+        <button class="px-4 py-2 text-sm btn-primary disabled:opacity-50" :disabled="changing || !oldPassword || !newPassword || newPassword.length < 6" @click="doChangePassword">{{ changing ? '修改中...' : '确认修改' }}</button>
       </template>
     </AppDialog>
   </header>

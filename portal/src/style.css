@@ -52,6 +52,18 @@
   }
 }
 
+@layer components {
+  .btn-primary {
+    @apply bg-accent text-white rounded-lg hover:bg-accent-hover;
+  }
+  .btn-secondary {
+    @apply border border-border rounded-lg hover:bg-surface-secondary;
+  }
+  .input-base {
+    @apply bg-white border border-[#d2d2d7];
+  }
+}
+
 @layer utilities {
   .animate-fade-up {
     animation: fadeUp 0.4s ease forwards;

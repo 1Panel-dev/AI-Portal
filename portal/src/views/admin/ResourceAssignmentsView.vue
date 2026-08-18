@@ -8,7 +8,7 @@
       <button
         @click="fetchGroups"
         :disabled="loading"
-        class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50"
+        class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50"
       >
         <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />刷新
       </button>
@@ -86,7 +86,7 @@
         </div>
       </div>
       <template #footer>
-        <button @click="closePreview" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover">关闭</button>
+        <button @click="closePreview" class="px-4 py-2 text-sm btn-primary">关闭</button>
       </template>
     </AppDialog>
 

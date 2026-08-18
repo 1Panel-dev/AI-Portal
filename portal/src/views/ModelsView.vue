@@ -19,7 +19,7 @@
           <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
         </svg>
         <input v-model="searchQuery" type="text" placeholder="搜索模型..."
-          class="w-full h-11 bg-white border border-[#d2d2d7] rounded-xl pl-11 pr-5 text-sm text-text outline-none transition-all placeholder:text-text-tertiary focus:border-[#86868b] focus:shadow-[0_0_0_3px_rgba(0,0,0,0.06)]">
+          class="w-full h-11 input-base rounded-xl pl-11 pr-5 text-sm text-text outline-none transition-all placeholder:text-text-tertiary focus:border-[#86868b] focus:shadow-[0_0_0_3px_rgba(0,0,0,0.06)]">
       </div>
     </section>
 

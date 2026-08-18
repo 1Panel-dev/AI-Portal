@@ -6,7 +6,7 @@
         <p class="text-text-secondary text-sm mt-1">MCP 资源来自 1Panel 同步，共 {{ total }} 个</p>
       </div>
       <div class="flex gap-3">
-        <button v-if="can('system:config')" @click="syncMcps" :disabled="syncing" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50">
+        <button v-if="can('system:config')" @click="syncMcps" :disabled="syncing" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50">
           <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': syncing }" />{{ syncing ? '同步中...' : '同步' }}
         </button>
       </div>
@@ -23,7 +23,7 @@
           @keyup.enter="goPage(1)"
         >
       </div>
-      <button @click="goPage(1)" class="px-4 py-2 text-sm font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">搜索</button>
+      <button @click="goPage(1)" class="px-4 py-2 text-sm font-medium btn-primary transition-all">搜索</button>
     </div>
 
     <div v-if="loading" class="py-20 text-center text-text-secondary">加载中...</div>

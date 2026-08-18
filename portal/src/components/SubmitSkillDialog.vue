@@ -49,26 +49,26 @@
       <div class="mb-4">
         <label class="block text-[13px] font-medium text-text mb-1">技能名称 (name) <span class="text-[#ff3b30] ml-0.5">*</span></label>
         <input v-model="form.name" type="text" placeholder="my-awesome-skill"
-          class="w-full h-11 bg-white border border-[#d2d2d7] rounded-[10px] px-3.5 text-[15px] text-text outline-none focus:border-[#86868b]">
+          class="w-full h-11 input-base rounded-[10px] px-3.5 text-[15px] text-text outline-none focus:border-[#86868b]">
         <p class="text-[11px] text-text-tertiary mt-1">技能唯一标识，英文小写 + 连字符</p>
       </div>
 
       <div class="mb-4">
         <label class="block text-[13px] font-medium text-text mb-1">描述 <span class="text-[#ff3b30] ml-0.5">*</span></label>
         <textarea v-model="form.description" rows="3" placeholder="描述这个技能的功能和使用场景..."
-          class="w-full bg-white border border-[#d2d2d7] rounded-[10px] px-3.5 py-3 text-[15px] text-text outline-none focus:border-[#86868b] resize-y leading-relaxed"></textarea>
+          class="w-full input-base rounded-[10px] px-3.5 py-3 text-[15px] text-text outline-none focus:border-[#86868b] resize-y leading-relaxed"></textarea>
       </div>
 
       <div class="mb-4">
         <label class="block text-[13px] font-medium text-text mb-1">分类</label>
         <input v-model="form.category" type="text" placeholder="skill"
-          class="w-full h-11 bg-white border border-[#d2d2d7] rounded-[10px] px-3.5 text-[15px] text-text outline-none focus:border-[#86868b]">
+          class="w-full h-11 input-base rounded-[10px] px-3.5 text-[15px] text-text outline-none focus:border-[#86868b]">
       </div>
 
       <div class="mb-4">
         <label class="block text-[13px] font-medium text-text mb-1">版本号 <span class="text-[#ff3b30] ml-0.5">*</span></label>
         <input v-model="form.version" type="text" placeholder="如 1.2.6"
-          class="w-full h-11 bg-white border border-[#d2d2d7] rounded-[10px] px-3.5 text-[15px] text-text outline-none focus:border-[#86868b] font-mono">
+          class="w-full h-11 input-base rounded-[10px] px-3.5 text-[15px] text-text outline-none focus:border-[#86868b] font-mono">
         <p class="text-[11px] mt-1" :class="pkgVersion ? 'text-text-tertiary' : 'text-amber-600'">
           <template v-if="pkgVersion">版本来自 skill.md（{{ pkgVersion }}），可修改</template>
           <template v-else-if="lastVersion">包内无版本，请手动填写（上一个版本：{{ lastVersion }}）</template>
@@ -81,15 +81,15 @@
 
     <template #footer>
       <template v-if="submitted">
-        <button @click="handleClose" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover">知道了</button>
+        <button @click="handleClose" class="px-4 py-2 text-sm btn-primary">知道了</button>
       </template>
       <template v-else-if="step === 'file'">
-        <button @click="handleClose" class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary">取消</button>
-        <button @click="goParse" :disabled="parsing || !selectedFile || !canSubmit" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50">{{ parsing ? '解析中...' : '下一步' }}</button>
+        <button @click="handleClose" class="px-4 py-2 text-sm btn-secondary">取消</button>
+        <button @click="goParse" :disabled="parsing || !selectedFile || !canSubmit" class="px-4 py-2 text-sm btn-primary disabled:opacity-50">{{ parsing ? '解析中...' : '下一步' }}</button>
       </template>
       <template v-else>
-        <button @click="step = 'file'" :disabled="submitting" class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary">上一步</button>
-        <button @click="submit" :disabled="submitting" class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50">{{ submitting ? '上传中...' : '提交技能' }}</button>
+        <button @click="step = 'file'" :disabled="submitting" class="px-4 py-2 text-sm btn-secondary">上一步</button>
+        <button @click="submit" :disabled="submitting" class="px-4 py-2 text-sm btn-primary disabled:opacity-50">{{ submitting ? '上传中...' : '提交技能' }}</button>
       </template>
     </template>
   </AppDialog>

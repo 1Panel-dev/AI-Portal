@@ -6,7 +6,7 @@
         <p class="text-text-secondary text-sm mt-1">管理该组的授权成员，或查看该组包含的资源</p>
       </div>
       <div class="flex items-center gap-3">
-        <button @click="$router.push('/admin/resource-assignments')" class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all">返回</button>
+        <button @click="$router.push('/admin/resource-assignments')" class="px-4 py-2 text-sm btn-secondary transition-all">返回</button>
       </div>
     </div>
 
@@ -61,12 +61,12 @@
         <button
           @click="moveRight"
           :disabled="!leftChecked.size"
-          class="px-3 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-40 transition-all whitespace-nowrap"
+          class="px-3 py-2 text-sm btn-primary disabled:opacity-40 transition-all whitespace-nowrap"
         >添加 ›</button>
         <button
           @click="moveLeft"
           :disabled="!rightChecked.size"
-          class="px-3 py-2 text-sm border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary disabled:opacity-40 transition-all whitespace-nowrap"
+          class="px-3 py-2 text-sm btn-secondary disabled:opacity-40 transition-all whitespace-nowrap"
         >‹ 移除</button>
       </div>
 
@@ -107,7 +107,7 @@
         v-if="can('group:assign')"
         @click="save"
         :disabled="saving || !dirty"
-        class="px-5 py-2.5 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-all"
+        class="px-5 py-2.5 text-sm btn-primary disabled:opacity-50 transition-all"
       >{{ saving ? '保存中...' : '保存授权' }}</button>
       <span v-if="!dirty" class="text-xs text-text-tertiary">未做修改</span>
       <span v-else class="text-xs text-amber-600">有未保存的修改</span>

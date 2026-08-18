@@ -182,7 +182,7 @@
               v-if="can('role:create')"
               @click="saveNewRole"
               :disabled="saving || !formName.trim()"
-              class="px-6 py-2.5 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-all"
+              class="px-6 py-2.5 text-sm btn-primary disabled:opacity-50 transition-all"
             >
               {{ saving ? '创建中...' : '创建角色' }}
             </button>
@@ -297,7 +297,7 @@
               v-if="can('role:edit')"
               @click="saveEditRole"
               :disabled="saving || selectedRole.name === 'admin'"
-              class="px-6 py-2.5 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50 transition-all"
+              class="px-6 py-2.5 text-sm btn-primary disabled:opacity-50 transition-all"
             >
               {{ saving ? '保存中...' : '保存' }}
             </button>

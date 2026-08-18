@@ -89,7 +89,7 @@
             </h3>
             <div class="flex items-center gap-2">
               <code class="text-xs font-mono text-text break-all min-w-0 flex-1 bg-surface-secondary rounded-lg px-3 py-2">{{ downloadPath }}</code>
-              <a href="#" @click.prevent="checkAuth(latestDownloadUrl)" class="shrink-0 px-3 py-2 text-[12px] font-medium bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors no-underline">下载</a>
+              <a href="#" @click.prevent="checkAuth(latestDownloadUrl)" class="shrink-0 px-3 py-2 text-[12px] font-medium btn-primary transition-colors no-underline">下载</a>
             </div>
           </div>
 

@@ -23,7 +23,7 @@
           v-model="searchQuery"
           type="text"
           placeholder="搜索 MCP 服务..."
-          class="w-full h-12 bg-white border border-[#d2d2d7] rounded-xl pl-11 pr-5 text-base text-text outline-none transition-all duration-200 placeholder:text-text-tertiary focus:border-[#86868b] focus:shadow-[0_0_0_3px_rgba(0,0,0,0.06)]"
+          class="w-full h-12 input-base rounded-xl pl-11 pr-5 text-base text-text outline-none transition-all duration-200 placeholder:text-text-tertiary focus:border-[#86868b] focus:shadow-[0_0_0_3px_rgba(0,0,0,0.06)]"
         >
       </div>
 

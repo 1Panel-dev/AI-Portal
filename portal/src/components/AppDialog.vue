@@ -32,13 +32,13 @@ const widthClass = computed(() => ({ sm: 'w-[400px]', md: 'w-[480px]', lg: 'w-[5
         <div v-if="!slots.footer" class="flex justify-end gap-3 mt-6">
           <button v-if="type === 'confirm' || hasBody"
             @click="$emit('close')"
-            class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary"
+            class="px-4 py-2 text-sm btn-secondary"
           >
             {{ cancelText }}
           </button>
           <button
             @click="type === 'confirm' ? $emit('confirm') : $emit('close')"
-            class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover"
+            class="px-4 py-2 text-sm btn-primary"
           >
             {{ type === 'confirm' ? confirmText : '知道了' }}
           </button>

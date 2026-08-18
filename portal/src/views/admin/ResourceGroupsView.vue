@@ -6,10 +6,10 @@
         <p class="text-text-secondary text-sm mt-1">把模型 / Skill / MCP 打包成资源组，授权给成员</p>
       </div>
       <div class="flex items-center gap-3">
-        <button @click="fetchGroups" :disabled="loading" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm border border-[rgba(0,0,0,0.06)] rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50">
+        <button @click="fetchGroups" :disabled="loading" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50">
           <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />刷新
         </button>
-        <button v-if="can('group:create')" @click="openNew" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-all">
+        <button v-if="can('group:create')" @click="openNew" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-primary transition-all">
           <Plus class="w-4 h-4" />新建资源组
         </button>
       </div>
@@ -72,8 +72,8 @@
         </div>
       </div>
       <template #footer>
-        <button class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary" @click="showNew = false">取消</button>
-        <button class="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover disabled:opacity-50" :disabled="creating || !newName.trim()" @click="create">{{ creating ? '创建中...' : '创建' }}</button>
+        <button class="px-4 py-2 text-sm btn-secondary" @click="showNew = false">取消</button>
+        <button class="px-4 py-2 text-sm btn-primary disabled:opacity-50" :disabled="creating || !newName.trim()" @click="create">{{ creating ? '创建中...' : '创建' }}</button>
       </template>
     </AppDialog>
 

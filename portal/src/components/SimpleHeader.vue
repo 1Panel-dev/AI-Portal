@@ -36,25 +36,25 @@ const props = defineProps({
         <!-- 落地页：未登录显 登录+注册；已登录兜底显进入广场 -->
         <template v-if="right === 'login'">
           <router-link v-if="!isLoggedIn" to="/login"
-            class="px-4 py-1.5 text-[13px] bg-accent text-white rounded-lg hover:bg-accent-hover transition-all no-underline">
+            class="px-4 py-1.5 text-[13px] btn-primary transition-all no-underline">
             登录
           </router-link>
           <router-link v-else to="/models"
-            class="px-4 py-1.5 text-[13px] bg-accent text-white rounded-lg hover:bg-accent-hover transition-all no-underline">
+            class="px-4 py-1.5 text-[13px] btn-primary transition-all no-underline">
             进入广场
           </router-link>
         </template>
         <!-- 注册页：显去登录 -->
         <template v-else-if="right === 'register'">
           <router-link to="/login"
-            class="px-4 py-1.5 text-[13px] bg-accent text-white rounded-lg hover:bg-accent-hover transition-all no-underline">
+            class="px-4 py-1.5 text-[13px] btn-primary transition-all no-underline">
             去登录
           </router-link>
         </template>
         <!-- 登录页：显去注册 -->
         <template v-else-if="right === 'login-page'">
           <router-link to="/register"
-            class="px-4 py-1.5 text-[13px] text-text border border-[rgba(0,0,0,0.08)] rounded-lg hover:bg-surface-secondary transition-all no-underline">
+            class="px-4 py-1.5 text-[13px] text-text btn-secondary transition-all no-underline">
             注册
           </router-link>
         </template>
