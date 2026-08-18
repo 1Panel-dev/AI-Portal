@@ -11,7 +11,7 @@
       <div v-if="checking" class="text-center py-12 text-text-secondary text-sm">
         加载中...
       </div>
-      <div v-else-if="registerDisabled" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card text-center">
+      <div v-else-if="registerDisabled" class="card p-6 shadow-card text-center">
         <h2 class="text-xl font-semibold text-text mb-3">自助注册已关闭</h2>
         <p class="text-sm text-text-secondary mb-6">
           系统已启用第三方账号登录。请使用第三方账号登录，或联系管理员开通账号。
@@ -21,7 +21,7 @@
           去登录
         </router-link>
       </div>
-      <div v-else class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
+      <div v-else class="card p-6 shadow-card">
         <div class="mb-4">
           <label class="block text-sm font-medium text-text mb-1">显示名</label>
           <input

@@ -6,7 +6,7 @@
       <div class="flex flex-col md:flex-row gap-6">
         <!-- Left Menu -->
         <nav class="w-full md:w-[200px] shrink-0">
-          <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-2 shadow-card">
+          <div class="card p-2 shadow-card">
             <button
               v-for="tab in tabs"
               :key="tab.id"
@@ -36,7 +36,7 @@
           </div>
 
           <!-- Basic Info -->
-          <div v-if="activeTab === 'info'" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
+          <div v-if="activeTab === 'info'" class="card p-6 shadow-card">
             <h2 class="text-lg font-semibold text-text mb-6">基础信息</h2>
             <div class="space-y-5">
               <div class="flex items-center justify-between py-3 border-b border-[rgba(0,0,0,0.06)]">
@@ -74,7 +74,7 @@
           </div>
 
           <!-- 账号绑定卡片 -->
-          <div v-if="activeTab === 'info'" class="mt-6 bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
+          <div v-if="activeTab === 'info'" class="mt-6 card p-6 shadow-card">
             <h2 class="text-lg font-semibold text-text mb-4">账号绑定</h2>
             <div v-if="allProviders.length === 0" class="text-sm text-text-secondary py-2">
               暂无可绑定的第三方登录方式
@@ -105,7 +105,7 @@
 
           <!-- 设置密码卡片(仅自动创建用户首次设置时显示) -->
           <div v-if="activeTab === 'info' && autoCreatedFrom && !hasPassword"
-            class="mt-6 bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
+            class="mt-6 card p-6 shadow-card">
             <h2 class="text-lg font-semibold text-text mb-2">设置登录密码</h2>
             <p class="text-sm text-text-secondary mb-4">
               您的账号由企业微信自动创建,尚未设置登录密码。设置后可使用用户名 + 密码登录。
@@ -125,7 +125,7 @@
           </div>
 
           <!-- API Keys -->
-          <div v-if="activeTab === 'keys'" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
+          <div v-if="activeTab === 'keys'" class="card p-6 shadow-card">
             <p v-if="keyError" class="text-sm mb-4" :class="keyErrorOk ? 'text-emerald-600' : 'text-red-500'">{{ keyError }}</p>
             <div class="flex items-center justify-between mb-6">
               <div class="flex items-center gap-2">
@@ -202,7 +202,7 @@
           </div>
 
           <!-- Token 用量统计 -->
-          <div v-if="activeTab === 'keys' && apiKeyData" class="mt-6 bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
+          <div v-if="activeTab === 'keys' && apiKeyData" class="mt-6 card p-6 shadow-card">
             <h2 class="text-lg font-semibold text-text mb-5 flex items-center gap-2">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#005eeb" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
               Token 用量统计
@@ -282,7 +282,7 @@
 
           <div v-if="activeTab === 'skills'" class="space-y-6">
             <SkillctlGuide v-if="!isPortalAdmin" />
-            <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
+            <div class="card p-6 shadow-card">
               <div class="flex items-center justify-between gap-3 mb-6">
                 <h2 class="text-lg font-semibold text-text">{{ can('skill:review') ? '技能审核' : '我的技能' }}</h2>
                 <button v-if="can('skill:create')" @click="showSubmitDialog = true" class="shrink-0 px-4 py-2 text-sm btn-primary transition-all">提交技能</button>

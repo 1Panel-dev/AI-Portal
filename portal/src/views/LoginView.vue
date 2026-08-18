@@ -14,7 +14,7 @@
         <p class="text-text-secondary text-sm">登录 1Panel AI 门户</p>
       </div>
 
-      <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
+      <div class="card p-6 shadow-card">
         <div class="mb-4">
           <label class="block text-sm font-medium text-text mb-2">用户名</label>
           <input

@@ -565,7 +565,7 @@
     <Teleport to="body">
       <div v-if="showConfirm" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="absolute inset-0 bg-black/50" @click="showConfirm = false"></div>
-        <div class="relative bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl">
+        <div class="relative card p-6 max-w-md w-full mx-4 shadow-xl">
           <h3 class="text-lg font-semibold text-text mb-2">
             {{ confirmTarget === 'cos' ? '切换到 COS 存储' : '切换到本地存储' }}
           </h3>

@@ -62,6 +62,9 @@
   .input-base {
     @apply bg-white border border-[#d2d2d7];
   }
+  .card {
+    @apply bg-white border border-border rounded-2xl;
+  }
 }
 
 @layer utilities {

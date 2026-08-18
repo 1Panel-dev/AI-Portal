@@ -76,7 +76,7 @@
 
       <!-- FilterBar: 始终常驻,不受 loading/empty 状态影响,避免切换时跳动 -->
       <div v-if="!loading && providerGroups.length > 0" class="mb-6">
-        <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl px-5 h-12 flex items-center gap-3 flex-wrap shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+        <div class="card px-5 h-12 flex items-center gap-3 flex-wrap shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
           <div class="text-[13px] text-text-secondary shrink-0">
             共 <span class="font-semibold text-text">{{ filteredModelCount }}</span> 个模型
           </div>

@@ -1,5 +1,5 @@
 <template>
-  <section class="bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 shadow-card">
+  <section class="card p-6 shadow-card">
     <div class="flex items-center justify-between mb-4">
       <div>
         <h3 class="text-base font-semibold text-text">CLI 工具 skillctl</h3>

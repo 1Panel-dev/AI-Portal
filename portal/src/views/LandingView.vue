@@ -44,7 +44,7 @@
       </div>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
         <router-link v-for="p in plazas" :key="p.to" :to="p.to"
-          class="group bg-white border border-[rgba(0,0,0,0.06)] rounded-2xl p-6 no-underline hover:border-[rgba(0,94,235,0.3)] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)] hover:-translate-y-0.5 transition-all">
+          class="group card p-6 no-underline hover:border-[rgba(0,94,235,0.3)] hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)] hover:-translate-y-0.5 transition-all">
           <div class="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
             :class="p.bg">
             <component :is="p.icon" class="w-6 h-6" :class="p.color" />
