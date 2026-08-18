@@ -71,8 +71,8 @@
           class="w-full h-11 bg-white border border-[#d2d2d7] rounded-[10px] px-3.5 text-[15px] text-text outline-none focus:border-[#86868b] font-mono">
         <p class="text-[11px] mt-1" :class="pkgVersion ? 'text-text-tertiary' : 'text-amber-600'">
           <template v-if="pkgVersion">版本来自 skill.md（{{ pkgVersion }}），可修改</template>
-          <template v-else-if="lastVersion">包内无版本，已按上一个版本 {{ lastVersion }} 自动 +1，请确认</template>
-          <template v-else>包内无版本，起始版本，可修改</template>
+          <template v-else-if="lastVersion">包内无版本，请手动填写（上一个版本：{{ lastVersion }}）</template>
+          <template v-else>包内无版本，请手动填写</template>
         </p>
       </div>
 
@@ -185,7 +185,7 @@ const goParse = async () => {
       name: data.name || '',
       description: data.description || '',
       category: data.category || 'skill',
-      version: data.suggestedVersion || '0.1.0',
+      version: data.suggestedVersion || '',
     }
     lastVersion.value = data.lastVersion || ''
     pkgVersion.value = data.version || ''

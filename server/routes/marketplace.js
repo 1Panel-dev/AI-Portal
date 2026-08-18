@@ -545,16 +545,7 @@ async function parseSkillMd(filePath) {
   }
 }
 
-// 版本号向上叠加: "1.2.6"→"1.2.7", "0.1.0"→"0.1.1"; 解析不了回退 "0.1.0"
-function bumpVersion(v) {
-  const parts = String(v || '').trim().replace(/^v/i, '').split('.');
-  const nums = parts.map(p => parseInt(p, 10));
-  if (!nums.length || nums.some(n => !Number.isFinite(n))) return '0.1.0';
-  nums[nums.length - 1] += 1;
-  return nums.join('.');
-}
-
-// 解析技能包: 返回 skill.md 元数据 + 建议版本号(上一个版本 +1), 供前端两步表单预填
+// 解析技能包: 返回 skill.md 元数据 + 建议版本号(skill.md 自带版本), 供前端两步表单预填
 router.post('/api/skills/parse', verifyUser, requirePermission('skill:create'), uploadLimiter, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
@@ -563,7 +554,7 @@ router.post('/api/skills/parse', verifyUser, requirePermission('skill:create'), 
     // 非 zip 格式(7z/tar/tar.gz)暂不解析 skill.md, 直接返回手动填写标记
     if (skillArchiveFormat(req.file.originalname) !== 'zip') {
       if (fs.existsSync(req.file.path)) { try { fs.unlinkSync(req.file.path); } catch {} }
-      return res.json({ name: '', description: '', category: 'skill', version: '', lastVersion: '', suggestedVersion: '0.1.0', manual: true });
+      return res.json({ name: '', description: '', category: 'skill', version: '', lastVersion: '', suggestedVersion: '', manual: true });
     }
     const meta = await parseSkillMd(req.file.path);
     if (meta === null) {
@@ -584,8 +575,8 @@ router.post('/api/skills/parse', verifyUser, requirePermission('skill:create'), 
       if (last.rowCount) lastVersion = last.rows[0].version || '';
     }
 
-    // 建议版本: 优先 skill.md 自带版本; 包内无版本才用「上一个版本 +1」; 都没有才 0.1.0
-    const suggestedVersion = version || (lastVersion ? bumpVersion(lastVersion) : '0.1.0');
+    // 建议版本: 只用 skill.md 自带版本; 包内无版本则留空, 由用户手动填写(不再自动 +1)
+    const suggestedVersion = version;
 
     // 删临时文件
     if (fs.existsSync(req.file.path)) { try { fs.unlinkSync(req.file.path); } catch {} }
