@@ -413,7 +413,7 @@ const fetchSkills = async (reset = false) => {
     skills.value = []
   }
 
-  if (loading.value) return
+  if (loading.value && !reset) return
 
   // 过期响应丢弃: 快速切tab/搜索/翻页时, 后到的新请求生效, 旧响应不覆盖
   const mySeq = ++fetchSeq
