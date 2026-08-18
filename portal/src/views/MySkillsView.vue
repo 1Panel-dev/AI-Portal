@@ -90,7 +90,7 @@ const featureFlags = ref({ skillctlDocUrl: '' })
 const canSubmit = ref(false)
 const showSubmitDialog = ref(false)
 const page = ref(1)
-const limit = ref(20)
+const limit = ref(10)
 const total = ref(0)
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / limit.value)))
 

@@ -209,7 +209,7 @@ const tabs = [
 
 const stats = ref({ pending: 0, approved: 0, rejected: 0 })
 const page = ref(1)
-const limit = ref(20)
+const limit = ref(10)
 const total = ref(0)
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / limit.value)))
 
