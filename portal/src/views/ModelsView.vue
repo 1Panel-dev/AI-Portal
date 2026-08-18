@@ -108,10 +108,10 @@
           <button @click="fetchModels" class="mt-1 text-xs text-amber-800 underline hover:text-amber-950">重新加载</button>
         </div>
       </div>
-      <div v-else-if="filteredProviderGroups.length === 0" class="text-center py-20 min-h-[600px]"><p class="text-text-secondary text-sm">{{ searchQuery || currentProvider !== 'all' ? '没有找到匹配的模型' : '暂无模型数据' }}</p></div>
+      <div v-else-if="filteredModels.length === 0" class="text-center py-20 min-h-[600px]"><p class="text-text-secondary text-sm">{{ searchQuery || currentProvider !== 'all' ? '没有找到匹配的模型' : '暂无模型数据' }}</p></div>
       <!-- 列表容器固定最小高度: 切换 provider 时短列表也保持容器高度,防止内容塌缩导致页面跳动 -->
       <div v-else class="space-y-10 min-h-[600px]">
-        <div v-for="group in filteredProviderGroups" :key="group.provider" class="animate-fade-up">
+        <div v-for="group in pagedProviderGroups" :key="group.provider" class="animate-fade-up">
           <div class="flex items-center gap-2 mb-4">
             <h2 class="text-[18px] font-semibold text-text tracking-[-0.2px]">{{ group.label }}</h2>
             <span class="text-xs text-text-tertiary">· {{ group.provider }}</span>
@@ -131,13 +131,23 @@
             </div>
           </div>
         </div>
+
+        <!-- Pagination -->
+        <div v-if="totalPages > 1" class="flex items-center justify-between pt-2 text-sm text-text-secondary">
+          <span class="text-[13px]">共 {{ filteredModelCount }} 个模型</span>
+          <div class="flex items-center gap-2">
+            <button @click="goPage(page - 1)" :disabled="page <= 1" class="w-8 h-8 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">‹</button>
+            <span class="text-[13px]">{{ page }} / {{ totalPages }}</span>
+            <button @click="goPage(page + 1)" :disabled="page >= totalPages" class="w-8 h-8 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">›</button>
+          </div>
+        </div>
       </div>
     </section>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
 import FilterItem from '../components/FilterItem.vue'
@@ -237,29 +247,56 @@ const providerOptions = computed(() => [
   ...providerGroups.value.map(g => ({ id: g.provider, name: g.label })),
 ])
 
-// 应用搜索 + provider 过滤
-const filteredProviderGroups = computed(() => {
-  let list = providerGroups.value
+// 应用搜索 + provider 过滤, 得到扁平模型列表(附 provider/label 供分页后重组分组)
+const filteredModels = computed(() => {
+  let list = providerGroups.value.flatMap(g =>
+    g.models.map(m => ({ ...m, _provider: g.provider, _label: g.label }))
+  )
 
   // provider 过滤
   if (currentProvider.value !== 'all') {
-    list = list.filter(g => g.provider === currentProvider.value)
+    list = list.filter(m => m._provider === currentProvider.value)
   }
 
   // 搜索词过滤(在模型名上)
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
-    list = list
-      .map(g => ({ ...g, models: g.models.filter(m => m.model_name.toLowerCase().includes(q)) }))
-      .filter(g => g.models.length > 0)
+    list = list.filter(m => m.model_name.toLowerCase().includes(q))
   }
 
   return list
 })
 
-const filteredModelCount = computed(() =>
-  filteredProviderGroups.value.reduce((s, g) => s + g.models.length, 0)
-)
+const filteredModelCount = computed(() => filteredModels.value.length)
+
+// 分页: 模型数量有限, 一次拉全量后本地分页(每页 20)
+const page = ref(1)
+const pageSize = 20
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredModels.value.length / pageSize)))
+
+// 当前页模型按 provider 分组
+const pagedProviderGroups = computed(() => {
+  const start = (page.value - 1) * pageSize
+  const paged = filteredModels.value.slice(start, start + pageSize)
+  const map = new Map()
+  for (const m of paged) {
+    if (!map.has(m._provider)) {
+      map.set(m._provider, { provider: m._provider, label: m._label, models: [] })
+    }
+    map.get(m._provider).models.push(m)
+  }
+  return [...map.values()]
+})
+
+const goPage = (p) => {
+  if (p < 1 || p > totalPages.value) return
+  page.value = p
+}
+
+// 切换 provider / 搜索时回到第 1 页
+watch([currentProvider, searchQuery], () => {
+  page.value = 1
+})
 
 const fetchModels = async () => {
   loading.value = true

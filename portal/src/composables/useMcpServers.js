@@ -1,4 +1,4 @@
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 
 import { getLoginToken } from '../lib/apiBase'
 // API 基础地址（与 useSkills.js 一致）
@@ -18,7 +18,7 @@ const error = ref(null)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
-const hasMore = ref(false)
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
 // 搜索防抖定时器
 let searchDebounceTimer = null
@@ -60,14 +60,8 @@ export function useMcpServers() {
       // 过期响应丢弃
       if (mySeq !== requestSeq) return
 
-      if (reset || currentPage.value === 1) {
-        servers.value = result.data
-      } else {
-        servers.value = [...servers.value, ...result.data]
-      }
-
+      servers.value = result.data
       total.value = result.pagination.total
-      hasMore.value = result.pagination.hasMore
     } catch (err) {
       if (mySeq === requestSeq) {
         console.error('Error loading MCP servers:', err)
@@ -92,11 +86,11 @@ export function useMcpServers() {
     }, delay)
   }
 
-  // 加载更多
-  const loadMore = async () => {
-    if (!hasMore.value || loading.value) return
-    currentPage.value++
-    await loadServers(false)
+  // 翻页
+  const goPage = (p) => {
+    if (p < 1 || p > totalPages.value) return
+    currentPage.value = p
+    loadServers()
   }
 
   // 监听搜索输入
@@ -115,8 +109,9 @@ export function useMcpServers() {
     error,
     searchQuery,
     total,
-    hasMore,
-    loadMore,
+    currentPage,
+    totalPages,
+    goPage,
     loadServers,
   }
 }
