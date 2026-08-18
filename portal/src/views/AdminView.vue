@@ -134,15 +134,7 @@
         </div>
       </div>
 
-      <!-- Pagination -->
-      <div v-if="totalPages > 1" class="flex items-center justify-between mt-6 text-sm text-text-secondary">
-        <span class="text-[13px]">共 {{ total }} 条</span>
-        <div class="flex items-center gap-2">
-          <button @click="goPage(page - 1)" :disabled="page <= 1" class="w-8 h-8 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">‹</button>
-          <span class="text-[13px]">{{ page }} / {{ totalPages }}</span>
-          <button @click="goPage(page + 1)" :disabled="page >= totalPages" class="w-8 h-8 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">›</button>
-        </div>
-      </div>
+      <Pagination class="mt-6" :page="page" :total-pages="totalPages" :total="total" @change="goPage" />
     <!-- Reject Dialog -->
     <div
       v-if="rejectingId"
@@ -183,6 +175,7 @@ import { Clock, CheckCircle2, ClipboardList, Inbox, Check, X } from 'lucide-vue-
 import { avatarColors } from '../data/categories.js'
 
 import { getLoginToken } from '../lib/apiBase'
+import Pagination from '../components/Pagination.vue'
 import { can, loadPermissions } from '../composables/usePermissions.js'
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
 

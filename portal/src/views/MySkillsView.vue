@@ -51,14 +51,7 @@
           </div>
         </div>
 
-        <div v-if="totalPages > 1" class="flex items-center justify-between px-5 py-3 border-t border-[rgba(0,0,0,0.06)] text-sm text-text-secondary">
-          <span class="text-[13px]">共 {{ total }} 条</span>
-          <div class="flex items-center gap-2">
-            <button @click="goPage(page - 1)" :disabled="page <= 1" class="w-8 h-8 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">‹</button>
-            <span class="text-[13px]">{{ page }} / {{ totalPages }}</span>
-            <button @click="goPage(page + 1)" :disabled="page >= totalPages" class="w-8 h-8 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">›</button>
-          </div>
-        </div>
+        <Pagination class="px-5 py-3 border-t border-[rgba(0,0,0,0.06)]" :page="page" :total-pages="totalPages" :total="total" @change="goPage" />
       </div>
     </main>
 
@@ -75,6 +68,7 @@
 <script setup>
 import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import Pagination from '../components/Pagination.vue'
 import NavBar from '../components/NavBar.vue'
 import SubmitSkillDialog from '../components/SubmitSkillDialog.vue'
 import AppDialog from '../components/AppDialog.vue'

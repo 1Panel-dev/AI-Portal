@@ -132,15 +132,7 @@
           </div>
         </div>
 
-        <!-- Pagination -->
-        <div v-if="totalPages > 1" class="flex items-center justify-between pt-2 text-sm text-text-secondary">
-          <span class="text-[13px]">共 {{ filteredModelCount }} 个模型</span>
-          <div class="flex items-center gap-2">
-            <button @click="goPage(page - 1)" :disabled="page <= 1" class="w-8 h-8 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">‹</button>
-            <span class="text-[13px]">{{ page }} / {{ totalPages }}</span>
-            <button @click="goPage(page + 1)" :disabled="page >= totalPages" class="w-8 h-8 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">›</button>
-          </div>
-        </div>
+        <Pagination class="pt-2" :page="page" :total-pages="totalPages" :total="filteredModelCount" label="个模型" @change="goPage" />
       </div>
     </section>
   </div>
@@ -149,6 +141,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import Pagination from '../components/Pagination.vue'
 import NavBar from '../components/NavBar.vue'
 import FilterItem from '../components/FilterItem.vue'
 import { providerLabels } from '../data/categories.js'

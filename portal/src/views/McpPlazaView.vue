@@ -58,15 +58,7 @@
         @select="openDetail"
       />
 
-      <!-- Pagination -->
-      <div v-if="totalPages > 1" class="flex items-center justify-between pt-6 text-sm text-text-secondary">
-        <span class="text-[13px]">共 {{ total }} 条</span>
-        <div class="flex items-center gap-2">
-          <button @click="goPage(currentPage - 1)" :disabled="currentPage <= 1" class="w-8 h-8 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">‹</button>
-          <span class="text-[13px]">{{ currentPage }} / {{ totalPages }}</span>
-          <button @click="goPage(currentPage + 1)" :disabled="currentPage >= totalPages" class="w-8 h-8 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">›</button>
-        </div>
-      </div>
+      <Pagination class="pt-6" :page="currentPage" :total-pages="totalPages" :total="total" @change="goPage" />
     </div>
 
     <McpDetailModal
@@ -81,6 +73,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMcpServers } from '../composables/useMcpServers.js'
+import Pagination from '../components/Pagination.vue'
 import NavBar from '../components/NavBar.vue'
 import McpGrid from '../components/McpGrid.vue'
 import McpDetailModal from '../components/McpDetailModal.vue'
