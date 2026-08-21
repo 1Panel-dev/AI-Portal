@@ -265,10 +265,12 @@ router.get('/api/models', verifyUser, requirePermissionOrAdminRole('model:view')
     let syncFailedReason = null;  // 记录首次兜底同步是否失败,用于给前端 hint
     try {
       const result = await global.pool.query(`
-        SELECT id, group_name, model_name, provider, base_url, model_type, is_active
+        SELECT id, group_name, model_name, provider, base_url, model_type, is_active,
+               api_model_name, display_name, description, context_window, max_output_tokens,
+               cache_enabled, multimodal, tool_calling, image_input, sort_order, is_public, invocation_formats
         FROM portal_models
-        WHERE is_active = TRUE
-        ORDER BY group_name, model_name
+        WHERE is_active = TRUE AND is_public = TRUE
+        ORDER BY sort_order, group_name, model_name
       `);
       rows = result.rows;
     } catch (dbErr) {
@@ -280,18 +282,25 @@ router.get('/api/models', verifyUser, requirePermissionOrAdminRole('model:view')
     }
 
     if (rows.length === 0) {
-      try {
-        await syncModelsFromPanel();
-        const result = await global.pool.query(`
-          SELECT id, group_name, model_name, provider, base_url, model_type, is_active
-          FROM portal_models
-          WHERE is_active = TRUE
-          ORDER BY group_name, model_name
-        `);
-        rows = result.rows;
-      } catch (syncErr) {
-        console.error('首次模型同步失败:', syncErr.message);
-        syncFailedReason = syncErr.message;
+      // 仅当完全没有「活跃模型」时才兜底同步（首次初始化）；管理员刻意把所有模型下架时,
+      // 活跃模型仍在,不触发重型全量同步——否则每次广场加载都会跑 1Panel 全页扫描+软删。
+      const anyActive = await global.pool.query('SELECT 1 FROM portal_models WHERE is_active = TRUE LIMIT 1');
+      if (anyActive.rowCount === 0) {
+        try {
+          await syncModelsFromPanel();
+          const result = await global.pool.query(`
+            SELECT id, group_name, model_name, provider, base_url, model_type, is_active,
+                   api_model_name, display_name, description, context_window, max_output_tokens,
+                   cache_enabled, multimodal, tool_calling, image_input, sort_order, is_public, invocation_formats
+            FROM portal_models
+            WHERE is_active = TRUE AND is_public = TRUE
+            ORDER BY sort_order, group_name, model_name
+          `);
+          rows = result.rows;
+        } catch (syncErr) {
+          console.error('首次模型同步失败:', syncErr.message);
+          syncFailedReason = syncErr.message;
+        }
       }
     }
 
@@ -325,6 +334,26 @@ router.get('/api/models', verifyUser, requirePermissionOrAdminRole('model:view')
         }
       }
       // 非数组 / 首元素为对象 -> 全公开（兜底），rows 不动
+    }
+
+    // 批量拉标签（仅 is_public=TRUE 的模型）
+    if (rows.length) {
+      try {
+        const tagResult = await global.pool.query(`
+          SELECT mt.model_id, t.id, t.name, t.color
+          FROM model_tags mt
+          JOIN tags t ON t.id = mt.tag_id AND t.is_active = TRUE
+          WHERE mt.model_id = ANY($1)
+          ORDER BY t.sort_order, t.name
+        `, [rows.map(r => r.id)]);
+        const tagMap = {};
+        for (const tr of tagResult.rows) (tagMap[tr.model_id] ??= []).push({ id: tr.id, name: tr.name, color: tr.color });
+        for (const row of rows) row.tags = tagMap[row.id] || [];
+      } catch (tagErr) {
+        console.error('[/api/models] 标签查询失败:', tagErr.message);
+        // model_tags 表可能尚未创建，给每个模型设空标签
+        for (const row of rows) row.tags = [];
+      }
     }
 
     const groups = {};
@@ -381,6 +410,37 @@ router.get('/api/models/example', async (req, res) => {
   } catch (err) {
     console.error('获取调用示例配置失败:', err);
     res.status(500).json({ error: '获取调用示例配置失败' });
+  }
+});
+
+// 公开端点:返回活跃标签列表（供模型广场筛选）
+router.get('/api/tags', async (req, res) => {
+  try {
+    const r = await global.pool.query(`
+      SELECT t.id, t.name, t.color, t.sort_order, t.is_active,
+             array_agg(DISTINCT trt.resource_type) FILTER (WHERE trt.resource_type IS NOT NULL) AS resource_types
+      FROM tags t
+      LEFT JOIN tag_resource_types trt ON trt.tag_id = t.id
+      WHERE t.is_active = TRUE
+      GROUP BY t.id
+      ORDER BY t.sort_order, t.name
+    `);
+    res.json({ data: r.rows });
+  } catch (err) {
+    // model_tags / tag_resource_types 表可能尚未创建
+    res.json({ data: [] });
+  }
+});
+
+// 公开端点:返回活跃调用方式列表（供模型编辑勾选）
+router.get('/api/invocation-formats', async (req, res) => {
+  try {
+    const r = await global.pool.query(
+      'SELECT id, name, method, endpoint, sort_order FROM invocation_formats WHERE is_active = TRUE ORDER BY sort_order, id'
+    );
+    res.json({ data: r.rows });
+  } catch (err) {
+    res.json({ data: [] });
   }
 });
 

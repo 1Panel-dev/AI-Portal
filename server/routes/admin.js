@@ -903,6 +903,64 @@ router.get('/api/admin/panel-config', verifyUser, requirePermission('system:conf
   }
 });
 
+// ─── 模型管理扩展（广场字段编辑）──────────────────────────────
+
+// 管理员查看模型列表（含广场字段 + 标签，不分页全量）
+router.get('/api/admin/models', verifyUser, requirePermission('model:view'), async (req, res) => {
+  try {
+    const r = await global.pool.query(`
+      SELECT id, group_name, model_name, provider, model_type, is_active,
+             api_model_name, display_name, description, context_window, max_output_tokens,
+             cache_enabled, multimodal, tool_calling, image_input, sort_order, is_public, invocation_formats
+      FROM portal_models
+      WHERE is_active = TRUE
+      ORDER BY sort_order, group_name, model_name
+    `);
+    // 批量拉标签
+    const ids = r.rows.map(m => m.id);
+    let tagMap = {};
+    if (ids.length) {
+      const t = await global.pool.query(`
+        SELECT mt.model_id, t.id, t.name, t.color
+        FROM model_tags mt JOIN tags t ON t.id = mt.tag_id AND t.is_active = TRUE
+        WHERE mt.model_id = ANY($1)
+        ORDER BY t.sort_order, t.name
+      `, [ids]);
+      for (const row of t.rows) (tagMap[row.model_id] ??= []).push({ id: row.id, name: row.name, color: row.color });
+    }
+    for (const m of r.rows) m.tags = tagMap[m.id] || [];
+    res.json({ data: r.rows });
+  } catch (e) {
+    console.error('[admin] GET models error:', e);
+    res.status(500).json({ error: '获取模型列表失败', reason: e.message });
+  }
+});
+
+// 管理员编辑模型广场字段
+router.patch('/api/admin/models/:id', verifyUser, requirePermission('model:edit'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const ALLOWED = ['api_model_name', 'display_name', 'description', 'context_window', 'max_output_tokens', 'cache_enabled', 'multimodal', 'tool_calling', 'image_input', 'sort_order', 'is_public', 'invocation_formats'];
+    const sets = [], vals = [];
+    let idx = 1;
+    for (const k of ALLOWED) {
+      if (req.body[k] !== undefined) {
+        sets.push(`${k} = $${idx++}`);
+        vals.push(k === 'invocation_formats' ? JSON.stringify(req.body[k]) : req.body[k]);
+      }
+    }
+    if (!sets.length) return res.status(400).json({ error: '无有效字段' });
+    sets.push(`updated_at = CURRENT_TIMESTAMP`);
+    vals.push(id);
+    const r = await global.pool.query(`UPDATE portal_models SET ${sets.join(', ')} WHERE id = $${idx} RETURNING id, model_name`, vals);
+    if (!r.rowCount) return res.status(404).json({ error: '模型不存在' });
+    res.json({ ok: true, data: r.rows[0] });
+  } catch (e) {
+    console.error('[admin] PATCH model error:', e);
+    res.status(500).json({ error: '更新模型失败', reason: e.message });
+  }
+});
+
 // 获取「调用示例」配置(管理员视图,允许编辑)
 router.get('/api/admin/model-example', verifyUser, requirePermission('system:config'), async (req, res) => {
   try {
@@ -954,6 +1012,86 @@ router.post('/api/admin/model-example', verifyUser, requirePermission('system:co
     res.status(500).json({ error: '保存调用示例配置失败' });
   }
 });
+
+// ─── 调用方式管理 ───────────────────────────────────
+
+router.get('/api/admin/invocation-formats', verifyUser, requirePermission('invocation_format:view'), async (req, res) => {
+  try {
+    const r = await global.pool.query(
+      'SELECT id, name, method, endpoint, sort_order, is_active, created_at, updated_at FROM invocation_formats ORDER BY sort_order, id'
+    );
+    res.json({ data: r.rows });
+  } catch (e) {
+    res.status(500).json({ error: '获取调用方式失败', reason: e.message });
+  }
+});
+
+router.post('/api/admin/invocation-formats', verifyUser, requirePermission('invocation_format:create'), async (req, res) => {
+  try {
+    const name = String(req.body.name || '').trim();
+    const method = String(req.body.method || 'POST').trim().toUpperCase();
+    const endpoint = String(req.body.endpoint || '').trim();
+    const sort_order = Number.isFinite(Number(req.body.sort_order)) ? Number(req.body.sort_order) : 0;
+    if (!name) return res.status(400).json({ error: '名称不能为空' });
+    if (!['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) return res.status(400).json({ error: 'HTTP 方法无效' });
+    // 重名检查（UNIQUE 约束兜底，这里提前给友好提示）
+    const dup = await global.pool.query('SELECT id FROM invocation_formats WHERE name = $1', [name]);
+    if (dup.rowCount) return res.status(409).json({ error: '名称已存在' });
+    const r = await global.pool.query(
+      'INSERT INTO invocation_formats (name, method, endpoint, sort_order) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, method, endpoint, sort_order]
+    );
+    res.status(201).json({ data: r.rows[0] });
+  } catch (e) {
+    if (e.code === '23505') return res.status(409).json({ error: '名称已存在' });
+    res.status(500).json({ error: '创建失败', reason: e.message });
+  }
+});
+
+router.patch('/api/admin/invocation-formats/:id', verifyUser, requirePermission('invocation_format:edit'), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    // 改名时检查重名
+    if (req.body.name !== undefined) {
+      const newName = String(req.body.name).trim();
+      if (!newName) return res.status(400).json({ error: '名称不能为空' });
+      const dup = await global.pool.query('SELECT id FROM invocation_formats WHERE name = $1 AND id != $2', [newName, id]);
+      if (dup.rowCount) return res.status(409).json({ error: '名称已存在' });
+    }
+    const sets = [], vals = [];
+    let idx = 1;
+    if (req.body.name !== undefined) { sets.push(`name = $${idx++}`); vals.push(String(req.body.name).trim()); }
+    if (req.body.method !== undefined) {
+      const m = String(req.body.method).trim().toUpperCase();
+      if (!['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].includes(m)) return res.status(400).json({ error: 'HTTP 方法无效' });
+      sets.push(`method = $${idx++}`); vals.push(m);
+    }
+    if (req.body.endpoint !== undefined) { sets.push(`endpoint = $${idx++}`); vals.push(String(req.body.endpoint).trim()); }
+    if (req.body.sort_order !== undefined) { sets.push(`sort_order = $${idx++}`); vals.push(Number(req.body.sort_order) || 0); }
+    if (req.body.is_active !== undefined) { sets.push(`is_active = $${idx++}`); vals.push(!!req.body.is_active); }
+    if (!sets.length) return res.status(400).json({ error: '无有效字段' });
+    sets.push('updated_at = CURRENT_TIMESTAMP');
+    vals.push(id);
+    const r = await global.pool.query(`UPDATE invocation_formats SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`, vals);
+    if (!r.rowCount) return res.status(404).json({ error: '调用方式不存在' });
+    res.json({ data: r.rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: '更新失败', reason: e.message });
+  }
+});
+
+router.delete('/api/admin/invocation-formats/:id', verifyUser, requirePermission('invocation_format:delete'), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const r = await global.pool.query('DELETE FROM invocation_formats WHERE id = $1 RETURNING id', [id]);
+    if (!r.rowCount) return res.status(404).json({ error: '调用方式不存在' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: '删除失败', reason: e.message });
+  }
+});
+
+// ─── 1Panel 配置 ───────────────────────────────────
 
 // 保存 1Panel 配置
 router.post('/api/admin/panel-config', verifyUser, requirePermission('system:config'), async (req, res) => {

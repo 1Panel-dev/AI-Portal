@@ -70,6 +70,9 @@
             <SideItem v-if="can('menu:admin-mcps')" to="/admin/mcps" :active="isActive('/admin/mcps')" :collapsed="collapsed" title="MCP 管理">
               <LayoutGrid class="w-5 h-5" /><template #label>MCP 管理</template>
             </SideItem>
+            <SideItem v-if="can('tag:view')" to="/admin/tags" :active="isActive('/admin/tags')" :collapsed="collapsed" title="标签管理">
+              <Tags class="w-5 h-5" /><template #label>标签管理</template>
+            </SideItem>
           </div>
         </section>
         <div class="mx-3 h-px bg-[rgba(0,0,0,0.04)]"></div>
@@ -162,7 +165,7 @@ import SideItem from './admin/SideItem.vue'
 import { siteName, siteLogo, siteLogoIsDefault } from '../composables/useSiteBranding.js'
 import { bannerVisible } from '../composables/useAnnouncement.js'
 import { loadPermissions, permissions, isPortalAdmin, can } from '../composables/usePermissions.js'
-import { BarChart3, ClipboardCheck, Puzzle, UserCog, Sliders, KeyRound, PanelLeftClose, PanelLeftOpen, FolderKanban, LayoutGrid, Sun, ShieldCheck, Boxes, UserCheck } from 'lucide-vue-next'
+import { BarChart3, ClipboardCheck, Puzzle, UserCog, Sliders, KeyRound, PanelLeftClose, PanelLeftOpen, FolderKanban, LayoutGrid, Sun, ShieldCheck, Boxes, UserCheck, Tags } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -179,6 +182,7 @@ const ADMIN_MENU_ROUTES = [
   { path: '/admin/stats', perm: 'menu:admin-stats' },
   { path: '/admin', perm: 'menu:admin-review' },
   { path: '/admin/models', perm: 'menu:admin-models' },
+  { path: '/admin/tags', perm: 'menu:admin-tags' },
   { path: '/admin/skills', perm: 'menu:admin-skills' },
   { path: '/admin/mcps', perm: 'menu:admin-mcps' },
   { path: '/admin/groups', perm: 'menu:admin-groups' },
@@ -210,7 +214,7 @@ onMounted(async () => {
     'role:view','role:create','role:edit','role:delete',
     'group:view','group:create','group:edit','group:delete',
     'user:view','user:edit','user:create','user:delete',
-    'skill:edit','skill:delete','system:config',
+    'skill:edit','skill:delete','system:config','tag:edit','model:edit','invocation_format:edit',
   ].some(k => can(k))
   console.log(`[AdminLayout] 守卫检查: isPortalAdmin=${isPortalAdmin.value}, isAdmin=${isAdmin}, hasAnyAdminPerm=${hasAnyAdminPerm}, 权限数=${permissions.value.length}`)
   if (!isAdmin && !hasAnyAdminPerm) {

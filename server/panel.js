@@ -270,11 +270,13 @@ async function _syncModelsFromPanel() {
   let successCount = 0;
   if (rows.length > 0) {
     // 8 列 × N 行 → 拼出 ($1,$2,...,$8),($9,$10,...,$16),...
+    // 第 9 个字段 display_name（展示名）在 INSERT 时默认取 model_name($2)；
+    // ON CONFLICT DO UPDATE 不触碰 display_name，保证管理员手改不被覆盖。
     const COLS = 8;
     const valuesSql = rows
       .map((_, rowIdx) => {
         const base = rowIdx * COLS;
-        return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, CURRENT_TIMESTAMP)`;
+        return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, CURRENT_TIMESTAMP, $${base + 2})`;
       })
       .join(', ');
     const flatParams = rows.flat();
@@ -283,7 +285,7 @@ async function _syncModelsFromPanel() {
     await global.pool.query(
       `INSERT INTO portal_models (
         panel_backend_id, group_name, model_name, provider, base_url, model_type,
-        raw_data, is_active, synced_at
+        raw_data, is_active, synced_at, display_name
       ) VALUES ${valuesSql}
       ON CONFLICT (group_name, model_name) DO UPDATE SET
         panel_backend_id = EXCLUDED.panel_backend_id,

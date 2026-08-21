@@ -48,7 +48,10 @@
           >
             <input type="checkbox" :checked="isResourceSelected(r.id)" class="h-4 w-4 accent-accent" @change="toggleResource(r.id)" />
             <div class="flex-1 min-w-0">
-              <div class="text-[13px] text-text truncate">{{ r.title }}</div>
+              <div class="flex items-center gap-2">
+                <span class="text-[13px] text-text truncate">{{ r.title }}</span>
+                <span v-if="activeResourceType === 'model'" class="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium" :class="r.is_public ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'">{{ r.is_public ? '已上架' : '未上架' }}</span>
+              </div>
               <div v-if="r.subtitle" class="text-[11px] text-text-tertiary truncate">{{ r.subtitle }}</div>
             </div>
           </label>
@@ -171,7 +174,7 @@ async function fetchAllResources() {
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(errMsg(data, '获取资源失败'))
     for (const key of Object.keys(data.data || {})) {
-      resourceCatalog[key] = (data.data[key] || []).map(r => ({ id: r.id, title: r.title, subtitle: r.subtitle }))
+      resourceCatalog[key] = (data.data[key] || []).map(r => ({ id: r.id, title: r.title, subtitle: r.subtitle, is_public: r.is_public }))
     }
   } catch (err) {
     showToast(err.message || '获取资源列表失败', 'error')

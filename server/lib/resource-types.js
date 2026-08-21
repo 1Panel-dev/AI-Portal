@@ -17,7 +17,7 @@ registerResourceType('model', {
   name: '模型',
   async listAll() {
     const r = await global.pool.query(
-      'SELECT model_name, group_name, provider FROM portal_models WHERE is_active ORDER BY group_name, model_name'
+      'SELECT model_name, group_name, provider, is_public FROM portal_models WHERE is_active ORDER BY is_public DESC, group_name, model_name'
     );
     return r.rows;
   },

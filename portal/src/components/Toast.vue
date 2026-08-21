@@ -16,7 +16,7 @@ const typeClass = computed(() => ({
   <Teleport to="body">
     <div
       v-if="toast.show"
-      class="fixed inset-0 z-[400] flex items-center justify-center pointer-events-none px-6"
+      class="fixed inset-0 z-[400] flex items-start justify-center pointer-events-none pt-24 px-6"
     >
       <div
         class="pointer-events-auto px-6 py-3 rounded-xl text-sm font-medium text-center shadow-lg transition-all animate-fade-up max-w-[80vw] break-words"

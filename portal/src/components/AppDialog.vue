@@ -21,7 +21,7 @@ const widthClass = computed(() => ({ sm: 'w-[400px]', md: 'w-[480px]', lg: 'w-[5
 <template>
   <Teleport to="body">
     <div v-if="open" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/45 backdrop-blur-[8px] px-5" @click.self="$emit('close')">
-      <div class="bg-white rounded-2xl shadow-modal p-6 max-w-[90vw]" :class="widthClass">
+      <div class="bg-white rounded-2xl shadow-modal p-6 max-w-[90vw] max-h-[85vh] overflow-y-auto" :class="widthClass">
         <h3 v-if="title" class="text-lg font-semibold text-text mb-3">{{ title }}</h3>
         <!-- 默认插槽: 支持表单等富内容; 无插槽时回退到 message 纯文本 -->
         <div v-if="hasBody" class="text-sm text-text-secondary leading-relaxed">

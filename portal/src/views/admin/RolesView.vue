@@ -365,6 +365,7 @@ const ADMIN_OP_KEYS = new Set([
   'user:view', 'user:create', 'user:edit', 'user:password', 'user:batch-password', 'user:assign', 'user:delete',
   'role:view', 'role:create', 'role:edit', 'role:delete',
   'group:view', 'group:create', 'group:edit', 'group:delete', 'group:assign', 'group:panel-sync',
+  'tag:view', 'tag:create', 'tag:edit', 'tag:delete',
   'system:config',
 ])
 const PORTAL_OP_KEYS = new Set([
@@ -384,7 +385,13 @@ const PORTAL_OP_KEYS = new Set([
 const MENU_TO_BUTTONS = {
   'menu:admin-stats': { buttons: [], implicit: ['user:view'] },
   'menu:admin-review': { buttons: [], implicit: ['user:view', 'skill:review'] },
-  'menu:admin-models': { buttons: [], implicit: ['model:view'] },
+  'menu:admin-models': { buttons: [
+    { key: 'model:edit', label: '编辑' },
+    { key: 'invocation_format:create', label: '新增调用方式' },
+    { key: 'invocation_format:edit', label: '编辑调用方式' },
+    { key: 'invocation_format:delete', label: '删除调用方式' },
+  ], implicit: ['model:view', 'invocation_format:view'] },
+  'menu:admin-tags': { buttons: [{ key: 'tag:create', label: '新增' }, { key: 'tag:edit', label: '编辑' }, { key: 'tag:delete', label: '删除' }], implicit: ['tag:view'] },
   'menu:admin-skills': { buttons: [{ key: 'skill:edit', label: '编辑' }, { key: 'skill:publish', label: '上架/下架' }, { key: 'skill:delete', label: '删除' }], implicit: ['skill:view'] },
   'menu:admin-mcps': { buttons: [], implicit: ['mcp:view'] },
   'menu:admin-groups': { buttons: [{ key: 'group:create', label: '新建' }, { key: 'group:edit', label: '编辑' }, { key: 'group:delete', label: '删除' }], implicit: ['group:view'] },
@@ -408,10 +415,21 @@ const MENU_TO_OPS = Object.fromEntries(
   Object.entries(MENU_TO_BUTTONS).map(([menu, cfg]) => [menu, [...cfg.buttons.map(b => b.key), ...cfg.implicit]])
 )
 
+// 保存前归一：每个勾选菜单的「隐式必需」权限必须带上（如 模型管理→invocation_format:view）。
+// 防止只勾按钮不重勾菜单时产生坏组合——调用方式 Tab 显示和后端 GET 都依赖 invocation_format:view。
+function finalizePermKeys() {
+  const keys = new Set(selectedPerms.value)
+  for (const menuKey of selectedPerms.value) {
+    const cfg = MENU_TO_BUTTONS[menuKey]
+    if (cfg && cfg.implicit) for (const k of cfg.implicit) keys.add(k)
+  }
+  return [...keys]
+}
+
 // 菜单展示顺序
 const MENU_ORDER = [
   'menu:admin-stats', 'menu:admin-review',
-  'menu:admin-models', 'menu:admin-skills', 'menu:admin-mcps',
+  'menu:admin-models', 'menu:admin-skills', 'menu:admin-mcps', 'menu:admin-tags',
   'menu:admin-groups', 'menu:admin-assignments',
   'menu:admin-users', 'menu:admin-roles',
   'menu:admin-config', 'menu:admin-oauth', 'menu:admin-panel',
@@ -601,12 +619,18 @@ function applyInherit() {
   const newSet = new Set()
   for (const p of allPermissions.value) {
     if (inheritFrom.value === 'admin') {
-      // 后台角色: 后台菜单 + 后台操作
-      if (p.module === 'menu' && p.action.startsWith('admin-')) newSet.add(p.key)
+      // 后台角色: 后台菜单(并把菜单关联的操作权限一并展开, 见 MENU_TO_OPS) + 后台操作
+      if (p.module === 'menu' && p.action.startsWith('admin-')) {
+        newSet.add(p.key)
+        for (const opKey of (MENU_TO_OPS[p.key] || [])) newSet.add(opKey)
+      }
       if (p.module !== 'menu' && ADMIN_OP_KEYS.has(p.key)) newSet.add(p.key)
     } else if (inheritFrom.value === 'user') {
       // 用户侧角色: 用户侧菜单 + 用户侧操作(menu:profile 为默认权限、menu:submit 归入「我的技能」不独立展示,都不授予)
-      if (p.module === 'menu' && p.key !== 'menu:profile' && p.key !== 'menu:submit' && !p.action.startsWith('admin-')) newSet.add(p.key)
+      if (p.module === 'menu' && p.key !== 'menu:profile' && p.key !== 'menu:submit' && !p.action.startsWith('admin-')) {
+        newSet.add(p.key)
+        for (const opKey of (MENU_TO_OPS[p.key] || [])) newSet.add(opKey)
+      }
       if (p.module !== 'menu' && PORTAL_OP_KEYS.has(p.key)) newSet.add(p.key)
     }
     // 'custom': 保持为空，从零开始
@@ -686,7 +710,7 @@ async function saveNewRole() {
   if (!formName.value.trim()) return
   saving.value = true
   try {
-    const keys = [...selectedPerms.value]
+    const keys = finalizePermKeys()
     const res = await fetch(`${API_BASE}/admin/roles`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
@@ -718,7 +742,7 @@ async function saveEditRole() {
   try {
     const id = selectedRole.value.id
     const isSystem = selectedRole.value.is_system
-    const keys = [...selectedPerms.value]
+    const keys = finalizePermKeys()
 
     // 更新权限集（内置角色跳过——后端也会拒）
     if (!isSystem) {

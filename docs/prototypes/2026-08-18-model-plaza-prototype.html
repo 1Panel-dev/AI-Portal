@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI-Portal 模型广场 · 原型 v5</title>
+<style>
+  :root {
+    --bg: #f5f5f7; --surface: #ffffff; --surface-secondary: #f5f5f7;
+    --border: rgba(0,0,0,0.06); --border-strong: rgba(0,0,0,0.1);
+    --text: #1D2129; --text-secondary: #475569; --text-tertiary: #94a3b8;
+    --accent: rgba(0,94,235,1); --accent-hover: rgba(0,58,150,1); --accent-soft: rgba(0,94,235,0.06);
+    --shadow-card: 0 1px 3px rgba(0,0,0,0.04); --shadow-modal: 0 24px 80px rgba(0,0,0,0.12);
+    --green:#10b981; --amber:#f59e0b; --violet:#8b5cf6; --red:#ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system,'SF Pro SC','PingFang SC','Noto Sans SC',sans-serif; background: var(--bg); color: var(--text); font-size: 14px; -webkit-font-smoothing: antialiased; }
+
+  .proto-bar { position: sticky; top:0; z-index:100; height:48px; background:#1d2129; color:#fff; display:flex; align-items:center; gap:8px; padding:0 20px; }
+  .proto-bar .brand { font-weight:800; font-size:13px; margin-right:16px; opacity:.9; }
+  .proto-tab { padding:6px 14px; border-radius:8px; font-size:13px; cursor:pointer; color:rgba(255,255,255,.65); transition:all .15s; border:none; background:transparent; }
+  .proto-tab:hover { color:#fff; background:rgba(255,255,255,.08); }
+  .proto-tab.active { color:#fff; background:rgba(255,255,255,.16); }
+  .proto-hint { margin-left:auto; font-size:12px; color:rgba(255,255,255,.45); }
+
+  .view { display:none; } .view.active { display:block; animation:fadeUp .35s ease; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+  .wrap { max-width:1240px; margin:0 auto; padding:0 24px; }
+  .btn { display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:10px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid transparent; transition:all .15s; background:var(--surface); }
+  .btn-primary { background:var(--accent); color:#fff; } .btn-primary:hover { background:var(--accent-hover); }
+  .btn-secondary { color:var(--text-secondary); border-color:var(--border); } .btn-secondary:hover { border-color:var(--border-strong); color:var(--text); }
+  .tag-pill { background:var(--accent-soft); color:var(--accent); border-radius:6px; padding:2px 8px; font-size:11px; font-weight:600; white-space:nowrap; }
+
+  /* 广场 */
+  .plaza-hero { padding: 44px 0 28px; text-align: center; }
+  .plaza-hero h1 { font-size: 38px; font-weight: 700; letter-spacing: -1px; }
+  .plaza-hero p { margin-top: 10px; color: var(--text-secondary); font-size: 15px; }
+  .plaza-hero .stats { display: flex; justify-content: center; gap: 44px; margin-top: 22px; }
+  .plaza-hero .stats b { font-size: 22px; }
+  .plaza-hero .stats span { display: block; font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+  .plaza-layout { display: flex; gap: 28px; align-items: flex-start; padding-bottom: 48px; }
+  .plaza-side { width: 208px; flex-shrink: 0; position: sticky; top: 64px; }
+  .side-sec { margin-bottom: 22px; }
+  .side-title { font-size: 12px; font-weight: 600; color: var(--text-tertiary); margin-bottom: 8px; padding-left: 4px; }
+  .side-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-radius: 10px; cursor: pointer; font-size: 13px; color: var(--text-secondary); transition: all .15s; user-select: none; }
+  .side-item:hover { background: var(--surface-secondary); color: var(--text); }
+  .side-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .side-item .c { font-size: 11px; color: var(--text-tertiary); }
+  .side-item.active .c { color: var(--accent); opacity: .7; }
+  .side-item .dot { width: 7px; height: 7px; border-radius: 50%; margin-right: 8px; flex-shrink: 0; }
+
+  .plaza-main { flex: 1; min-width: 0; }
+  .search { display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:9px 14px; margin-bottom: 20px; }
+  .search input { flex:1; border:none; outline:none; background:transparent; font-size:13px; color:var(--text); }
+  .search svg { color:var(--text-tertiary); flex-shrink:0; }
+
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+  @media(max-width:1000px){.grid{grid-template-columns:repeat(2,1fr)}} @media(max-width:640px){.grid{grid-template-columns:1fr}}
+  .mcard { background:var(--surface); border:1px solid rgba(0,0,0,0.04); border-radius:16px; padding:20px; cursor:pointer; position:relative; display:flex; flex-direction:column; gap:12px; transition:all .3s ease-out; }
+  .mcard:hover { transform:translateY(-2px); border-color:rgba(10,132,255,0.22); box-shadow:0 16px 40px rgba(10,132,255,0.10); }
+  .mcard-top { display:flex; align-items:flex-start; gap:12px; }
+  .mcard .avatar { width:44px; height:44px; border-radius:13px; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; color:#fff; flex-shrink:0; }
+  .mcard .title { font-size:15px; font-weight:600; letter-spacing:-.2px; }
+  .mcard .sub { font-size:11px; color:var(--text-tertiary); margin-top:2px; }
+  .mcard .tags { display:flex; flex-wrap:wrap; gap:6px; }
+  .mcard .tags .more { background:var(--surface-secondary); color:var(--text-tertiary); border-radius:6px; padding:2px 8px; font-size:11px; font-weight:600; }
+  .mcard-foot { display:flex; align-items:center; gap:12px; padding-top:12px; border-top:1px solid rgba(0,0,0,0.04); font-size:12px; color:var(--text-secondary); margin-top:auto; }
+  .mcard-foot i { font-style:normal; display:inline-flex; align-items:center; gap:3px; }
+  .copy-corner { position:absolute; top:12px; right:12px; width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary); background:transparent; border:none; cursor:pointer; opacity:0; transition:all .15s; }
+  .mcard:hover .copy-corner { opacity:1; }
+  .copy-corner:hover { background:var(--surface-secondary); color:var(--text); }
+
+  /* 详情 */
+  .detail-back { display:inline-flex; align-items:center; gap:4px; color:var(--text-secondary); cursor:pointer; font-size:13px; margin:24px 0 20px; }
+  .detail-back:hover { color:var(--text); }
+  .detail-head { display:flex; align-items:center; gap:16px; }
+  .detail-head .logo { width:56px; height:56px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:20px; color:#fff; }
+  .detail-head h1 { font-size:28px; font-weight:700; letter-spacing:-.5px; }
+  .detail-head .sub { color:var(--text-secondary); margin-top:4px; font-size:13px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .detail-desc { margin:20px 0; color:var(--text-secondary); line-height:1.7; font-size:14px; }
+  .panel { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px; margin-bottom:16px; }
+  .panel h3 { font-size:15px; font-weight:700; margin-bottom:16px; }
+  .cap-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .cap-item { background:var(--surface-secondary); border-radius:12px; padding:14px; }
+  .cap-item .k { font-size:12px; color:var(--text-tertiary); } .cap-item .v { font-size:16px; font-weight:700; margin-top:4px; }
+  .inv-tabs { display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+  .inv-tab { padding:7px 14px; border-radius:10px; font-size:13px; cursor:pointer; border:1px solid var(--border); background:var(--surface); color:var(--text-secondary); transition:all .15s; }
+  .inv-tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .code { background:#151517; border-radius:12px; overflow:hidden; font-family:'SF Mono',Consolas,monospace; font-size:12.5px; line-height:1.7; }
+  .code .bar { display:flex; align-items:center; gap:6px; padding:10px 14px; border-bottom:1px solid rgba(255,255,255,.08); }
+  .code .dot { width:10px; height:10px; border-radius:50%; }
+  .code pre { padding:14px; color:#e8e8ed; overflow-x:auto; white-space:pre; }
+  .k-m{color:#ffb86c}.k-url{color:#ff9f43}.k-str{color:#5af78e}
+  .copy-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; border:1px solid var(--border); border-radius:12px; margin-bottom:10px; }
+  .copy-row:last-child { margin-bottom:0; }
+  .copy-row .k { font-size:12px; color:var(--text-tertiary); }
+  .copy-row .v { font-family:'SF Mono',Consolas,monospace; font-size:13px; color:var(--text); word-break:break-all; }
+  .copy-btn { display:inline-flex; align-items:center; gap:5px; padding:6px 12px; border-radius:8px; font-size:12px; cursor:pointer; border:1px solid var(--border); background:var(--surface); color:var(--text-secondary); transition:all .15s; white-space:nowrap; }
+  .copy-btn:hover { border-color:var(--border-strong); color:var(--text); }
+  .copy-btn.done { color:#10b981; border-color:#10b981; }
+
+  /* 后台 */
+  .admin-head { display:flex; align-items:center; justify-content:space-between; margin:28px 0 8px; }
+  .admin-head h1 { font-size:24px; font-weight:700; } .admin-head .sub { color:var(--text-secondary); font-size:13px; margin-top:4px; }
+  .table { background:var(--surface); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
+  .table .row { display:grid; gap:12px; padding:13px 16px; align-items:center; border-bottom:1px solid var(--border); }
+  .table .row:last-child { border-bottom:none; } .table .thead { background:var(--surface-secondary); font-size:12px; font-weight:600; color:var(--text-secondary); }
+  .cols-main { grid-template-columns:1.5fr 1fr 1.2fr .7fr .7fr; }
+  .switch { position:relative; width:40px; height:22px; border-radius:999px; background:#d2d2d7; cursor:pointer; transition:background .15s; border:none; }
+  .switch.on { background:var(--accent); }
+  .switch::after { content:''; position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:#fff; transition:transform .15s; }
+  .switch.on::after { transform:translateX(18px); }
+  .link-btn { color:var(--accent); cursor:pointer; font-size:13px; background:none; border:none; } .link-btn:hover{text-decoration:underline;}
+  .filter-bar { display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:10px 14px; margin-bottom:20px; }
+  .flex-spacer { flex:1; }
+  .fselect { position:relative; }
+  .fselect select { appearance:none; padding:7px 28px 7px 12px; font-size:13px; border-radius:10px; border:1px solid var(--border-strong); background:var(--surface); color:var(--text); cursor:pointer; outline:none; }
+  .fselect .arr { position:absolute; right:10px; top:50%; transform:translateY(-50%); pointer-events:none; color:var(--text-tertiary); width:0; height:0; border-left:4px solid transparent; border-right:4px solid transparent; border-top:5px solid currentColor; }
+
+  /* 弹窗 */
+  .mask { position:fixed; inset:0; background:rgba(0,0,0,.32); display:none; align-items:center; justify-content:center; z-index:200; }
+  .mask.show { display:flex; }
+  .modal { background:var(--surface); border-radius:20px; box-shadow:var(--shadow-modal); width:560px; max-width:92vw; max-height:88vh; overflow-y:auto; animation:modalIn .2s ease; }
+  @keyframes modalIn { from{opacity:0;transform:scale(.96)} to{opacity:1;transform:none} }
+  .modal-head { padding:20px 24px 0; display:flex; align-items:center; justify-content:space-between; }
+  .modal-head h3 { font-size:17px; font-weight:700; } .modal-head .x{cursor:pointer;color:var(--text-tertiary);font-size:16px;}
+  .modal-body { padding:18px 24px; } .modal-foot { padding:0 24px 20px; display:flex; justify-content:flex-end; gap:10px; }
+  .field { margin-bottom:16px; } .field label { display:block; font-size:12px; color:var(--text-secondary); margin-bottom:6px; }
+  .field input[type=text],.field input[type=number],.field textarea { width:100%; border:1px solid var(--border); border-radius:10px; padding:9px 12px; font-size:13px; outline:none; color:var(--text); font-family:inherit; }
+  .field input:focus,.field textarea:focus { border-color:var(--accent); } .field textarea{resize:vertical;min-height:56px;}
+  .field .row { display:flex; gap:12px; } .field .row>div{flex:1;}
+  .tag-multi { display:flex; flex-wrap:wrap; gap:8px; }
+  .tag-multi .t { padding:5px 12px; border-radius:999px; font-size:12px; cursor:pointer; border:1px solid var(--border); background:var(--surface); color:var(--text-secondary); transition:all .12s; }
+  .tag-multi .t.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .switch-label { display:flex; align-items:center; gap:10px; margin-bottom:10px; } .switch-label span{font-size:13px;color:var(--text-secondary);}
+  .inv-list { display:flex; flex-direction:column; gap:8px; }
+  .inv-item { display:flex; align-items:center; gap:10px; padding:8px 12px; border:1px solid var(--border); border-radius:10px; }
+  .inv-item .nm { flex:1; font-weight:600; font-size:13px; }
+  .inv-item .proto { font-size:11px; color:var(--text-tertiary); background:var(--surface-secondary); padding:2px 8px; border-radius:6px; }
+  .inv-add { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .inv-add .opt { font-size:12px; padding:5px 10px; border-radius:8px; border:1px dashed var(--border-strong); color:var(--text-secondary); cursor:pointer; }
+  .inv-add .opt:hover { border-color:var(--accent); color:var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="proto-bar">
+  <span class="brand">模型广场原型 v5</span>
+  <button class="proto-tab active" data-view="plaza">模型广场</button>
+  <button class="proto-tab" data-view="detail">模型详情</button>
+  <button class="proto-tab" data-view="admin">后台模型管理</button>
+  <span class="proto-hint">左栏=标签+供应商 · 对接方式取 apiType</span>
+</div>
+
+<!-- ===== 广场 ===== -->
+<div id="view-plaza" class="view active">
+  <div class="wrap">
+    <div class="plaza-hero">
+      <h1>查找可调用的 AI 模型</h1>
+      <p>按标签与供应商浏览，点击模型卡片查看能力与 REST 调用方式</p>
+      <div class="stats">
+        <div><b id="stat-provider">5</b><span>供应商</span></div>
+        <div><b id="stat-model">9</b><span>模型</span></div>
+      </div>
+    </div>
+
+    <div class="plaza-layout">
+      <aside class="plaza-side" id="plaza-side"></aside>
+      <main class="plaza-main">
+        <div class="search">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="plaza-search" type="text" placeholder="搜索模型名 / 供应商..." />
+        </div>
+        <div id="plaza-grid" class="grid"></div>
+      </main>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 详情 ===== -->
+<div id="view-detail" class="view">
+  <div class="wrap" style="padding-bottom:48px">
+    <div class="detail-back" id="detail-back">← 返回模型广场</div>
+    <div id="detail-body"></div>
+  </div>
+</div>
+
+<!-- ===== 后台 ===== -->
+<div id="view-admin" class="view">
+  <div class="wrap" style="padding-bottom:48px">
+    <div class="admin-head">
+      <div><h1>模型管理</h1><div class="sub">同步自 1Panel，共 9 个模型。勾选「对外展示」后才会在广场出现</div></div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-secondary" id="admin-taglib">统一标签库</button>
+        <button class="btn btn-primary">同步</button>
+      </div>
+    </div>
+
+    <div class="filter-bar">
+      <div class="search" style="margin-bottom:0">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="admin-search" type="text" placeholder="搜索模型名称 / 账户 / 供应商..." />
+      </div>
+      <span class="flex-spacer"></span>
+      <div class="fselect">
+        <select id="vis-filter"><option value="all">展示状态：全部</option><option value="on">已展示</option><option value="off">未展示</option></select>
+        <span class="arr"></span>
+      </div>
+    </div>
+
+    <div class="table">
+      <div class="row thead cols-main"><div>模型名称</div><div>供应商</div><div>标签</div><div>对外展示</div><div>操作</div></div>
+      <div id="admin-rows"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 编辑弹窗 ===== -->
+<div class="mask" id="edit-mask">
+  <div class="modal">
+    <div class="modal-head"><h3 id="edit-title">编辑模型</h3><span class="x" id="edit-close">✕</span></div>
+    <div class="modal-body">
+      <div class="field"><label>模型介绍</label><textarea id="f-desc" placeholder="一句话说明模型定位与适用场景"></textarea></div>
+      <div class="field row">
+        <div><label>上下文长度（tokens）</label><input id="f-ctx" type="number" placeholder="128000" /></div>
+        <div><label>最大输出（tokens）</label><input id="f-out" type="number" placeholder="4096" /></div>
+      </div>
+      <div class="field"><label>能力</label>
+        <div class="switch-label"><button class="switch" id="f-cache"></button><span>支持缓存</span></div>
+        <div class="switch-label"><button class="switch" id="f-multi"></button><span>多模态</span></div>
+      </div>
+      <div class="field"><label>标签（统一标签库）</label><div class="tag-multi" id="f-tags"></div></div>
+      <div class="field"><label>调用方式（REST，从模板库添加）</label><div class="inv-list" id="f-inv"></div></div>
+      <div class="field"><label>对外展示</label><div class="switch-label"><button class="switch" id="f-public"></button><span>在模型广场展示此模型</span></div></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" id="edit-cancel">取消</button>
+      <button class="btn btn-primary" id="edit-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 统一标签库弹窗 ===== -->
+<div class="mask" id="taglib-mask">
+  <div class="modal" style="width:480px">
+    <div class="modal-head"><h3>统一标签库</h3><span class="x" id="taglib-close">✕</span></div>
+    <div class="modal-body">
+      <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:14px;line-height:1.6">通用标签库，模型 / Skill / MCP 共用一套。当前仅模型启用，后续资源可直接复用。</div>
+      <div class="field"><label>新增标签</label>
+        <div style="display:flex;gap:8px">
+          <input id="new-tag-name" type="text" placeholder="标签名" style="flex:1" />
+          <input id="new-tag-color" type="color" value="#005eeb" style="width:44px;height:38px;border:1px solid var(--border);border-radius:10px;cursor:pointer" />
+          <button class="btn btn-primary" id="add-tag">添加</button>
+        </div>
+      </div>
+      <div id="taglib-list" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+    <div class="modal-foot"><button class="btn btn-secondary" id="taglib-done">完成</button></div>
+  </div>
+</div>
+
+<script>
+const P_COLOR={openai:'#10a37f',anthropic:'#d97757',deepseek:'#4d6bfe',qwen:'#7c3aed',custom:'#64748b',vllm:'#0ea5e9','ark-coding-plan':'#f97316'};
+const P_LABEL={openai:'OpenAI',anthropic:'Anthropic',deepseek:'深度求索',qwen:'阿里云百炼',custom:'自定义',vllm:'vLLM','ark-coding-plan':'火山方舟'};
+
+let MODELS=[
+  {id:1,name:'deepseek-v4-flash',provider:'deepseek',apiType:'openai-completions',account:'东区-DS2',tags:['推荐','文本'],ctx:'64K',out:'8K',cache:false,multi:false,public:true,desc:'DeepSeek 通用文本模型，中文能力强，适合大规模批量推理与问答。'},
+  {id:2,name:'deepseek-v4-pro',provider:'deepseek',apiType:'openai-completions',account:'公司-DS',tags:['推荐','文本'],ctx:'128K',out:'16K',cache:false,multi:false,public:true,desc:'DeepSeek 高阶模型，复杂推理与代码能力更强。'},
+  {id:3,name:'kimi-k3',provider:'custom',apiType:'openai-completions',account:'方舟Agent',tags:['文本'],ctx:'128K',out:'16K',cache:false,multi:false,public:true,desc:'月之暗面 Kimi 系列，长文本理解与 Agent 调用。'},
+  {id:4,name:'qwen3.8-27b-nvfp4',provider:'vllm',apiType:'openai-completions',account:'东区RTX5000',tags:['多模态'],ctx:'128K',out:'16K',cache:false,multi:true,public:false,desc:'通义千问 3.8 27B，本地 vLLM 部署，多模态 + 中文语义。'},
+  {id:5,name:'step-3.7-flash',provider:'custom',apiType:'openai-completions',account:'磊博-阶跃星辰',tags:['文本'],ctx:'32K',out:'8K',cache:false,multi:false,public:true,desc:'阶跃星辰快速模型，低延迟高吞吐。'},
+  {id:6,name:'agnes-2.0-flash',provider:'custom',apiType:'openai-completions',account:'磊博-agnes',tags:['文本'],ctx:'32K',out:'8K',cache:false,multi:false,public:false,desc:'内部 Agent 专用轻量模型。'},
+  {id:7,name:'doubao-seed-2.0-pro',provider:'ark-coding-plan',apiType:'openai-completions',account:'东区-方舟',tags:['推荐','多模态'],ctx:'128K',out:'16K',cache:true,multi:true,public:true,desc:'火山方舟豆包 Seed 系列，多模态 + 代码能力突出，支持缓存。'},
+  {id:8,name:'glm-5.2',provider:'ark-coding-plan',apiType:'openai-completions',account:'东区-方舟',tags:['文本'],ctx:'128K',out:'16K',cache:true,multi:false,public:false,desc:'智谱 GLM 系列，通用对话与工具调用。'},
+  {id:9,name:'minimax-m3',provider:'ark-coding-plan',apiType:'openai-completions',account:'东区-方舟',tags:['文本'],ctx:'64K',out:'8K',cache:false,multi:false,public:false,desc:'MiniMax 模型，中文对话与内容生成。'},
+];
+
+let TAG_LIB=[
+  {name:'推荐',color:'#ef4444'},{name:'多模态',color:'#005eeb'},{name:'文本',color:'#10b981'},{name:'Embedding',color:'#f59e0b'},{name:'重排',color:'#8b5cf6'},
+];
+const tagColor=n=>(TAG_LIB.find(t=>t.name===n)||{}).color||'#64748b';
+
+/* 全局调用方式模板库 —— 仅 REST，按 apiType（对接协议）预置 */
+const INV_TEMPLATES=[
+  {id:'rest-openai',name:'REST · OpenAI 兼容',apiType:'openai-completions',proto:'chat/completions'},
+  {id:'rest-anthropic',name:'REST · Anthropic Messages',apiType:'anthropic',proto:'v1/messages'},
+  {id:'rest-embedding',name:'REST · Embedding',apiType:'embeddings',proto:'embeddings'},
+  {id:'rest-rerank',name:'REST · Rerank',apiType:'rerank',proto:'rerank'},
+];
+function defaultInv(m){
+  const map={'anthropic':'rest-anthropic','embeddings':'rest-embedding','rerank':'rest-rerank'};
+  return [map[m.apiType]||'rest-openai'];
+}
+MODELS.forEach(m=>m.inv=defaultInv(m));
+
+/* 复制工具 */
+function copyText(text, btn, iconOnly){
+  const old = btn.innerHTML;
+  const flash = () => {
+    if (iconOnly) btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>';
+    else btn.textContent = '已复制';
+    btn.classList.add('done');
+    setTimeout(()=>{ btn.innerHTML = old; btn.classList.remove('done'); }, 1400);
+  };
+  const fallback = () => { const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); try{document.execCommand('copy')}catch(_){} document.body.removeChild(ta); flash(); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(flash).catch(fallback);
+  else fallback();
+}
+function wireCopy(root){
+  root.querySelectorAll('[data-copy]').forEach(b=>b.addEventListener('click', e=>{ e.stopPropagation(); copyText(b.dataset.copy, b, b.classList.contains('icon-copy')); }));
+  const codeBtn = root.querySelector('[data-copy-code]');
+  if (codeBtn) codeBtn.addEventListener('click', () => { const el=document.getElementById('inv-code'); copyText(el ? el.textContent : '', codeBtn, false); });
+}
+
+/* 视图切换 */
+const tabs=document.querySelectorAll('.proto-tab');
+function switchView(n){ tabs.forEach(t=>t.classList.toggle('active',t.dataset.view===n)); document.querySelectorAll('.view').forEach(v=>v.classList.remove('active')); document.getElementById('view-'+n).classList.add('active'); if(n==='admin')renderAdmin(); }
+tabs.forEach(t=>t.addEventListener('click',()=>switchView(t.dataset.view)));
+
+/* 广场：标签/供应商 计数 + 左侧栏渲染 */
+let tagF='all',provF='all',search='';
+function tagCount(name){ return MODELS.filter(m=>m.public && m.tags.includes(name)).length; }
+function provList(){ const c={}; MODELS.filter(m=>m.public).forEach(m=>c[m.provider]=(c[m.provider]||0)+1); return Object.keys(c).sort((a,b)=>c[b]-c[a]).map(p=>({key:p,label:P_LABEL[p]||p,count:c[p]})); }
+function renderSide(){
+  document.getElementById('plaza-side').innerHTML=`
+    <div class="side-sec">
+      <div class="side-title">标签</div>
+      <div class="side-item ${tagF==='all'?'active':''}" data-tag="all"><span>全部标签</span><span class="c">${MODELS.filter(m=>m.public).length}</span></div>
+      ${TAG_LIB.map(t=>`<div class="side-item ${tagF===t.name?'active':''}" data-tag="${t.name}"><span><span class="dot" style="background:${t.color}"></span>${t.name}</span><span class="c">${tagCount(t.name)}</span></div>`).join('')}
+    </div>
+    <div class="side-sec">
+      <div class="side-title">供应商</div>
+      <div class="side-item ${provF==='all'?'active':''}" data-prov="all"><span>全部供应商</span><span class="c">${MODELS.filter(m=>m.public).length}</span></div>
+      ${provList().map(p=>`<div class="side-item ${provF===p.key?'active':''}" data-prov="${p.key}"><span><span class="dot" style="background:${P_COLOR[p.key]}"></span>${p.label}</span><span class="c">${p.count}</span></div>`).join('')}
+    </div>`;
+  document.querySelectorAll('[data-tag]').forEach(el=>el.addEventListener('click',()=>{tagF=el.dataset.tag;renderSide();renderPlaza();}));
+  document.querySelectorAll('[data-prov]').forEach(el=>el.addEventListener('click',()=>{provF=el.dataset.prov;renderSide();renderPlaza();}));
+}
+function renderPlaza(){
+  const q=search.trim().toLowerCase();
+  const list=MODELS.filter(m=>m.public && (tagF==='all'||m.tags.includes(tagF)) && (provF==='all'||m.provider===provF) && (!q||m.name.toLowerCase().includes(q)||(P_LABEL[m.provider]||'').toLowerCase().includes(q)));
+  document.getElementById('stat-provider').textContent=new Set(list.map(m=>m.provider)).size;
+  document.getElementById('stat-model').textContent=list.length;
+  const grid=document.getElementById('plaza-grid');
+  grid.innerHTML=list.map(m=>{
+    const shown=m.tags.slice(0,3); const more=m.tags.length-3;
+    return `<div class="mcard" data-id="${m.id}">
+      <button class="copy-corner icon-copy" data-copy="${m.name}" title="复制模型名"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+      <div class="mcard-top">
+        <div class="avatar" style="background:${P_COLOR[m.provider]}">${(P_LABEL[m.provider]||'?')[0]}</div>
+        <div class="flex-1 min-w-0">
+          <div class="title">${m.name}</div>
+          <div class="sub">${P_LABEL[m.provider]}</div>
+        </div>
+      </div>
+      <div class="tags">${shown.map(tg=>`<span class="tag-pill" style="background:${tagColor(tg)}1a;color:${tagColor(tg)}">${tg}</span>`).join('')}${more>0?`<span class="more">+${more}</span>`:''}</div>
+      <div class="mcard-foot"><i>↔ ${m.ctx}</i><i>↑ ${m.out}</i>${m.multi?'<i>🖼 多模态</i>':''}${m.cache?'<i>⚡ 缓存</i>':''}</div>
+    </div>`;
+  }).join('')||'<div style="grid-column:1/-1;text-align:center;color:var(--text-tertiary);padding:60px 0">没有匹配的模型</div>';
+  grid.querySelectorAll('.mcard').forEach(c=>c.addEventListener('click',()=>openDetail(+c.dataset.id)));
+  wireCopy(grid);
+}
+document.getElementById('plaza-search').addEventListener('input',e=>{search=e.target.value;renderPlaza();});
+
+/* 详情 */
+let curInv=0;
+function openDetail(id){
+  const m=MODELS.find(x=>x.id===id); if(!m)return; curInv=0;
+  document.getElementById('detail-body').innerHTML=`
+    <div class="detail-head">
+      <div class="logo" style="background:${P_COLOR[m.provider]}">${(P_LABEL[m.provider]||'?')[0]}</div>
+      <div><h1>${m.name}</h1>
+        <div class="sub"><span>${P_LABEL[m.provider]}</span>${m.tags.map(tg=>`<span class="tag-pill" style="background:${tagColor(tg)}1a;color:${tagColor(tg)}">${tg}</span>`).join('')}</div>
+      </div>
+    </div>
+    <div class="detail-desc">${m.desc}</div>
+    <div class="panel"><h3>调用地址</h3>
+      <div class="copy-row"><div><div class="k">Base URL</div><div class="v">https://gateway.example.com/v1</div></div><button class="copy-btn" data-copy="https://gateway.example.com/v1">复制</button></div>
+      <div class="copy-row"><div><div class="k">Model</div><div class="v">${m.name}</div></div><button class="copy-btn" data-copy="${m.name}">复制</button></div>
+    </div>
+    <div class="panel"><h3>模型能力</h3><div class="cap-grid">
+      <div class="cap-item"><div class="k">上下文长度</div><div class="v">${m.ctx} tokens</div></div>
+      <div class="cap-item"><div class="k">最大输出</div><div class="v">${m.out} tokens</div></div>
+      <div class="cap-item"><div class="k">多模态</div><div class="v">${m.multi?'支持':'不支持'}</div></div>
+      <div class="cap-item"><div class="k">缓存</div><div class="v">${m.cache?'支持':'不支持'}</div></div>
+      <div class="cap-item"><div class="k">对接方式</div><div class="v" style="font-size:13px">${m.apiType}</div></div>
+      <div class="cap-item"><div class="k">供应商</div><div class="v" style="font-size:14px">${P_LABEL[m.provider]}</div></div>
+    </div></div>
+    <div class="panel"><h3>调用方式 <span style="font-weight:400;font-size:12px;color:var(--text-tertiary)">（REST · ${m.inv.length} 种）</span></h3>
+      <div class="inv-tabs" id="inv-tabs"></div>
+      <div class="code"><div class="bar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span style="color:#a8a8b3;font-size:11px;margin-left:6px">shell</span><button data-copy-code style="margin-left:auto;background:transparent;border:1px solid rgba(255,255,255,.15);color:#a8a8b3;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer">复制</button></div><pre id="inv-code"></pre></div>
+    </div>`;
+  renderInv(m); switchView('detail');
+  wireCopy(document.getElementById('detail-body'));
+}
+function invName(id){ return (INV_TEMPLATES.find(x=>x.id===id)||{}).name||id; }
+function invCode(id,m){
+  const b='https://gateway.example.com/v1';
+  switch(id){
+    case 'rest-openai': return `curl -X <span class="k-m">POST</span> <span class="k-url">${b}/chat/completions</span> \\\n  -H <span class="k-str">"Authorization: Bearer sk-xxx"</span> \\\n  -H <span class="k-str">"Content-Type: application/json"</span> \\\n  -d <span class="k-str">'{"model":"${m.name}","messages":[{"role":"user","content":"你好"}]}'</span>`;
+    case 'rest-anthropic': return `curl -X <span class="k-m">POST</span> <span class="k-url">${b}/v1/messages</span> \\\n  -H <span class="k-str">"x-api-key: sk-xxx"</span> \\\n  -H <span class="k-str">"anthropic-version: 2023-06-01"</span> \\\n  -d <span class="k-str">'{"model":"${m.name}","max_tokens":1024,"messages":[{"role":"user","content":"你好"}]}'</span>`;
+    case 'rest-embedding': return `curl -X <span class="k-m">POST</span> <span class="k-url">${b}/embeddings</span> \\\n  -H <span class="k-str">"Authorization: Bearer sk-xxx"</span> \\\n  -d <span class="k-str">'{"model":"${m.name}","input":"你好"}'</span>`;
+    case 'rest-rerank': return `curl -X <span class="k-m">POST</span> <span class="k-url">${b}/rerank</span> \\\n  -H <span class="k-str">"Authorization: Bearer sk-xxx"</span> \\\n  -d <span class="k-str">'{"model":"${m.name}","query":"查询","documents":["..."]}'</span>`;
+  }
+}
+function renderInv(m){
+  const box=document.getElementById('inv-tabs');
+  box.innerHTML=m.inv.map((id,i)=>`<button class="inv-tab ${i===curInv?'active':''}" data-i="${i}">${invName(id)}</button>`).join('');
+  box.querySelectorAll('.inv-tab').forEach(b=>b.addEventListener('click',()=>{curInv=+b.dataset.i;renderInv(m);}));
+  document.getElementById('inv-code').innerHTML=invCode(m.inv[curInv],m);
+}
+document.getElementById('detail-back').addEventListener('click',()=>switchView('plaza'));
+
+/* 后台 */
+let visF='all',aSearch='';
+function renderAdmin(){
+  const q=aSearch.trim().toLowerCase();
+  const list=MODELS.filter(m=>(visF==='all'||(visF==='on'?m.public:!m.public))&&(!q||m.name.toLowerCase().includes(q)||(P_LABEL[m.provider]||'').toLowerCase().includes(q)||m.account.toLowerCase().includes(q)));
+  document.getElementById('admin-rows').innerHTML=list.map(m=>`
+    <div class="row cols-main">
+      <div style="font-weight:600">${m.name}</div>
+      <div style="color:var(--text-secondary)">${P_LABEL[m.provider]}</div>
+      <div>${m.tags.length?m.tags.map(tg=>`<span class="tag-pill" style="background:${tagColor(tg)}1a;color:${tagColor(tg)};margin-right:4px">${tg}</span>`).join(''):'<span style="color:var(--text-tertiary);font-size:12px">—</span>'}</div>
+      <div><button class="switch ${m.public?'on':''}" data-toggle="${m.id}"></button></div>
+      <div><button class="link-btn" data-edit="${m.id}">编辑</button></div>
+    </div>`).join('');
+  document.querySelectorAll('[data-toggle]').forEach(b=>b.addEventListener('click',()=>{const m=MODELS.find(x=>x.id===+b.dataset.toggle);m.public=!m.public;renderAdmin();}));
+  document.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>openEdit(+b.dataset.edit)));
+}
+document.getElementById('vis-filter').addEventListener('change',e=>{visF=e.target.value;renderAdmin();});
+document.getElementById('admin-search').addEventListener('input',e=>{aSearch=e.target.value;renderAdmin();});
+
+/* 编辑弹窗 */
+let editingId=null;
+function renderTagMulti(sel){const box=document.getElementById('f-tags');box.innerHTML=TAG_LIB.map(t=>`<span class="t ${sel.includes(t.name)?'on':''}" data-tn="${t.name}">${t.name}</span>`).join('');box.querySelectorAll('.t').forEach(el=>el.addEventListener('click',()=>el.classList.toggle('on')));}
+function renderInvList(m){
+  const box=document.getElementById('f-inv');
+  box.innerHTML=m.inv.map(id=>`<div class="inv-item"><span class="nm">${invName(id)}</span><span class="proto">${(INV_TEMPLATES.find(x=>x.id===id)||{}).proto||''}</span><button class="link-btn" style="color:var(--red)" data-rminv="${id}">移除</button></div>`).join('')
+    + `<div class="inv-add">${INV_TEMPLATES.filter(t=>!m.inv.includes(t.id)).map(t=>`<span class="opt" data-addinv="${t.id}">＋ ${t.name}</span>`).join('')||'<span style="font-size:12px;color:var(--text-tertiary)">已添加全部 REST 模板</span>'}</div>`;
+  box.querySelectorAll('[data-rminv]').forEach(b=>b.addEventListener('click',()=>{m.inv=m.inv.filter(x=>x!==b.dataset.rminv);renderInvList(m);}));
+  box.querySelectorAll('[data-addinv]').forEach(b=>b.addEventListener('click',()=>{m.inv.push(b.dataset.addinv);renderInvList(m);}));
+}
+function openEdit(id){
+  editingId=id;const m=MODELS.find(x=>x.id===id);
+  document.getElementById('edit-title').textContent='编辑模型 · '+m.name;
+  document.getElementById('f-desc').value=m.desc||'';
+  document.getElementById('f-ctx').value=parseInt(m.ctx)||'';document.getElementById('f-out').value=parseInt(m.out)||'';
+  setSw('f-cache',m.cache);setSw('f-multi',m.multi);setSw('f-public',m.public);
+  renderTagMulti(m.tags);renderInvList(m);
+  document.getElementById('edit-mask').classList.add('show');
+}
+function setSw(id,on){document.getElementById(id).classList.toggle('on',!!on);}
+['f-cache','f-multi','f-public'].forEach(id=>document.getElementById(id).addEventListener('click',function(){this.classList.toggle('on');}));
+document.getElementById('edit-close').addEventListener('click',()=>document.getElementById('edit-mask').classList.remove('show'));
+document.getElementById('edit-cancel').addEventListener('click',()=>document.getElementById('edit-mask').classList.remove('show'));
+document.getElementById('edit-save').addEventListener('click',()=>{
+  const m=MODELS.find(x=>x.id===editingId);
+  m.desc=document.getElementById('f-desc').value;
+  m.ctx=document.getElementById('f-ctx').value+'K';m.out=document.getElementById('f-out').value+'K';
+  m.tags=[...document.querySelectorAll('#f-tags .t.on')].map(e=>e.dataset.tn);
+  m.cache=document.getElementById('f-cache').classList.contains('on');m.multi=document.getElementById('f-multi').classList.contains('on');m.public=document.getElementById('f-public').classList.contains('on');
+  document.getElementById('edit-mask').classList.remove('show');
+  renderAdmin();renderSide();renderPlaza();
+});
+
+/* 统一标签库 */
+function renderTagLib(){
+  document.getElementById('taglib-list').innerHTML=TAG_LIB.map(t=>`<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1px solid var(--border);border-radius:10px"><span style="width:10px;height:10px;border-radius:50%;background:${t.color}"></span><span style="flex:1;font-weight:600">${t.name}</span><span style="font-family:monospace;font-size:12px;color:var(--text-tertiary)">${t.color}</span><button class="link-btn" style="color:var(--red)" data-deltag="${t.name}">删除</button></div>`).join('');
+  document.querySelectorAll('[data-deltag]').forEach(b=>b.addEventListener('click',()=>{TAG_LIB=TAG_LIB.filter(x=>x.name!==b.dataset.deltag);MODELS.forEach(m=>m.tags=m.tags.filter(t=>t!==b.dataset.deltag));renderTagLib();}));
+}
+document.getElementById('admin-taglib').addEventListener('click',()=>{renderTagLib();document.getElementById('taglib-mask').classList.add('show');});
+document.getElementById('taglib-close').addEventListener('click',()=>document.getElementById('taglib-mask').classList.remove('show'));
+document.getElementById('taglib-done').addEventListener('click',()=>{document.getElementById('taglib-mask').classList.remove('show');renderAdmin();renderSide();renderPlaza();});
+document.getElementById('add-tag').addEventListener('click',()=>{
+  const name=document.getElementById('new-tag-name').value.trim();if(!name||TAG_LIB.some(t=>t.name===name))return;
+  TAG_LIB.push({name,color:document.getElementById('new-tag-color').value});
+  document.getElementById('new-tag-name').value='';renderTagLib();
+});
+
+renderSide();renderPlaza();
+</script>
+</body>
+</html>

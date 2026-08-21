@@ -9,6 +9,137 @@ const { getResourceType, getAllResourceTypes } = require('../lib/resource-types'
 const router = express.Router();
 const pool = () => global.pool;
 
+// ---- 标签库 ----
+const TAG_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+
+async function getTagRows() {
+  const r = await pool().query(`
+    SELECT t.id, t.name, t.color, t.sort_order, t.is_active, t.created_at, t.updated_at,
+      COALESCE(array_agg(tr.resource_type ORDER BY tr.resource_type)
+        FILTER (WHERE tr.resource_type IS NOT NULL), '{}') AS resource_types
+    FROM tags t
+    LEFT JOIN tag_resource_types tr ON tr.tag_id = t.id
+    GROUP BY t.id
+    ORDER BY t.sort_order, t.id
+  `);
+  return r.rows;
+}
+
+async function validateTagResourceTypes(resourceTypes) {
+  const values = Array.isArray(resourceTypes) ? [...new Set(resourceTypes.map(String))] : [];
+  if (!values.length) return { values: [], error: '至少选择一种适用资源类型' };
+  const valid = await pool().query('SELECT key FROM resource_types WHERE key = ANY($1)', [values]);
+  const validSet = new Set(valid.rows.map(r => r.key));
+  const invalid = values.filter(v => !validSet.has(v));
+  return invalid.length ? { values, error: `未知资源类型: ${invalid.join(', ')}` } : { values };
+}
+
+router.get('/api/admin/tags', verifyUser, requirePermission('tag:view'), async (req, res) => {
+  try {
+    res.json({ data: await getTagRows() });
+  } catch (e) {
+    res.status(500).json({ error: '获取标签失败', reason: e.message });
+  }
+});
+
+router.post('/api/admin/tags', verifyUser, requirePermission('tag:create'), async (req, res) => {
+  const name = String(req.body.name || '').trim();
+  const color = String(req.body.color || '#005eeb').trim();
+  const sortOrder = Number.isFinite(Number(req.body.sort_order)) ? Number(req.body.sort_order) : 0;
+  if (!name) return res.status(400).json({ error: '标签名称不能为空' });
+  if (name.length > 50) return res.status(400).json({ error: '标签名称不能超过50个字符' });
+  if (!TAG_COLOR_RE.test(color)) return res.status(400).json({ error: '颜色格式无效，请使用 #RRGGBB' });
+  const typeResult = await validateTagResourceTypes(req.body.resource_types);
+  if (typeResult.error) return res.status(400).json({ error: typeResult.error });
+  const client = await pool().connect();
+  try {
+    await client.query('BEGIN');
+    const r = await client.query(
+      'INSERT INTO tags (name, color, sort_order) VALUES ($1, $2, $3) RETURNING id',
+      [name, color, sortOrder]
+    );
+    for (const type of typeResult.values) {
+      await client.query('INSERT INTO tag_resource_types (tag_id, resource_type) VALUES ($1, $2)', [r.rows[0].id, type]);
+    }
+    await client.query('COMMIT');
+    res.status(201).json({ data: (await getTagRows()).find(tag => tag.id === r.rows[0].id) });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    if (e.code === '23505') return res.status(409).json({ error: '标签名称已存在' });
+    res.status(500).json({ error: '创建标签失败', reason: e.message });
+  } finally {
+    client.release();
+  }
+});
+
+router.patch('/api/admin/tags/:id', verifyUser, requirePermission('tag:edit'), async (req, res) => {
+  const id = Number(req.params.id);
+  const name = String(req.body.name || '').trim();
+  const color = String(req.body.color || '#005eeb').trim();
+  const sortOrder = Number.isFinite(Number(req.body.sort_order)) ? Number(req.body.sort_order) : 0;
+  // 仅当显式传 is_active 时更新状态;否则保留原状,避免编辑名称/颜色把停用标签改回启用
+  const isActive = req.body.is_active !== undefined ? !!req.body.is_active : null;
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: '标签 ID 无效' });
+  if (!name) return res.status(400).json({ error: '标签名称不能为空' });
+  if (name.length > 50) return res.status(400).json({ error: '标签名称不能超过50个字符' });
+  if (!TAG_COLOR_RE.test(color)) return res.status(400).json({ error: '颜色格式无效，请使用 #RRGGBB' });
+  const typeResult = await validateTagResourceTypes(req.body.resource_types);
+  if (typeResult.error) return res.status(400).json({ error: typeResult.error });
+  const client = await pool().connect();
+  try {
+    await client.query('BEGIN');
+    const r = await client.query(
+      `UPDATE tags SET name = $1, color = $2, sort_order = $3, is_active = COALESCE($4, is_active),
+       updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING id`,
+      [name, color, sortOrder, isActive, id]
+    );
+    if (!r.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: '标签不存在' });
+    }
+    await client.query('DELETE FROM tag_resource_types WHERE tag_id = $1', [id]);
+    for (const type of typeResult.values) {
+      await client.query('INSERT INTO tag_resource_types (tag_id, resource_type) VALUES ($1, $2)', [id, type]);
+    }
+    await client.query('COMMIT');
+    res.json({ data: (await getTagRows()).find(tag => tag.id === id) });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    if (e.code === '23505') return res.status(409).json({ error: '标签名称已存在' });
+    res.status(500).json({ error: '更新标签失败', reason: e.message });
+  } finally {
+    client.release();
+  }
+});
+
+router.delete('/api/admin/tags/:id', verifyUser, requirePermission('tag:delete'), async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: '标签 ID 无效' });
+  try {
+    const r = await pool().query('DELETE FROM tags WHERE id = $1 RETURNING id', [id]);
+    if (!r.rowCount) return res.status(404).json({ error: '标签不存在' });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: '删除标签失败', reason: e.message });
+  }
+});
+
+// ---- 标签启用/停用快捷切换 ----
+router.patch('/api/admin/tags/:id/toggle-active', verifyUser, requirePermission('tag:edit'), async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: '标签 ID 无效' });
+  try {
+    const r = await pool().query(
+      `UPDATE tags SET is_active = NOT is_active, updated_at = CURRENT_TIMESTAMP WHERE id = $1 RETURNING *`,
+      [id]
+    );
+    if (!r.rowCount) return res.status(404).json({ error: '标签不存在' });
+    res.json({ data: r.rows[0] });
+  } catch (e) {
+    res.status(500).json({ error: '切换状态失败', reason: e.message });
+  }
+});
+
 // ---- 资源类型 ----
 router.get('/api/admin/resource-types', verifyUser, requirePermission('group:view'), async (req, res) => {
   try {
@@ -620,10 +751,127 @@ router.get('/api/admin/resources-list', verifyUser, requirePermission('group:vie
 async function mapAllWithType(key, adapter) {
   if (!adapter?.listAll) return [];
   const rows = await adapter.listAll();
-  if (key === 'model') return rows.map(r => ({ id: r.model_name, title: r.model_name, subtitle: `${r.group_name || ''} · ${r.provider || ''}`.trim() }));
+  if (key === 'model') return rows.map(r => ({ id: r.model_name, title: r.model_name, subtitle: `${r.group_name || ''} · ${r.provider || ''}`.trim(), is_public: r.is_public }));
   if (key === 'skill') return rows.map(r => ({ id: r.slug, title: r.title, subtitle: r.slug }));
   if (key === 'mcp') return rows.map(r => ({ id: String(r.panel_mcp_id ?? r.id), title: r.name || '未命名', subtitle: r.type || '' }));
   return rows.map(r => ({ id: String(r.id ?? ''), title: String(r.title ?? r.name ?? r.id ?? ''), subtitle: '' }));
 }
+
+// ─── 模型-标签关联 ──────────────────────────────────────────
+
+// 批量设置模型标签（整体替换）
+router.put('/api/admin/model-tags/:modelId', verifyUser, requirePermission('model:edit'), async (req, res) => {
+  const client = await pool().connect();
+  try {
+    const { modelId } = req.params;
+    const modelIdNum = Number(modelId);
+    if (!Number.isFinite(modelIdNum)) return res.status(400).json({ error: '无效的模型 ID' });
+    const { tag_ids } = req.body;
+    if (!Array.isArray(tag_ids)) return res.status(400).json({ error: 'tag_ids 必须是数组' });
+
+    // 验证模型存在
+    const m = await client.query('SELECT id FROM portal_models WHERE id = $1', [modelIdNum]);
+    if (!m.rowCount) return res.status(404).json({ error: '模型不存在' });
+
+    // 验证所有 tag_id 存在
+    if (tag_ids.length) {
+      const validIds = tag_ids.map(Number).filter(Number.isFinite);
+      if (validIds.length !== tag_ids.length) return res.status(400).json({ error: 'tag_ids 包含无效值' });
+      const t = await client.query('SELECT id FROM tags WHERE id = ANY($1)', [validIds]);
+      if (t.rowCount !== validIds.length) return res.status(400).json({ error: '部分标签不存在' });
+    }
+
+    await client.query('BEGIN');
+    await client.query('DELETE FROM model_tags WHERE model_id = $1', [modelIdNum]);
+    for (const tagId of tag_ids) {
+      await client.query('INSERT INTO model_tags (model_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [modelIdNum, Number(tagId)]);
+    }
+    await client.query('COMMIT');
+
+    res.json({ ok: true });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    res.status(500).json({ error: '设置模型标签失败', reason: e.message });
+  } finally {
+    client.release();
+  }
+});
+
+// 批量打标签（多模型同一批标签，去重合并）
+router.post('/api/admin/model-tags/batch', verifyUser, requirePermission('model:edit'), async (req, res) => {
+  const client = await pool().connect();
+  try {
+    const { model_ids, tag_ids } = req.body;
+    if (!Array.isArray(model_ids) || !model_ids.length) return res.status(400).json({ error: '请选择模型' });
+    if (!Array.isArray(tag_ids) || !tag_ids.length) return res.status(400).json({ error: '请选择标签' });
+
+    const validModels = model_ids.map(Number).filter(Number.isFinite);
+    const validTags = tag_ids.map(Number).filter(Number.isFinite);
+    if (!validModels.length || !validTags.length) return res.status(400).json({ error: '参数包含无效值' });
+
+    // 验证标签存在
+    const t = await client.query('SELECT id FROM tags WHERE id = ANY($1)', [validTags]);
+    if (t.rowCount !== validTags.length) return res.status(400).json({ error: '部分标签不存在' });
+
+    await client.query('BEGIN');
+    for (const mid of validModels) {
+      for (const tid of validTags) {
+        await client.query('INSERT INTO model_tags (model_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [mid, tid]);
+      }
+    }
+    await client.query('COMMIT');
+
+    res.json({ ok: true, affected: validModels.length });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    res.status(500).json({ error: '批量打标签失败', reason: e.message });
+  } finally {
+    client.release();
+  }
+});
+
+// 批量移除标签
+router.post('/api/admin/model-tags/batch-remove', verifyUser, requirePermission('model:edit'), async (req, res) => {
+  try {
+    const { model_ids, tag_ids } = req.body;
+    if (!Array.isArray(model_ids) || !model_ids.length) return res.status(400).json({ error: '请选择模型' });
+    if (!Array.isArray(tag_ids) || !tag_ids.length) return res.status(400).json({ error: '请选择标签' });
+
+    await pool().query(`
+      DELETE FROM model_tags WHERE model_id = ANY($1) AND tag_id = ANY($2)
+    `, [model_ids.map(Number).filter(Number.isFinite), tag_ids.map(Number).filter(Number.isFinite)]);
+
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: '批量移除标签失败', reason: e.message });
+  }
+});
+
+// 查询模型标签（支持批量：?model_ids=1,2,3）
+router.get('/api/admin/model-tags', verifyUser, requirePermission('model:view'), async (req, res) => {
+  try {
+    const ids = (req.query.model_ids || '').split(',').map(Number).filter(Boolean);
+    if (!ids.length) return res.json({ data: {} });
+
+    const result = await pool().query(`
+      SELECT mt.model_id, t.id, t.name, t.color
+      FROM model_tags mt
+      JOIN tags t ON t.id = mt.tag_id AND t.is_active = TRUE
+      WHERE mt.model_id = ANY($1)
+      ORDER BY t.sort_order, t.name
+    `, [ids]);
+
+    const map = {};
+    for (const r of result.rows) {
+      (map[r.model_id] ??= []).push({ id: r.id, name: r.name, color: r.color });
+    }
+    // 补齐无标签的模型
+    for (const id of ids) { if (!map[id]) map[id] = []; }
+
+    res.json({ data: map });
+  } catch (e) {
+    res.status(500).json({ error: '获取模型标签失败', reason: e.message });
+  }
+});
 
 module.exports = router;

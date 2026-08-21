@@ -47,6 +47,7 @@ const routes = [
       { path: 'panel-groups', component: () => import('./views/admin/PanelGroupsView.vue') },
       { path: 'roles', component: () => import('./views/admin/RolesView.vue') },
       { path: 'models', component: () => import('./views/admin/AdminModelsView.vue') },
+      { path: 'tags', component: () => import('./views/admin/TagsView.vue') },
       { path: 'mcps', component: () => import('./views/admin/AdminMcpsView.vue') },
     ],
   },

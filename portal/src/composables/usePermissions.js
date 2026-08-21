@@ -108,6 +108,8 @@ export const ADMIN_PERMS = [
   'group:view','group:create','group:edit','group:delete',
   'user:view','user:edit','user:create','user:delete','user:password','user:batch-password','user:assign',
   'skill:edit','skill:delete','skill:publish','skill:review','group:panel-sync','system:config',
+  'tag:view','tag:create','tag:edit','tag:delete','model:view','model:edit',
+  'invocation_format:view','invocation_format:create','invocation_format:edit','invocation_format:delete',
 ]
 
 // 是否显示「管理后台」入口:超管或持有任一管理权限位
