@@ -93,6 +93,7 @@ async function startServer() {
       console.log(`\n收到 ${signal},准备优雅退出...`);
       modelSync.stop();
       skillsSync.stop();
+      mcpSync.stop();
       try {
         await downloadCounter.shutdown();
         console.log('✅ 下载量计数器已 flush');

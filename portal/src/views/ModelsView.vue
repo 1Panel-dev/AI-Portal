@@ -91,8 +91,8 @@
               <p v-if="m.description" class="text-[13px] text-text-secondary leading-relaxed line-clamp-2 mb-3 flex-1">{{ m.description }}</p>
               <div v-else class="flex-1"></div>
 
-              <!-- 底部：能力指标 -->
-              <div class="flex items-center gap-x-3 gap-y-1 flex-wrap text-[11px] text-text-tertiary mb-3">
+              <!-- 底部：能力指标（数值一行 + 能力标签单独一行） -->
+              <div class="flex items-center gap-x-3 gap-y-1 flex-wrap text-[11px] text-text-tertiary mb-2">
                 <span v-if="m.context_window" class="flex items-center gap-1">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                   上下文 {{ formatTokens(m.context_window) }}
@@ -101,11 +101,14 @@
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
                   最大输出 {{ formatTokens(m.max_output_tokens) }}
                 </span>
-                <span v-if="m.multimodal" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-50 text-violet-600 font-medium">多模态</span>
-                <span v-if="m.tool_calling" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-50 text-sky-600 font-medium">工具调用</span>
-                <span v-if="m.image_input" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 font-medium">图片输入</span>
-                <span v-if="m.cache_enabled" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 font-medium">缓存</span>
               </div>
+              <div v-if="m.multimodal || m.tool_calling || m.image_input || m.cache_enabled" class="flex items-center gap-1.5 flex-wrap mb-3">
+                <span v-if="m.multimodal" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-50 text-violet-600 font-medium text-[11px]">多模态</span>
+                <span v-if="m.tool_calling" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-50 text-sky-600 font-medium text-[11px]">工具调用</span>
+                <span v-if="m.image_input" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 font-medium text-[11px]">图片输入</span>
+                <span v-if="m.cache_enabled" class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 text-amber-600 font-medium text-[11px]">缓存</span>
+              </div>
+              <div v-else class="mb-3"></div>
 
               <!-- 底部标签 -->
               <div v-if="m.tags && m.tags.length" class="flex flex-wrap gap-1.5 pt-3 border-t border-[rgba(0,0,0,0.04)]">

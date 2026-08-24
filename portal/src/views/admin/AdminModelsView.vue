@@ -108,31 +108,35 @@
           <textarea v-model="editForm.description" rows="3" class="model-input resize-none" placeholder="模型简介，展示在模型卡片上"></textarea>
         </div>
         <div class="grid grid-cols-2 gap-4">
-          <div ref="ctxFieldRef" class="relative">
+          <div ref="ctxFieldRef">
             <label class="block text-sm font-medium text-text mb-1">上下文窗口</label>
-            <input type="number" min="0" :value="ctxK" @focus="ctxOpen = true" @input="e => onCtxTyped(e.target.value)" class="model-input !pr-14 font-mono" placeholder="自定义，如 96" />
-            <span class="absolute right-10 top-1/2 -translate-y-1/2 text-[11px] font-semibold px-1 py-0.5 rounded bg-surface-secondary text-text-secondary pointer-events-none">K</span>
-            <button type="button" @click="ctxOpen = !ctxOpen" class="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-text-tertiary hover:text-text rounded-md transition-colors" tabindex="-1">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ 'rotate-180': ctxOpen }" class="transition-transform"><path d="m6 9 6 6 6-6"/></svg>
-            </button>
-            <div v-if="ctxOpen" class="absolute z-10 mt-1 w-full bg-white border border-black/10 rounded-xl shadow-lg overflow-hidden">
-              <div v-for="o in CTX_OPTIONS" :key="o.v" class="flex items-center justify-between px-3 py-2.5 text-sm cursor-pointer transition-colors hover:bg-surface-secondary" :class="editForm.context_window === o.v ? 'text-accent font-medium' : 'text-text'" @click="ctxPick(o.v)">
-                <span>{{ o.label }}</span>
-                <svg v-if="editForm.context_window === o.v" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>
+            <div class="relative">
+              <input type="number" min="0" :value="ctxK" @focus="ctxOpen = true" @input="e => onCtxTyped(e.target.value)" class="model-input no-spin !pr-[70px] font-mono" placeholder="如 96" />
+              <span class="absolute right-11 top-1/2 -translate-y-1/2 text-[11px] font-semibold px-1.5 py-0.5 rounded bg-surface-secondary text-text-secondary pointer-events-none select-none leading-none">K</span>
+              <button type="button" @click="ctxOpen = !ctxOpen" class="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-text-tertiary hover:text-text rounded-md transition-colors" tabindex="-1">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ 'rotate-180': ctxOpen }" class="transition-transform"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              <div v-if="ctxOpen" class="absolute z-10 mt-1 w-full bg-white border border-black/10 rounded-xl shadow-lg overflow-hidden">
+                <div v-for="o in CTX_OPTIONS" :key="o.v" class="flex items-center justify-between px-3 py-2.5 text-sm cursor-pointer transition-colors hover:bg-surface-secondary" :class="editForm.context_window === o.v ? 'text-accent font-medium' : 'text-text'" @click="ctxPick(o.v)">
+                  <span>{{ o.label }}</span>
+                  <svg v-if="editForm.context_window === o.v" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>
+                </div>
               </div>
             </div>
           </div>
-          <div ref="outFieldRef" class="relative">
+          <div ref="outFieldRef">
             <label class="block text-sm font-medium text-text mb-1">最大输出</label>
-            <input type="number" min="0" :value="outK" @focus="outOpen = true" @input="e => onOutTyped(e.target.value)" class="model-input !pr-14 font-mono" placeholder="如 24" />
-            <span class="absolute right-10 top-1/2 -translate-y-1/2 text-[11px] font-semibold px-1 py-0.5 rounded bg-surface-secondary text-text-secondary pointer-events-none">K</span>
-            <button type="button" @click="outOpen = !outOpen" class="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-text-tertiary hover:text-text rounded-md transition-colors" tabindex="-1">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ 'rotate-180': outOpen }" class="transition-transform"><path d="m6 9 6 6 6-6"/></svg>
-            </button>
-            <div v-if="outOpen" class="absolute z-10 mt-1 w-full bg-white border border-black/10 rounded-xl shadow-lg overflow-hidden">
-              <div v-for="o in OUT_OPTIONS" :key="o.v" class="flex items-center justify-between px-3 py-2.5 text-sm cursor-pointer transition-colors hover:bg-surface-secondary" :class="editForm.max_output_tokens === o.v ? 'text-accent font-medium' : 'text-text'" @click="outPick(o.v)">
-                <span>{{ o.label }}</span>
-                <svg v-if="editForm.max_output_tokens === o.v" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>
+            <div class="relative">
+              <input type="number" min="0" :value="outK" @focus="outOpen = true" @input="e => onOutTyped(e.target.value)" class="model-input no-spin !pr-[70px] font-mono" placeholder="如 24" />
+              <span class="absolute right-11 top-1/2 -translate-y-1/2 text-[11px] font-semibold px-1.5 py-0.5 rounded bg-surface-secondary text-text-secondary pointer-events-none select-none leading-none">K</span>
+              <button type="button" @click="outOpen = !outOpen" class="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-text-tertiary hover:text-text rounded-md transition-colors" tabindex="-1">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" :class="{ 'rotate-180': outOpen }" class="transition-transform"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              <div v-if="outOpen" class="absolute z-10 mt-1 w-full bg-white border border-black/10 rounded-xl shadow-lg overflow-hidden">
+                <div v-for="o in OUT_OPTIONS" :key="o.v" class="flex items-center justify-between px-3 py-2.5 text-sm cursor-pointer transition-colors hover:bg-surface-secondary" :class="editForm.max_output_tokens === o.v ? 'text-accent font-medium' : 'text-text'" @click="outPick(o.v)">
+                  <span>{{ o.label }}</span>
+                  <svg v-if="editForm.max_output_tokens === o.v" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>
+                </div>
               </div>
             </div>
           </div>
@@ -254,6 +258,10 @@
   @apply border-text/30 ring-2 ring-accent/10;
 }
 textarea.model-input { @apply h-auto py-2.5; }
+/* 隐藏 number 输入框原生 spinner（右侧已被 K 徽标 + 下拉按钮占用，原生箭头会和它们叠在一起） */
+.model-input.no-spin::-webkit-outer-spin-button,
+.model-input.no-spin::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.model-input.no-spin { -moz-appearance: textfield; appearance: textfield; }
 </style>
 
 <script setup>

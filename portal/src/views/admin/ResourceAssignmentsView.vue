@@ -55,33 +55,71 @@
     <!-- 组内资源预览弹窗 -->
     <AppDialog :open="preview.open" :title="preview.title" size="lg" @close="closePreview">
       <!-- 成员选择器:选择成员后模型按「勾选∩该成员模型组」展示 -->
-      <div v-if="preview.members.length" class="flex items-center gap-2 mb-4">
-        <span class="text-xs text-text-tertiary whitespace-nowrap">查看成员可见资源</span>
-        <select
-          v-model="preview.selectedMemberId"
-          @change="onPreviewMemberChange"
-          class="flex-1 px-3 py-1.5 border border-[rgba(0,0,0,0.08)] rounded-lg text-xs bg-white outline-none focus:border-text"
-        >
-          <option v-for="m in preview.members" :key="m.id" :value="m.id">{{ m.name || m.username }}</option>
-        </select>
+      <div v-if="preview.members.length" class="mb-4 space-y-1">
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-text-tertiary whitespace-nowrap">查看成员</span>
+          <select
+            v-model="preview.selectedMemberId"
+            @change="onPreviewMemberChange"
+            class="flex-1 px-3 py-1.5 border border-[rgba(0,0,0,0.08)] rounded-lg text-xs bg-white outline-none focus:border-text"
+          >
+            <option v-for="m in preview.members" :key="m.id" :value="m.id">{{ m.name || m.username }}</option>
+          </select>
+        </div>
+        <p v-if="preview.memberHint" class="text-[11px] text-text-tertiary pl-1 flex items-center gap-1">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-amber-500"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+          1Panel 模型组交集过滤：{{ preview.memberHint }}
+        </p>
       </div>
       <div v-else-if="!preview.loading" class="mb-4 text-xs text-text-tertiary">该组暂无成员，展示组内包含资源（模型未按成员模型组过滤）</div>
       <div v-if="preview.loading" class="py-10 text-center text-sm text-text-secondary">加载中...</div>
       <div v-else-if="preview.error" class="py-8 text-center text-sm text-red-500">{{ preview.error }}</div>
       <div v-else class="space-y-4">
-        <div v-for="rt in previewTypes" :key="rt.key" class="border border-[rgba(0,0,0,0.06)] rounded-xl p-3">
+        <!-- 模型：交集过滤时拆分可见/被挡 -->
+        <div class="border border-[rgba(0,0,0,0.06)] rounded-xl p-3">
           <div class="flex items-center justify-between mb-2">
-            <span class="text-sm font-medium text-text">{{ rt.name }}</span>
-            <span class="text-xs text-text-tertiary">{{ (preview.data[rt.key] || []).length }} 个</span>
+            <span class="text-sm font-medium text-text">模型</span>
+            <span class="text-xs text-text-tertiary">
+              {{ (preview.data.model || []).length }} 个可见
+              <template v-if="preview.data.model_filtered">
+                <span class="text-amber-500 mx-0.5">·</span>
+                勾选 {{ (preview.data.model || []).length + (preview.data.model_blocked || []).length }}，挡 {{ (preview.data.model_blocked || []).length }}
+              </template>
+            </span>
           </div>
-          <div v-if="!(preview.data[rt.key] || []).length" class="text-xs text-text-tertiary py-2">未包含该类资源</div>
+          <div v-if="(preview.data.model || []).length" class="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto">
+            <span v-for="(item, i) in preview.data.model" :key="i" class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600" :title="item.subtitle || ''">{{ item.title }}</span>
+          </div>
+          <div v-else class="text-xs text-text-tertiary py-2">无可见模型</div>
+          <template v-if="preview.data.model_filtered && (preview.data.model_blocked || []).length">
+            <div class="mt-3 pt-2 border-t border-[rgba(0,0,0,0.04)]">
+              <p class="text-[11px] text-amber-600 font-medium mb-1.5">⚠ 被 1Panel 模型组挡住 ({{ (preview.data.model_blocked || []).length }})</p>
+              <div class="flex flex-wrap gap-1.5 max-h-[100px] overflow-y-auto">
+                <span v-for="(item, i) in preview.data.model_blocked" :key="i" class="px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-700 border border-amber-200/60" :title="item.subtitle || ''">{{ item.title }}</span>
+              </div>
+            </div>
+          </template>
+        </div>
+        <!-- Skill -->
+        <div class="border border-[rgba(0,0,0,0.06)] rounded-xl p-3">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-text">Skill</span>
+            <span class="text-xs text-text-tertiary">{{ (preview.data.skill || []).length }} 个</span>
+          </div>
+          <div v-if="!(preview.data.skill || []).length" class="text-xs text-text-tertiary py-2">未包含该类资源</div>
           <div v-else class="flex flex-wrap gap-1.5 max-h-[180px] overflow-y-auto">
-            <span
-              v-for="(item, i) in preview.data[rt.key]"
-              :key="i"
-              class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600"
-              :title="item.subtitle || ''"
-            >{{ item.title }}</span>
+            <span v-for="(item, i) in preview.data.skill" :key="i" class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600" :title="item.subtitle || ''">{{ item.title }}</span>
+          </div>
+        </div>
+        <!-- MCP -->
+        <div class="border border-[rgba(0,0,0,0.06)] rounded-xl p-3">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-text">MCP</span>
+            <span class="text-xs text-text-tertiary">{{ (preview.data.mcp || []).length }} 个</span>
+          </div>
+          <div v-if="!(preview.data.mcp || []).length" class="text-xs text-text-tertiary py-2">未包含该类资源</div>
+          <div v-else class="flex flex-wrap gap-1.5 max-h-[180px] overflow-y-auto">
+            <span v-for="(item, i) in preview.data.mcp" :key="i" class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600" :title="item.subtitle || ''">{{ item.title }}</span>
           </div>
         </div>
       </div>
@@ -150,12 +188,7 @@ async function fetchGroups() {
 }
 
 // ---- 组内资源预览（按成员交集） ----
-const previewTypes = [
-  { key: 'model', name: '模型' },
-  { key: 'skill', name: 'Skill' },
-  { key: 'mcp', name: 'MCP' },
-]
-const preview = ref({ open: false, loading: false, error: '', title: '', data: {}, groupId: null, members: [], selectedMemberId: null })
+const preview = ref({ open: false, loading: false, error: '', title: '', data: {}, groupId: null, members: [], selectedMemberId: null, memberHint: '' })
 
 async function fetchPreview(gId, userId) {
   const token = getToken()
@@ -185,9 +218,12 @@ async function openPreview(g) {
     const first = members[0]
     if (first) {
       preview.value.selectedMemberId = first.id
-      preview.value.data = await fetchPreview(g.id, first.id)
+      const d1 = await fetchPreview(g.id, first.id)
+      preview.value.data = d1
+      preview.value.memberHint = d1.memberHint || ""
     } else {
       preview.value.data = await fetchPreview(g.id)
+      preview.value.memberHint = ""
     }
   } catch (err) {
     preview.value.error = err.message || '获取预览失败'
@@ -202,7 +238,9 @@ async function onPreviewMemberChange() {
   preview.value.loading = true
   preview.value.error = ''
   try {
-    preview.value.data = uid ? await fetchPreview(gId, uid) : {}
+    const d = uid ? await fetchPreview(gId, uid) : {}
+    preview.value.data = d
+    preview.value.memberHint = d.memberHint || ""
   } catch (err) {
     preview.value.error = err.message || '获取预览失败'
   } finally {

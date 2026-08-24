@@ -688,6 +688,7 @@ router.get('/api/admin/groups/:id/resources-preview', verifyUser, requirePermiss
 
     // 可选 userId：校验是该组成员，取该成员的 1Panel 模型组限制用于模型交集
     let memberModelFilter = null;   // null = 未指定成员 / 成员无模型组限制 -> 不做交集过滤
+    let portalUser = null;
     if (req.query.userId) {
       const memberUserId = Number(req.query.userId);
       if (!Number.isInteger(memberUserId) || memberUserId <= 0) {
@@ -698,7 +699,7 @@ router.get('/api/admin/groups/:id/resources-preview', verifyUser, requirePermiss
       );
       if (!member.rowCount) return res.status(400).json({ error: '该用户不是此资源组成员' });
       const { getPortalUser, getUserAllowedModels, isAdminRoleUser } = require('../lib/permission');
-      const portalUser = await getPortalUser(memberUserId);
+      portalUser = await getPortalUser(memberUserId);
       // 后台角色成员看全量(与广场 isAdminRoleUser bypass 一致), 不做模型组交集
       if (portalUser && !portalUser.is_portal_admin && !(await isAdminRoleUser(memberUserId))) {
         const allowed = await getUserAllowedModels(portalUser.panel_user_id);
@@ -712,14 +713,39 @@ router.get('/api/admin/groups/:id/resources-preview', verifyUser, requirePermiss
       const adapter = getResourceType(type.key);
       const allWithTitle = await mapAllWithType(type.key, adapter);
       const idSet = byType[type.key];
-      let list = idSet
+      const groupSelected = idSet
         ? allWithTitle.filter(r => idSet.has(String(r.id)))
         : [];
       // 模型按成员模型组取交集（仅 model 需要；技能/MCP 返回组内勾选）
       if (type.key === 'model' && memberModelFilter) {
-        list = list.filter(r => memberModelFilter.has(String(r.id)));
+        const visible = groupSelected.filter(r => memberModelFilter.has(String(r.id)));
+        const blocked = groupSelected.filter(r => !memberModelFilter.has(String(r.id)));
+        data.model = visible;                        // 该成员可见（交集后）
+        data.model_blocked = blocked;                // 组内勾选但被 1Panel 模型组挡住
+        data.model_filtered = true;                  // 标志: 当前在按成员交集过滤
+      } else {
+        data[type.key] = groupSelected;
       }
-      data[type.key] = list;
+    }
+
+    // 构建 1Panel 用户组归属提示: 告诉管理员交集是按哪个 1Panel 用户组/模型组算的
+    if (memberModelFilter && portalUser) {
+      const keysQ = await pool().query(
+        'SELECT DISTINCT group_id FROM portal_api_keys WHERE panel_user_id = $1 AND group_id IS NOT NULL',
+        [portalUser.panel_user_id]
+      );
+      if (keysQ.rowCount) {
+        const grpQ = await pool().query(
+          'SELECT name FROM panel_user_groups WHERE panel_group_id = ANY($1) AND is_active = TRUE',
+          [keysQ.rows.map(r => r.group_id)]
+        );
+        if (grpQ.rows.length) {
+          const grpNames = grpQ.rows.map(r => r.name).join(', ');
+          const blocked = data.model_blocked || [];
+          const total = (data.model || []).length + blocked.length;
+          data.memberHint = grpNames + ' → 被挡 ' + blocked.length + '/' + total;
+        }
+      }
     }
     res.json({ data });
   } catch (e) {
@@ -848,7 +874,7 @@ router.post('/api/admin/model-tags/batch-remove', verifyUser, requirePermission(
 });
 
 // 查询模型标签（支持批量：?model_ids=1,2,3）
-router.get('/api/admin/model-tags', verifyUser, requirePermission('model:view'), async (req, res) => {
+router.get('/api/admin/model-tags', verifyUser, requirePermission('model:edit'), async (req, res) => {
   try {
     const ids = (req.query.model_ids || '').split(',').map(Number).filter(Boolean);
     if (!ids.length) return res.json({ data: {} });

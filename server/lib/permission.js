@@ -123,9 +123,11 @@ const ADMIN_PERMS = [
   'user:view','user:edit','user:create','user:delete','user:password','user:batch-password','user:assign',
   'skill:edit','skill:delete','skill:publish','skill:review','group:panel-sync','system:config',
   'tag:view','tag:create','tag:edit','tag:delete',
-  'model:view','model:edit',
+  'model:edit',
   'invocation_format:view','invocation_format:create','invocation_format:edit','invocation_format:delete',
 ];
+// 注意: model:view 不在此列--它是「模型广场查看」权限(/api/models 守卫),普通前台角色几乎都有,
+// 误列入会让所有能看广场的用户被判定为有后台入口(右上角出现管理菜单+登录被跳进空后台)。
 
 /**
  * 用户是否有后台入口(等价前端 showAdminEntry): 超管 / 有 menu:admin-* / 有任一管理权限位。

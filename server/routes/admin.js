@@ -5,7 +5,7 @@ const multer = require('multer');
 const storage = require('../lib/storage');
 const panelApi = require('../lib/1panel-api');
 const { verifyUser, requirePermission } = require('../auth');
-const { panel, getPanelPayload, getPanelItems, getPanelRoles, syncModelsFromPanel, syncSkillsFromPanel, syncMcpsFromPanel, findPanelUser, createPanelUser } = require('../panel');
+const { panel, getPanelPayload, getPanelItems, getPanelRoles, syncModelsFromPanel, syncSkillsFromPanel, syncMcpsFromPanel, syncPanelGroups, findPanelUser, createPanelUser } = require('../panel');
 const { inspectPanelBiz } = require('../lib/panel-biz');
 const bcrypt = require('bcrypt');
 const oauthRegistry = require('../oauth');
@@ -525,7 +525,7 @@ router.get('/api/admin/submissions/all', verifyUser, requirePermission('skill:re
 
 // 健康检查
 
-router.get('/api/admin/skills', verifyUser, requirePermission('skill:view'), async (req, res) => {
+router.get('/api/admin/skills', verifyUser, requirePermission('skill:review'), async (req, res) => {
   try {
     const { status = 'all', page = '1', limit = '20', search = '', category = 'all' } = req.query;
 
@@ -855,9 +855,9 @@ router.get('/api/admin/panel-config', verifyUser, requirePermission('system:conf
       global.pool.query(`
         SELECT sync_type, created_at, status, message, total_count, success_count
         FROM portal_sync_log
-        WHERE sync_type IN ('models', 'skills')
+        WHERE sync_type IN ('models', 'skills', 'mcps', 'groups')
         ORDER BY created_at DESC
-        LIMIT 10
+        LIMIT 40
       `),
       // 优先实时查询 1Panel，失败时从本地缓存读取
       (async () => {
@@ -1185,11 +1185,14 @@ router.post('/api/admin/panel-config/sync-now', verifyUser, requirePermission('s
   const startTime = Date.now();
   console.log('[admin] 管理员触发手动同步,userId=', req.user?.id, '|', new Date().toISOString());
   try {
-    // 并发跑模型 + 技能 + MCP + 角色同步,失败不互相影响
-    const [modelsResult, skillsResult, mcpsResult, rolesResult] = await Promise.allSettled([
+    // 并发跑模型 + 技能 + MCP + 用户组/模型组 + 角色同步,失败不互相影响
+    // syncPanelGroups(用户组/模型组/key组ID回填)也纳入: 授权过滤(getUserAllowedModels 三层 JOIN)
+    // 依赖这三张缓存表,不刷会导致「模型数据新、授权数据旧」的不一致
+    const [modelsResult, skillsResult, mcpsResult, groupsResult, rolesResult] = await Promise.allSettled([
       syncModelsFromPanel(),
       syncSkillsFromPanel(),
       syncMcpsFromPanel(),
+      syncPanelGroups(),
       // 同步角色列表并缓存到本地（方便管理后台加载最新数据）
       (async () => {
         const roles = await getPanelRoles();
@@ -1216,6 +1219,9 @@ router.post('/api/admin/panel-config/sync-now', verifyUser, requirePermission('s
       mcps: mcpsResult.status === 'fulfilled'
         ? { ...mcpsResult.value, ok: true }
         : { ok: false, error: mcpsResult.reason?.message },
+      groups: groupsResult.status === 'fulfilled'
+        ? { ...groupsResult.value, ok: true }
+        : { ok: false, error: groupsResult.reason?.message },
       roles: rolesResult.status === 'fulfilled'
         ? rolesResult.value
         : { ok: false, error: rolesResult.reason?.message },

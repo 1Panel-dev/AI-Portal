@@ -285,18 +285,23 @@
             </div>
           </div>
 
-          <!-- 最近同步状态 -->
-          <div v-if="panelForm.lastSync && (panelForm.lastSync.models || panelForm.lastSync.skills)" class="mt-4 p-3 bg-blue-50/50 rounded-lg border border-blue-100">
+          <!-- 最近同步状态：模型/技能/MCP/用户组模型组 5 路各自时间+结果 -->
+          <div v-if="lastSyncRows.length" class="mt-4 p-3 bg-blue-50/50 rounded-lg border border-blue-100">
             <div class="text-xs font-semibold text-text-secondary mb-2">最近同步</div>
-            <div v-if="panelForm.lastSync.models" class="text-xs flex items-center gap-2 mb-1">
-              <span class="font-medium">模型:</span>
-              <span class="text-text-secondary">{{ formatDate(panelForm.lastSync.models.created_at) }}</span>
-              <span class="text-emerald-600 inline-flex items-center gap-1"><Check class="w-3 h-3" />{{ panelForm.lastSync.models.message }}</span>
+            <div class="space-y-1">
+              <div v-for="row in lastSyncRows" :key="row.type" class="text-xs flex items-center gap-2">
+                <span class="w-14 shrink-0 font-medium">{{ row.label }}</span>
+                <span class="text-text-tertiary shrink-0">{{ formatDate(row.item.created_at) }}</span>
+                <span class="inline-flex items-center gap-1 shrink-0" :class="row.ok ? 'text-emerald-600' : 'text-amber-600'">
+                  <Check v-if="row.ok" class="w-3 h-3" />
+                  <AlertCircle v-else class="w-3 h-3" />
+                  {{ row.item.message }}
+                </span>
+                <span v-if="row.item.total_count" class="text-text-tertiary ml-auto shrink-0">{{ row.item.success_count }}/{{ row.item.total_count }}</span>
+              </div>
             </div>
-            <div v-if="panelForm.lastSync.skills" class="text-xs flex items-center gap-2">
-              <span class="font-medium">技能:</span>
-              <span class="text-text-secondary">{{ formatDate(panelForm.lastSync.skills.created_at) }}</span>
-              <span class="text-emerald-600 inline-flex items-center gap-1"><Check class="w-3 h-3" />{{ panelForm.lastSync.skills.message }}</span>
+            <div v-if="lastSyncElapsed" class="text-[11px] text-text-tertiary mt-2 pt-2 border-t border-blue-100/80">
+              上次手动同步耗时 {{ lastSyncElapsed }}ms（调度器每 {{ panelForm.syncIntervalMinutes }} 分钟自动同步模型/技能/MCP）
             </div>
           </div>
 
@@ -616,7 +621,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Cloud, HardDrive, Eye, EyeOff, PlugZap, RefreshCw, Check } from 'lucide-vue-next'
+import { Cloud, HardDrive, Eye, EyeOff, PlugZap, RefreshCw, Check, AlertCircle } from 'lucide-vue-next'
 
 import { getLoginToken } from '../lib/apiBase'
 import { can, loadPermissions } from '../composables/usePermissions.js'
@@ -720,6 +725,20 @@ const panelSaving = ref(false)
 const panelMsg = ref('')
 const panelMsgOk = ref(false)
 const panelRoles = ref([])
+// 上次手动同步耗时(ms), 点「立即同步」时由响应带回
+const lastSyncElapsed = ref(0)
+
+// 「最近同步」5 路展示: 模型/技能/MCP/用户组+模型组。后端按 sync_type 取最近一条
+const lastSyncRows = computed(() => {
+  const ls = panelForm.value.lastSync || {}
+  const defs = [
+    { type: 'models', label: '模型' },
+    { type: 'skills', label: '技能' },
+    { type: 'mcps', label: 'MCP' },
+    { type: 'groups', label: '组授权' },
+  ]
+  return defs.filter(d => ls[d.type]).map(d => ({ ...d, item: ls[d.type], ok: ls[d.type].status === 'success' }))
+})
 
 // 调用示例配置
 const modelExampleForm = ref({ endpoint: '', template: '' })
@@ -1225,16 +1244,19 @@ const syncNow = async () => {
     })
     const data = await res.json()
     if (data.success) {
-      const m = data.models, s = data.skills, mc = data.mcps
+      const m = data.models, s = data.skills, mc = data.mcps, g = data.groups
       const parts = []
-      if (m?.ok) parts.push(`模型 ${m.modelCount || 0}`)
-      else parts.push(`模型 失败: ${m?.error || '未知'}`)
-      if (s?.ok) parts.push(`技能 ${s.upsertCount || 0}`)
-      else parts.push(`技能 失败: ${s?.error || '未知'}`)
-      if (mc?.ok) parts.push(`MCP ${mc.mcpCount || 0}`)
-      else parts.push(`MCP 失败: ${mc?.error || '未知'}`)
-      panelMsg.value = '同步完成: ' + parts.join(' | ')
-      panelMsgOk.value = true
+      const cnt = (v, k) => v?.[k] ?? 0
+      parts.push(m?.ok ? `模型 ${cnt(m, 'modelCount')}` : `模型失败`)
+      parts.push(s?.ok ? `技能 ${cnt(s, 'upsertCount')}` : `技能失败`)
+      parts.push(mc?.ok ? `MCP ${cnt(mc, 'mcpCount')}` : `MCP失败`)
+      parts.push(g?.ok ? `组 ${cnt(g, 'userGroups')}/${cnt(g, 'modelGroups')}` : `组失败`)
+      const failed = [m, s, mc, g].filter(x => x && !x.ok)
+      panelMsg.value = failed.length
+        ? `同步完成(部分失败): ${parts.join(' · ')} -- ${failed[0].error || '原因见最近同步'}`
+        : `同步完成: ${parts.join(' · ')}`
+      panelMsgOk.value = !failed.length
+      lastSyncElapsed.value = data.elapsedMs || 0
       await fetchPanelConfig()
     } else {
       panelMsg.value = data.error || '同步失败'

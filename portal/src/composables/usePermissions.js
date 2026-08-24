@@ -102,13 +102,14 @@ export const isAdminRoleUser = computed(() => {
 
 // 管理类权限位清单(用于判断是否显示「管理后台」入口)
 // 只含操作权限:进入后台需能实际执行某操作;菜单权限(menu:admin-*)只控制
-// 侧边栏单项可见性,不应单独授予进入后台的能力(否则进去每页 403)
+// 侧边栏单项可见性,不应单独授予进入后台的能力(否则进去每页 403);注意: model:view 是广场查看权限不入此列
+// (普通前台角色几乎都有 model:view, 误列会让所有人被误判为有后台入口)
 export const ADMIN_PERMS = [
   'role:view','role:create','role:edit','role:delete',
   'group:view','group:create','group:edit','group:delete',
   'user:view','user:edit','user:create','user:delete','user:password','user:batch-password','user:assign',
   'skill:edit','skill:delete','skill:publish','skill:review','group:panel-sync','system:config',
-  'tag:view','tag:create','tag:edit','tag:delete','model:view','model:edit',
+  'tag:view','tag:create','tag:edit','tag:delete','model:edit',
   'invocation_format:view','invocation_format:create','invocation_format:edit','invocation_format:delete',
 ]
 

@@ -271,12 +271,14 @@ async function _syncModelsFromPanel() {
   if (rows.length > 0) {
     // 8 列 × N 行 → 拼出 ($1,$2,...,$8),($9,$10,...,$16),...
     // 第 9 个字段 display_name（展示名）在 INSERT 时默认取 model_name($2)；
-    // ON CONFLICT DO UPDATE 不触碰 display_name，保证管理员手改不被覆盖。
+    // 第 11 个字段 is_public 显式 FALSE：新同步模型一律先下架，由管理员手动上架
+    //（列默认值已在 053 迁移改为 FALSE，这里显式写防未来默认值被改回去）
+    // ON CONFLICT DO UPDATE 不触碰 display_name/is_public，保证管理员手改不被覆盖。
     const COLS = 8;
     const valuesSql = rows
       .map((_, rowIdx) => {
         const base = rowIdx * COLS;
-        return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, CURRENT_TIMESTAMP, $${base + 2})`;
+        return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, CURRENT_TIMESTAMP, $${base + 3}, FALSE)`;
       })
       .join(', ');
     const flatParams = rows.flat();
@@ -285,7 +287,7 @@ async function _syncModelsFromPanel() {
     await global.pool.query(
       `INSERT INTO portal_models (
         panel_backend_id, group_name, model_name, provider, base_url, model_type,
-        raw_data, is_active, synced_at, display_name
+        raw_data, is_active, synced_at, display_name, is_public
       ) VALUES ${valuesSql}
       ON CONFLICT (group_name, model_name) DO UPDATE SET
         panel_backend_id = EXCLUDED.panel_backend_id,
@@ -386,6 +388,17 @@ async function syncSkillsFromPanel() {
   // 二次过滤:确保都是 published(防御性)
   const published = allItems.filter(it => it.status === 'published');
   console.log(`[syncSkills] 1Panel 返回 ${allItems.length} 个技能(published=${published.length})`);
+
+  // 空响应不清表（铁律 6, 对齐 syncModels/syncMcps 范式）:
+  // 1Panel 鉴权通过但临时返回空 items 时(模型同步踩过的真实坑),不能把本地 panel 技能全部下架
+  if (allItems.length === 0) {
+    console.warn('[syncSkills] 1Panel 返回空技能列表,跳过本轮 UPSERT 与软删（防误删本地数据）');
+    await global.pool.query(`
+      INSERT INTO portal_sync_log (sync_type, status, message, total_count, success_count, details)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, ['skills', 'skipped', '技能列表为空,跳过本轮', 0, 0, { skipped: true }]);
+    return { totalFetched: 0, publishedCount: 0, upsertCount: 0, deactivatedCount: 0, skipped: true };
+  }
 
   let upsertCount = 0;
   if (published.length > 0) {
@@ -492,6 +505,8 @@ async function syncSkillsFromPanel() {
   }
 
   // 软删除:远端不存在的 panel 技能(source='panel' 且本轮没同步到的)
+  // 注: published 为空但 allItems 非空(远端全部撤下发布)才走全量下架;
+  // allItems 也为空的瞬时空响应已在函数开头提前返回, 不会到这里
   let deactivatedCount = 0;
   if (published.length > 0) {
     const presentIds = published.map(it => it.id);
@@ -506,7 +521,7 @@ async function syncSkillsFromPanel() {
     );
     deactivatedCount = result.rowCount;
   } else {
-    // 远端 published 列表为空 → 所有 panel 技能下架
+    // 远端确实没有任何 published 技能 → 所有 panel 技能下架
     const result = await global.pool.query(
       `UPDATE skills SET is_active = FALSE, updated_at = CURRENT_DATE
        WHERE source = 'panel' AND is_active = TRUE`
@@ -609,6 +624,10 @@ async function syncPanelGroups() {
 
   // 空响应不清表
   if (!userGroups.length && !modelGroups.length) {
+    await global.pool.query(`
+      INSERT INTO portal_sync_log (sync_type, status, message, total_count, success_count, details)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, ['groups', 'skipped', '用户组/模型组均为空,跳过本轮', 0, 0, { skipped: true }]);
     return { userGroups: 0, modelGroups: 0, skipped: true };
   }
 
@@ -669,6 +688,14 @@ async function syncPanelGroups() {
     [modelGroupIds]
   )).rowCount;
 
+  await global.pool.query(`
+    INSERT INTO portal_sync_log (sync_type, status, message, total_count, success_count, details)
+    VALUES ($1, $2, $3, $4, $5, $6)
+  `, ['groups', 'success',
+    `组同步完成: 用户组 ${userGroups.length} / 模型组 ${modelGroups.length}` + (apiKeysUpdated ? `,回填 key 组 ${apiKeysUpdated}` : ''),
+    userGroups.length + modelGroups.length, userGroups.length + modelGroups.length,
+    { userGroups: userGroups.length, modelGroups: modelGroups.length, apiKeysUpdated, softDeletedUserGroups, softDeletedModelGroups }]);
+
   return {
     userGroups: userGroups.length,
     modelGroups: modelGroups.length,
@@ -703,6 +730,10 @@ async function syncMcpsFromPanel() {
   // 空响应不清表（铁律 6）
   if (!allItems.length) {
     console.warn('[panel] syncMcpsFromPanel: 1Panel 返回空 MCP 列表,跳过本轮 UPSERT 与软删');
+    await global.pool.query(`
+      INSERT INTO portal_sync_log (sync_type, status, message, total_count, success_count, details)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, ['mcps', 'skipped', 'MCP 列表为空,跳过本轮', 0, 0, { skipped: true }]);
     return { mcpCount: 0, skipped: true };
   }
 
@@ -731,12 +762,20 @@ async function syncMcpsFromPanel() {
 
   // 软删 1Panel 不再返回的 MCP
   const panelIds = allItems.map(m => String(m.id ?? m.key ?? ''));
-  await global.pool.query(
+  const deactivated = await global.pool.query(
     'UPDATE portal_mcps SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE NOT (panel_mcp_id = ANY($1)) AND is_active = TRUE',
     [panelIds]
   );
 
-  return { mcpCount: allItems.length, skipped: false };
+  await global.pool.query(`
+    INSERT INTO portal_sync_log (sync_type, status, message, total_count, success_count, details)
+    VALUES ($1, $2, $3, $4, $5, $6)
+  `, ['mcps', 'success',
+    deactivated.rowCount > 0 ? `MCP 同步完成,下架 ${deactivated.rowCount} 个` : 'MCP 同步完成',
+    allItems.length, allItems.length,
+    { mcpCount: allItems.length, deactivatedCount: deactivated.rowCount }]);
+
+  return { mcpCount: allItems.length, deactivatedCount: deactivated.rowCount, skipped: false };
 }
 
 module.exports = {
