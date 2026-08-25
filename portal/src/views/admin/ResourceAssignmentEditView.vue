@@ -121,21 +121,62 @@
         <Info class="w-4 h-4 flex-shrink-0 mt-0.5" />
         <div class="leading-relaxed">
           <p class="font-medium mb-0.5">模型可见性规则</p>
-          <p>成员实际可见的模型 = <span class="font-medium">资源组勾选的模型</span> ∩ <span class="font-medium">该成员在 1Panel 的模型授权</span>（由其 API Key 所属用户组 → 模型组推导）。技能 / MCP 不取交集，资源组勾选即对成员可见。未被任何资源组授权的用户走全公开兜底（看全部）。</p>
+          <p>成员实际可见的模型 = <span class="font-medium">资源组勾选的模型</span> ∩ <span class="font-medium">该成员在 1Panel 的模型授权</span>（由其 API Key 所属用户组 → 模型组推导）。技能 / MCP 不取交集，资源组勾选即对成员可见。未被任何资源组授权的成员无法看到该组的任何资源。</p>
         </div>
       </div>
-      <!-- 成员选择器 -->
-      <div v-if="rightList.length" class="flex items-center gap-2 mb-4 bg-amber-50/60 border border-amber-200/60 rounded-lg px-3 py-2">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-amber-500 shrink-0"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
-        <span class="text-[11px] text-amber-700 whitespace-nowrap">按成员查看 1Panel 模型组限制</span>
-        <select v-model="selectedPreviewMember" @change="onPreviewMemberChange" class="flex-1 px-2 py-1 border border-amber-200 rounded text-[11px] bg-white outline-none focus:border-amber-400">
-          <option :value="null">不限制（查看全部勾选）</option>
-          <option v-for="m in rightList" :key="m.id" :value="m.id">{{ m.name || m.username }}</option>
-        </select>
-        <span v-if="blockedModelIds.size" class="text-[11px] text-amber-600 whitespace-nowrap font-medium">⚠ {{ blockedModelIds.size }} 个被挡</span>
-        <span v-else-if="selectedPreviewMember && !preview.loading" class="text-[11px] text-emerald-600 whitespace-nowrap">✓ 全部可见</span>
+      <!-- 成员限制概览表（一屏看全组成员的 1Panel 模型组限制） -->
+      <div class="mb-4 border border-[rgba(0,0,0,0.06)] rounded-xl bg-white overflow-hidden">
+        <div class="flex items-center gap-2 px-4 py-2.5 border-b border-[rgba(0,0,0,0.04)] bg-surface-secondary flex-wrap">
+          <span class="text-sm font-medium text-text">成员限制概览</span>
+          <span class="text-[11px] text-text-tertiary">共 {{ membersOverview.total }} 人</span>
+          <div class="flex-1 min-w-[140px] flex items-center gap-2 justify-end">
+            <input v-model="overviewSearch" @input="onOverviewSearchInput" placeholder="搜索用户名/姓名..." class="w-44 px-2 py-1 border border-[rgba(0,0,0,0.08)] rounded text-xs bg-white outline-none focus:border-text" />
+            <button @click="overviewOnlyBlocked = !overviewOnlyBlocked; fetchMembersOverview()" class="px-2 py-1 text-[11px] rounded border transition-colors" :class="overviewOnlyBlocked ? 'bg-amber-50 border-amber-300 text-amber-700 font-medium' : 'border-[rgba(0,0,0,0.08)] text-text-secondary hover:text-text'">只看受限</button>
+            <select v-model="overviewSort" class="px-1.5 py-1 border border-[rgba(0,0,0,0.08)] rounded text-[11px] bg-white outline-none">
+              <option value="blocked">按被挡数</option>
+              <option value="username">按用户名</option>
+            </select>
+          </div>
+        </div>
+        <div v-if="membersOverview.loading" class="py-8 text-center text-xs text-text-secondary">加载中...</div>
+        <div v-else-if="membersOverview.error" class="py-8 text-center text-xs text-red-500">{{ membersOverview.error }}</div>
+        <div v-else-if="!sortedOverviewRows.length" class="py-8 text-center text-xs text-text-tertiary">{{ overviewSearch || overviewOnlyBlocked ? '无匹配成员' : '暂无成员' }}</div>
+        <div v-else class="max-h-[360px] overflow-y-auto">
+          <div v-for="m in sortedOverviewRows" :key="m.userId" class="border-b border-[rgba(0,0,0,0.03)] last:border-b-0">
+            <div class="flex items-center gap-3 px-4 py-2 cursor-pointer hover:bg-surface-secondary/60 transition-colors" @click="toggleExpandMember(m.userId)">
+              <span class="w-32 shrink-0 truncate text-[13px] text-text">{{ m.name || m.username }}</span>
+              <span class="w-24 shrink-0 truncate text-[11px] text-text-tertiary">{{ m.username }}</span>
+              <span class="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium" :class="m.isPortalAdmin || m.isAdminRole ? 'bg-sky-50 text-sky-600' : (m.panelGroupName ? 'bg-slate-100 text-slate-600' : 'bg-surface-secondary text-text-tertiary')">
+                {{ m.isPortalAdmin ? '超管' : (m.isAdminRole ? '后台角色' : (m.panelGroupName || '无1Panel组')) }}
+              </span>
+              <span class="shrink-0 text-[11px] tabular-nums" :class="m.blockedCount > 0 ? 'text-amber-600 font-medium' : 'text-emerald-600'">
+                {{ m.visibleCount }}/{{ m.total }}
+              </span>
+              <span v-if="m.blockedCount > 0" class="shrink-0 text-[11px] text-amber-600 font-medium">⚠ 挡 {{ m.blockedCount }}</span>
+              <span v-else class="shrink-0 text-[11px] text-emerald-600">✓</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="ml-auto shrink-0 text-text-tertiary transition-transform" :class="expandedMemberId === m.userId ? 'rotate-90' : ''"><path d="m9 18 6-6-6-6"/></svg>
+            </div>
+            <div v-if="expandedMemberId === m.userId" class="px-4 pb-3 pt-1 bg-amber-50/20">
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <p class="text-[11px] text-emerald-600 mb-1.5">✓ 可见 ({{ m.visibleModels.length }})</p>
+                  <div v-if="m.visibleModels.length" class="flex flex-wrap gap-1.5">
+                    <span v-for="name in m.visibleModels" :key="name" class="px-2 py-0.5 rounded-full text-[11px] bg-slate-100 text-slate-600">{{ name }}</span>
+                  </div>
+                  <p v-else class="text-[11px] text-text-tertiary">无</p>
+                </div>
+                <div>
+                  <p class="text-[11px] text-amber-600 mb-1.5">⚠ 被挡 ({{ m.blockedModels.length }})</p>
+                  <div v-if="m.blockedModels.length" class="flex flex-wrap gap-1.5">
+                    <span v-for="name in m.blockedModels" :key="name" class="px-2 py-0.5 rounded-full text-[11px] bg-amber-50 text-amber-700 border border-amber-200/60">{{ name }}</span>
+                  </div>
+                  <p v-else class="text-[11px] text-text-tertiary">无</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div v-if="memberHint" class="mb-3 text-[11px] text-text-tertiary pl-1">1Panel 模型组交集：{{ memberHint }}</div>
       <div v-if="preview.loading" class="py-14 text-center text-sm text-text-secondary bg-white border border-[rgba(0,0,0,0.06)] rounded-xl">加载中...</div>
       <div v-else-if="preview.error" class="py-12 text-center text-sm text-red-500 bg-white border border-[rgba(0,0,0,0.06)] rounded-xl">{{ preview.error }}</div>
       <div v-else class="space-y-4">
@@ -229,6 +270,8 @@ function switchTab(key) {
     selectedPreviewMember.value = null
     blockedModelIds.value = new Set()
     memberHint.value = ''
+    expandedMemberId.value = null
+    if (!membersOverview.value.loaded) fetchMembersOverview()
     fetchPreview()
   }
 }
@@ -370,6 +413,60 @@ const preview = ref({ loading: false, error: '', data: {}, loaded: false })
 const selectedPreviewMember = ref(null)
 const blockedModelIds = ref(new Set())
 const memberHint = ref('')
+
+// ---- 成员限制概览（一屏看全组成员的 1Panel 模型组限制）----
+const membersOverview = ref({ loading: false, error: '', rows: [], total: 0, loaded: false })
+const overviewSearch = ref('')
+const overviewOnlyBlocked = ref(false)
+const overviewSort = ref('blocked')  // blocked | username
+const expandedMemberId = ref(null)  // 展开看被挡明细的成员 id
+let overviewSearchTimer = null
+
+async function fetchMembersOverview() {
+  membersOverview.value = { ...membersOverview.value, loading: true, error: '' }
+  try {
+    const token = getToken()
+    const params = new URLSearchParams()
+    if (overviewSearch.value.trim()) params.set('q', overviewSearch.value.trim())
+    if (overviewOnlyBlocked.value) params.set('onlyBlocked', 'true')
+    const qs = params.toString() ? '?' + params.toString() : ''
+    const res = await fetch(`${API_BASE}/admin/groups/${groupId}/members-preview${qs}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (res.status === 401 || res.status === 403) { router.push('/admin/login'); return }
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(errMsg(data, '获取成员概览失败'))
+    membersOverview.value = {
+      loading: false, error: '',
+      rows: data.data?.members || [],
+      total: data.data?.total || 0,
+      loaded: true,
+    }
+  } catch (err) {
+    membersOverview.value = { loading: false, error: err.message || '获取成员概览失败', rows: [], total: 0, loaded: true }
+  }
+}
+
+function onOverviewSearchInput() {
+  // 防抖: 输入停 350ms 再请求
+  if (overviewSearchTimer) clearTimeout(overviewSearchTimer)
+  overviewSearchTimer = setTimeout(fetchMembersOverview, 350)
+}
+
+// 排序后的展示行
+const sortedOverviewRows = computed(() => {
+  const rows = [...membersOverview.value.rows]
+  if (overviewSort.value === 'blocked') {
+    rows.sort((a, b) => b.blockedCount - a.blockedCount || (a.username || '').localeCompare(b.username || ''))
+  } else {
+    rows.sort((a, b) => (a.username || '').localeCompare(b.username || ''))
+  }
+  return rows
+})
+
+function toggleExpandMember(userId) {
+  expandedMemberId.value = expandedMemberId.value === userId ? null : userId
+}
 
 async function fetchPreview(memberId) {
   preview.value = { loading: true, error: '', data: {}, loaded: false }

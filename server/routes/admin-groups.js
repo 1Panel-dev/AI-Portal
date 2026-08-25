@@ -717,9 +717,11 @@ router.get('/api/admin/groups/:id/resources-preview', verifyUser, requirePermiss
         ? allWithTitle.filter(r => idSet.has(String(r.id)))
         : [];
       // 模型按成员模型组取交集（仅 model 需要；技能/MCP 返回组内勾选）
+      // memberModelFilter 是 1Panel 允许的 model_name 集合; mapAllWithType 的 model.id 是主键,
+      // 所以按 title(model_name) 比对, 不能按 id。
       if (type.key === 'model' && memberModelFilter) {
-        const visible = groupSelected.filter(r => memberModelFilter.has(String(r.id)));
-        const blocked = groupSelected.filter(r => !memberModelFilter.has(String(r.id)));
+        const visible = groupSelected.filter(r => memberModelFilter.has(r.title));
+        const blocked = groupSelected.filter(r => !memberModelFilter.has(r.title));
         data.model = visible;                        // 该成员可见（交集后）
         data.model_blocked = blocked;                // 组内勾选但被 1Panel 模型组挡住
         data.model_filtered = true;                  // 标志: 当前在按成员交集过滤
@@ -753,6 +755,207 @@ router.get('/api/admin/groups/:id/resources-preview', verifyUser, requirePermiss
   }
 });
 
+// ---- 组成员模型限制概览（一屏看全组成员的 1Panel 模型组限制）----
+// 供「资源授权编辑页」的「资源预览」tab 用: 不再逐个成员请求, 一次返回全组成员的可见/被挡统计。
+// 每个成员返回: { userId, username, name, is_portal_admin, is_admin_role,
+//   panelGroupName(1Panel 用户组名, 可能空), visibleCount, blockedCount, total, blockedModels[] }
+// 超管/后台角色成员 is_admin_role=true, 不取交集(看全量), blockedCount=0。
+// 性能: 单组模型勾选数 M、成员数 N -> N 次 getUserAllowedModels(每次 3 条 SQL), N 大时并发可控。
+// 可选 ?q= 按用户名/姓名模糊筛选; ?onlyBlocked=true 只返回有被挡的成员。
+router.get('/api/admin/groups/:id/members-preview', verifyUser, requirePermission('group:view'), async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: '无效的资源组 id' });
+  try {
+    const g = await pool().query('SELECT id FROM resource_groups WHERE id = $1', [id]);
+    if (!g.rowCount) return res.status(404).json({ error: '资源组不存在' });
+
+    // 该组勾选的模型: resource_group_items 存的是 portal_models 主键 id,
+    // JOIN portal_models 取 model_name(授权交集按 model_name 和 1Panel 允许列表比)
+    const modelItems = await pool().query(`
+      SELECT pm.id AS model_id, pm.model_name
+      FROM resource_group_items i
+      JOIN portal_models pm ON pm.id = i.resource_id::int
+      WHERE i.group_id = $1 AND i.resource_type = 'model' AND pm.is_active = TRUE
+    `, [id]);
+    // groupModelIds = 勾选的主键 id 集合; groupModelNames = 对应 model_name 集合(去重)
+    const groupModelIds = modelItems.rows.map(r => r.model_id);
+    const groupModelNameSet = new Set(modelItems.rows.map(r => r.model_name));
+    const groupModelNames = [...groupModelNameSet];
+    const totalModels = groupModelIds.length;
+
+    // 全体成员（带 portal_user 信息）
+    const members = await pool().query(`
+      SELECT u.id, u.username, u.name, u.is_portal_admin, u.panel_user_id
+      FROM resource_group_members m
+      JOIN portal_users u ON u.id = m.user_id
+      WHERE m.group_id = $1 AND u.status = 'active'
+      ORDER BY u.is_portal_admin DESC, u.username
+    `, [id]);
+
+    // 可选筛选
+    const q = (req.query.q || '').trim().toLowerCase();
+    const onlyBlocked = req.query.onlyBlocked === 'true';
+
+    // 先按 q 过滤成员（避免对不展示的成员也做授权查询）
+    const filteredMembers = members.rows.filter(m => {
+      if (q && !(m.username || '').toLowerCase().includes(q) && !(m.name || '').toLowerCase().includes(q)) return false;
+      return true;
+    });
+
+    // ---- 批量查询授权数据（避免 N+1：每个成员 6+ 条 SQL -> 全量 4 条）----
+    // 1. 哪些成员是后台角色（持有 menu:admin-*）
+    const memberIds = filteredMembers.map(m => m.id);
+    let adminRoleIds = new Set();
+    if (memberIds.length) {
+      const arQ = await pool().query(`
+        SELECT DISTINCT ur.user_id FROM user_roles ur
+        JOIN role_permissions rp ON rp.role_id = ur.role_id
+        JOIN permissions p ON p.id = rp.permission_id
+        WHERE ur.user_id = ANY($1::int[]) AND p.key LIKE 'menu:admin-%'
+      `, [memberIds]);
+      adminRoleIds = new Set(arQ.rows.map(r => r.user_id));
+    }
+
+    // 2. 需要算授权的普通成员（非超管、非后台角色、有 panel_user_id）
+    const normalMembers = filteredMembers.filter(m =>
+      !m.is_portal_admin && !adminRoleIds.has(m.id) && m.panel_user_id
+    );
+    const normalPanelUserIds = normalMembers.map(m => m.panel_user_id);
+
+    // 3. 这些 panel_user 的 key group_id -> panel_user_groups -> model_group_ids -> panel_model_groups.models
+    //    复刻 getUserAllowedModels 的三层 JOIN，但批量查一次
+    const userAllowedMap = new Map();  // panel_user_id -> Set<modelName> | null(null=无限制)
+    const userGroupNameMap = new Map(); // panel_user_id -> 1Panel 用户组名
+    if (normalPanelUserIds.length) {
+      // 3a. keys -> group_id（按 panel_user_id 聚合）
+      const keysQ = await pool().query(`
+        SELECT panel_user_id, array_agg(DISTINCT group_id) AS group_ids
+        FROM portal_api_keys
+        WHERE panel_user_id = ANY($1::int[]) AND group_id IS NOT NULL
+        GROUP BY panel_user_id
+      `, [normalPanelUserIds]);
+      const userToGroupIds = new Map();
+      const allGroupIds = new Set();
+      for (const row of keysQ.rows) {
+        userToGroupIds.set(row.panel_user_id, row.group_ids);
+        for (const gid of row.group_ids) allGroupIds.add(gid);
+      }
+
+      // 3b. panel_user_groups: group_id -> { name, model_group_ids }
+      let groupIdToInfo = new Map();
+      if (allGroupIds.size) {
+        const ugQ = await pool().query(`
+          SELECT panel_group_id, name, model_group_ids
+          FROM panel_user_groups
+          WHERE panel_group_id = ANY($1::int[]) AND is_active = TRUE
+        `, [Array.from(allGroupIds)]);
+        for (const row of ugQ.rows) {
+          groupIdToInfo.set(row.panel_group_id, {
+            name: row.name,
+            modelGroupIds: row.model_group_ids || [],
+          });
+        }
+      }
+
+      // 3c. 聚合每个用户组涉及的 model_group_ids
+      const allMgIds = new Set();
+      for (const info of groupIdToInfo.values()) {
+        for (const mgId of info.modelGroupIds) allMgIds.add(mgId);
+      }
+
+      // 3d. panel_model_groups: model_group_id -> models[]
+      let mgIdToModels = new Map();
+      if (allMgIds.size) {
+        const mgQ = await pool().query(`
+          SELECT panel_group_id, models
+          FROM panel_model_groups
+          WHERE panel_group_id = ANY($1::int[]) AND is_active = TRUE
+        `, [Array.from(allMgIds)]);
+        for (const row of mgQ.rows) {
+          mgIdToModels.set(row.panel_group_id, row.models || []);
+        }
+      }
+
+      // 3e. 每个 panel_user_id 计算授权
+      for (const m of normalMembers) {
+        const groupIds = userToGroupIds.get(m.panel_user_id);
+        if (!groupIds || !groupIds.length) {
+          // 无 key -> null(全公开兜底)
+          userAllowedMap.set(m.panel_user_id, null);
+          continue;
+        }
+        const groupNames = [];
+        const mgIds = new Set();
+        for (const gid of groupIds) {
+          const info = groupIdToInfo.get(gid);
+          if (!info) continue;
+          groupNames.push(info.name);
+          for (const mgId of info.modelGroupIds) mgIds.add(mgId);
+        }
+        userGroupNameMap.set(m.panel_user_id, groupNames.join(', '));
+
+        if (!mgIds.size) {
+          // 用户组没配模型组 -> null(无限制)
+          userAllowedMap.set(m.panel_user_id, null);
+          continue;
+        }
+        const allowedModels = new Set();
+        for (const mgId of mgIds) {
+          for (const modelName of (mgIdToModels.get(mgId) || [])) allowedModels.add(modelName);
+        }
+        userAllowedMap.set(m.panel_user_id, allowedModels.size ? allowedModels : null);
+      }
+    }
+
+    const rows = filteredMembers.map(m => {
+      let visibleModels = [...groupModelNames];
+      let blockedModels = [];
+      let panelGroupName = '';
+      let isAdminRole = false;
+
+      if (m.is_portal_admin) {
+        isAdminRole = true;
+      } else if (adminRoleIds.has(m.id)) {
+        isAdminRole = true;
+      } else if (m.panel_user_id && userAllowedMap.has(m.panel_user_id)) {
+        const allowed = userAllowedMap.get(m.panel_user_id);
+        panelGroupName = userGroupNameMap.get(m.panel_user_id) || '';
+        if (allowed === null) {
+          // 无限制 -> 全可见
+        } else {
+          visibleModels = [...groupModelNames].filter(name => allowed.has(name));
+          blockedModels = [...groupModelNames].filter(name => !allowed.has(name));
+        }
+      }
+
+      const blockedCount = blockedModels.length;
+      const visibleCount = visibleModels.length;
+
+      return {
+        userId: m.id,
+        username: m.username,
+        name: m.name,
+        isPortalAdmin: !!m.is_portal_admin,
+        isAdminRole,
+        panelGroupName,
+        visibleCount,
+        blockedCount,
+        total: totalModels,
+        visibleModels,
+        blockedModels,
+      };
+    });
+
+    // onlyBlocked 过滤
+    const finalRows = onlyBlocked ? rows.filter(r => r.blockedCount > 0) : rows;
+
+    res.json({ data: { members: finalRows, total: members.rowCount } });
+  } catch (e) {
+    console.error('[members-preview] error:', e);
+    res.status(500).json({ error: '获取成员限制概览失败', reason: e.message });
+  }
+});
+
 // 全量资源列表(供资源组编辑勾选用):管理端,需 group:view。
 // 不走广场接口(/api/models 等,它们已校验 model:view/skill:view/mcp:view),避免资源组编辑者
 // 因没有查看权限而拉不到资源。
@@ -777,7 +980,19 @@ router.get('/api/admin/resources-list', verifyUser, requirePermission('group:vie
 async function mapAllWithType(key, adapter) {
   if (!adapter?.listAll) return [];
   const rows = await adapter.listAll();
-  if (key === 'model') return rows.map(r => ({ id: r.model_name, title: r.model_name, subtitle: `${r.group_name || ''} · ${r.provider || ''}`.trim(), is_public: r.is_public }));
+  if (key === 'model') {
+    // id = portal_models 主键(每行唯一), 区分同名不同账号/供应商的实例。
+    // resource_group_items 存主键 id, 勾选时不会连带同名其他实例。
+    return rows.map(r => ({
+      id: String(r.id),
+      title: r.model_name,
+      subtitle: `${r.group_name || ''} · ${r.provider || ''}`.trim(),
+      is_public: !!r.is_public,
+    }));
+  }
+  if (key === 'skill') return rows.map(r => ({ id: r.slug, title: r.title, subtitle: r.slug }));
+  if (key === 'mcp') return rows.map(r => ({ id: String(r.panel_mcp_id ?? r.id), title: r.name || '未命名', subtitle: r.type || '' }));
+  return rows.map(r => ({ id: String(r.id ?? ''), title: String(r.title ?? r.name ?? r.id ?? ''), subtitle: '' }));
   if (key === 'skill') return rows.map(r => ({ id: r.slug, title: r.title, subtitle: r.slug }));
   if (key === 'mcp') return rows.map(r => ({ id: String(r.panel_mcp_id ?? r.id), title: r.name || '未命名', subtitle: r.type || '' }));
   return rows.map(r => ({ id: String(r.id ?? ''), title: String(r.title ?? r.name ?? r.id ?? ''), subtitle: '' }));

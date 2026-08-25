@@ -71,7 +71,7 @@
         <!-- 顶部数据区 -->
         <div class="relative mb-4">
           <!-- 统计卡片 -->
-          <div v-if="data" class="grid grid-cols-4 gap-4 mb-4">
+          <div v-if="data" class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
             <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4">
               <div class="text-xs text-text-secondary mb-1">总请求数</div>
               <div class="text-xl font-bold text-text">{{ fmt(displaySummary.requestCount) }}</div>
@@ -81,12 +81,20 @@
               <div class="text-xl font-bold text-text">{{ fmtTokens(displaySummary.totalTokens) }}</div>
             </div>
             <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4">
-              <div class="text-xs text-text-secondary mb-1">活跃用户</div>
-              <div class="text-xl font-bold text-text">{{ selectedMonth ? 0 : (data.summary?.activeUsers ?? 0) }}</div>
+              <div class="text-xs text-text-secondary mb-1">失败请求</div>
+              <div class="text-xl font-bold text-red-500">{{ fmt(displaySummary.failedRequests ?? 0) }}</div>
             </div>
             <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4">
-              <div class="text-xs text-text-secondary mb-1">失败请求</div>
-              <div class="text-xl font-bold text-red-500">{{ selectedMonth ? 0 : (data.summary?.failedRequests ?? 0) }}</div>
+              <div class="text-xs text-text-secondary mb-1">失败率</div>
+              <div class="text-xl font-bold" :class="failRate > 5 ? 'text-red-500' : 'text-text'">{{ failRate }}%</div>
+            </div>
+            <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4">
+              <div class="text-xs text-text-secondary mb-1">缓存命中率</div>
+              <div class="text-xl font-bold text-emerald-600">{{ cacheHitRate }}%</div>
+            </div>
+            <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4">
+              <div class="text-xs text-text-secondary mb-1">平均 Token/请求</div>
+              <div class="text-xl font-bold text-text">{{ fmtTokens(displaySummary.averageTokens || avgTokensPerReq) }}</div>
             </div>
           </div>
 
@@ -103,15 +111,15 @@
           </div>
         </div>
 
-        <!-- 红黑榜 -->
+        <!-- 用量 Top 10 / Bottom 10 -->
         <div class="grid grid-cols-2 gap-4 mb-4">
           <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4">
-            <div class="text-sm font-semibold text-text mb-3">🔥 红榜 Top 10</div>
+            <div class="text-sm font-semibold text-text mb-3">用量 Top 10</div>
             <div v-if="selectedUser" class="text-xs text-accent mb-2">当前用户：{{ selectedUserName }}</div>
             <div ref="redChartRef" style="height:280px"></div>
           </div>
           <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4">
-            <div class="text-sm font-semibold text-text mb-3">📉 黑榜 Bottom 10</div>
+            <div class="text-sm font-semibold text-text mb-3">用量 Bottom 10</div>
             <div v-if="selectedUser" class="text-xs text-accent mb-2">当前用户：{{ selectedUserName }}</div>
             <div ref="blackChartRef" style="height:280px"></div>
           </div>
@@ -125,7 +133,7 @@
               <button v-for="tab in distTabs" :key="tab.key" @click="switchDistTab(tab.key)" class="px-2 py-0.5 text-xs rounded transition-all" :class="distTab === tab.key ? 'bg-white text-text shadow-sm' : 'text-text-secondary hover:text-text'">{{ tab.label }}</button>
             </div>
           </div>
-          <div v-if="distTab === 'provider' || distTab === 'model'" ref="distChartRef" style="height:260px"></div>
+          <div v-if="distTab !== 'tokens'" ref="distChartRef" style="height:260px"></div>
           <div v-else class="space-y-3">
             <div>
               <div class="flex justify-between text-xs mb-1"><span class="text-text-secondary">Prompt</span><span class="text-text-tertiary">{{ fmtTokens(globalData.summary?.promptTokens) }}</span></div>
@@ -182,8 +190,10 @@ let blackChart = null
 let distChart = null
 
 const distTabs = [
-  { key: 'provider', label: 'Provider' },
+  { key: 'provider', label: '供应商' },
   { key: 'model', label: '模型' },
+  { key: 'account', label: '账号' },
+  { key: 'group', label: '用户组' },
   { key: 'tokens', label: 'Tokens' },
 ]
 
@@ -222,15 +232,41 @@ const trends = computed(() => {
 const monthSummary = computed(() => {
   if (!selectedMonth.value) return null
   const t = trends.value
-  if (!t.length) return { requestCount: 0, totalTokens: 0 }
+  if (!t.length) return { requestCount: 0, totalTokens: 0, failedRequests: 0, cachedTokens: 0 }
   return {
     requestCount: t.reduce((s, v) => s + (v.requestCount || 0), 0),
     totalTokens: t.reduce((s, v) => s + (v.totalTokens || 0), 0),
+    failedRequests: t.reduce((s, v) => s + (v.failedRequests || 0), 0),
+    cachedTokens: t.reduce((s, v) => s + (v.cachedTokens || 0), 0),
   }
 })
 const displaySummary = computed(() => monthSummary.value || summary.value)
+
+// 失败率 = 失败请求 / 总请求(>5% 红色高亮)
+const failRate = computed(() => {
+  const total = displaySummary.value?.requestCount || 0
+  const failed = displaySummary.value?.failedRequests ?? summary.value?.failedRequests ?? 0
+  if (!total) return '0.0'
+  return ((failed / total) * 100).toFixed(1)
+})
+// 缓存命中率 = cachedTokens / totalTokens (月份筛选时用月份数据)
+const cacheHitRate = computed(() => {
+  const total = displaySummary.value?.totalTokens || 0
+  const cached = displaySummary.value?.cachedTokens ?? summary.value?.cachedTokens ?? 0
+  if (!total) return '0.0'
+  return ((cached / total) * 100).toFixed(1)
+})
+// 平均 Token/请求 = totalTokens / requestCount
+const avgTokensPerReq = computed(() => {
+  const total = displaySummary.value?.totalTokens || 0
+  const req = displaySummary.value?.requestCount || 0
+  if (!req) return 0
+  return Math.round(total / req)
+})
 const providers = computed(() => (globalData.value?.providers || []).filter(p => p.name && p.name.trim()))
 const models = computed(() => (globalData.value?.models || []).filter(m => m.name && m.name.trim()).sort((a, b) => (b.requestCount || 0) - (a.requestCount || 0)))
+const accounts = computed(() => (globalData.value?.accounts || []).filter(a => a.name && a.name.trim()).sort((a, b) => (b.requestCount || 0) - (a.requestCount || 0)))
+const groups = computed(() => (globalData.value?.groups || []).filter(g => g.name && g.name.trim()).sort((a, b) => (b.requestCount || 0) - (a.requestCount || 0)))
 
 const topModels = computed(() => models.value.slice(0, 10))
 const maxProvider = computed(() => Math.max(...providers.value.map(p => p.requestCount || 0), 1))
@@ -275,10 +311,20 @@ const filteredUsers = computed(() => {
 })
 
 const rankedUsers = computed(() => {
-  return (globalData.value?.users || []).filter(u => u.name !== 'AIProxyUserFallback')
+  // 按 totalTokens 降序排序(1Panel users 数组原始顺序不定, 必须显式排序)
+  return (globalData.value?.users || [])
+    .filter(u => u.name !== 'AIProxyUserFallback')
+    .slice()
+    .sort((a, b) => (b.totalTokens || 0) - (a.totalTokens || 0))
 })
+// 红榜: 用量 Top 10(降序, 最高的在前)
 const topUsers = computed(() => rankedUsers.value.slice(0, 10))
-const bottomUsers = computed(() => rankedUsers.value.slice(-10).reverse())
+// 黑榜: 用量 Bottom 10(取用量最少的 10 个, 最多在前=names[0], 配合无 inverse 默认顶部=最多在上, 最少在下)
+const bottomUsers = computed(() => {
+  // rankedUsers 是降序(最高在前), slice(-10) 取最少 10 个(仍是降序, 最多在前)
+  // 不 reverse, 保持降序: names[0]=这10个里最多的, names[9]=最少的
+  return rankedUsers.value.slice(-10)
+})
 
 const getToken = () => getLoginToken()
 
@@ -295,7 +341,7 @@ const fmtTokens = (n) => {
   if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K'
   return n.toLocaleString()
 }
-const pct = (v, max) => Math.max(2, (v / max) * 100)
+const pct = (v, max) => Math.max(2, ((v || 0) / (max || 1)) * 100)
 
 function initTrendChart() {
   if (!trendChartRef.value || !trends.value.length) return
@@ -540,15 +586,23 @@ function initBlackChart() {
 function initDistChart() {
   if (!distChartRef.value) return
   if (distChart) { distChart.dispose(); distChart = null }
-  const isProvider = distTab.value === 'provider'
-  const items = isProvider ? providers.value : topModels.value
+  // 各维度取对应数据(已按 requestCount 降序), tokens 维度走单独的进度条渲染不进这里
+  const itemsByTab = {
+    provider: providers.value,
+    model: topModels.value,
+    account: accounts.value.slice(0, 10),
+    group: groups.value.slice(0, 10),
+  }
+  const items = itemsByTab[distTab.value] || providers.value
   if (!items.length) return
   const el = distChartRef.value
   if (echarts.getInstanceByDom(el)) echarts.dispose(el)
   distChart = echarts.init(el)
+  const isProvider = distTab.value === 'provider'
   const names = items.map(p => (p.name || '未分类').slice(0, 10))
   const values = items.map(p => p.requestCount)
-  const color = isProvider ? '#3b82f6' : '#34d399'
+  const colorMap = { provider: '#3b82f6', model: '#34d399', account: '#a855f7', group: '#f59e0b' }
+  const color = colorMap[distTab.value] || '#3b82f6'
   distChart.setOption({
     tooltip: {
       trigger: 'axis',
@@ -635,6 +689,9 @@ async function fetchUsersMap() {
   try {
     const res = await fetch(`${API_BASE}/admin/portal-users/map`, { headers: { Authorization: `Bearer ${getToken()}` } })
     if (res.ok) usersMap.value = await res.json()
+    // 用户映射表后加载完成时, 若图表已渲染(中文名优先于英文), 重绘红黑榜保证显示中文名
+    if (globalData.value && redChart) initRedChart()
+    if (globalData.value && blackChart) initBlackChart()
   } catch (e) {
     console.error('获取用户映射失败:', e)
   }

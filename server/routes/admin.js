@@ -1227,6 +1227,18 @@ router.post('/api/admin/panel-config/sync-now', verifyUser, requirePermission('s
         : { ok: false, error: rolesResult.reason?.message },
     };
 
+    // 同步后补充各表当前活跃记录数(供前端展示「同步 X / 当前 Y」)
+    try {
+      const [mCount, sCount, cCount] = await Promise.all([
+        global.pool.query('SELECT count(*) c FROM portal_models WHERE is_active = TRUE'),
+        global.pool.query("SELECT count(*) c FROM skills WHERE source = 'panel' AND is_active = TRUE"),
+        global.pool.query('SELECT count(*) c FROM portal_mcps WHERE is_active = TRUE'),
+      ]);
+      if (summary.models.ok) summary.models.activeCount = parseInt(mCount.rows[0].c);
+      if (summary.skills.ok) summary.skills.activeCount = parseInt(sCount.rows[0].c);
+      if (summary.mcps.ok) summary.mcps.activeCount = parseInt(cCount.rows[0].c);
+    } catch { /* 计数查询失败不影响同步结果 */ }
+
     // 打印汇总日志，方便运维一眼看出哪个子任务失败
     console.log('[admin] sync-now 结果:', JSON.stringify(summary), `| 耗时 ${Date.now() - startTime}ms`);
 

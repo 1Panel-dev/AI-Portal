@@ -1247,10 +1247,10 @@ const syncNow = async () => {
       const m = data.models, s = data.skills, mc = data.mcps, g = data.groups
       const parts = []
       const cnt = (v, k) => v?.[k] ?? 0
-      parts.push(m?.ok ? `模型 ${cnt(m, 'modelCount')}` : `模型失败`)
-      parts.push(s?.ok ? `技能 ${cnt(s, 'upsertCount')}` : `技能失败`)
-      parts.push(mc?.ok ? `MCP ${cnt(mc, 'mcpCount')}` : `MCP失败`)
-      parts.push(g?.ok ? `组 ${cnt(g, 'userGroups')}/${cnt(g, 'modelGroups')}` : `组失败`)
+      parts.push(m?.ok ? `模型已同步 ${cnt(m, 'modelCount')}（活跃 ${m.activeCount ?? '?'}）` : '模型失败')
+      parts.push(s?.ok ? `技能已同步 ${cnt(s, 'upsertCount')}（活跃 ${s.activeCount ?? '?'}）` : '技能失败')
+      parts.push(mc?.ok ? `MCP已同步 ${cnt(mc, 'mcpCount')}（活跃 ${mc.activeCount ?? '?'}）` : 'MCP失败')
+      parts.push(g?.ok ? `组已同步 用户组 ${cnt(g, 'userGroups')} / 模型组 ${cnt(g, 'modelGroups')}` : '组失败')
       const failed = [m, s, mc, g].filter(x => x && !x.ok)
       panelMsg.value = failed.length
         ? `同步完成(部分失败): ${parts.join(' · ')} -- ${failed[0].error || '原因见最近同步'}`
