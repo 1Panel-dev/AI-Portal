@@ -228,7 +228,7 @@ router.post('/api/submit', async (req, res) => {
       title,
       slug,
       description,
-      avatar = 'S',
+      avatar = title.charAt(0).toUpperCase() || 'S',
       avatar_color = 'av-teal',
       category,
       author,
@@ -671,11 +671,11 @@ router.post('/api/skills/upload', verifyUser, requirePermission('skill:create'),
     } else {
       await client.query(`
         INSERT INTO skill_submissions (
-          skill_id, title, slug, description, category, author,
+          skill_id, title, slug, description, avatar, avatar_color, category, author,
           install_command, install_url, version, package_name,
           status, submitted_by, submitted_by_user_id, submitted_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', $11, $12, CURRENT_TIMESTAMP)
-      `, [skill_id, title, skill_id, description || '', category, author,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'pending', $13, $14, CURRENT_TIMESTAMP)
+      `, [skill_id, title, skill_id, description || '', (title.charAt(0).toUpperCase() || 'S'), 'av-teal', category, author,
           installCommand, installUrl, version, packageName, submittedBy, submitter.id]);
     }
 

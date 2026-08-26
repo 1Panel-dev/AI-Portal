@@ -136,16 +136,16 @@
           <div v-if="distTab !== 'tokens'" ref="distChartRef" style="height:260px"></div>
           <div v-else class="space-y-3">
             <div>
-              <div class="flex justify-between text-xs mb-1"><span class="text-text-secondary">Prompt</span><span class="text-text-tertiary">{{ fmtTokens(globalData.summary?.promptTokens) }}</span></div>
-              <div class="h-4 bg-surface-secondary rounded overflow-hidden"><div class="h-full bg-accent rounded" :style="{ width: pct(globalData.summary?.promptTokens, globalData.summary?.totalTokens) + '%' }"></div></div>
+              <div class="flex justify-between text-xs mb-1"><span class="text-text-secondary">Prompt</span><span class="text-text-tertiary">{{ fmtTokens(data.summary?.promptTokens) }}</span></div>
+              <div class="h-4 bg-surface-secondary rounded overflow-hidden"><div class="h-full bg-accent rounded" :style="{ width: pct(data.summary?.promptTokens, data.summary?.totalTokens) + '%' }"></div></div>
             </div>
             <div>
-              <div class="flex justify-between text-xs mb-1"><span class="text-text-secondary">Completion</span><span class="text-text-tertiary">{{ fmtTokens(globalData.summary?.completionTokens) }}</span></div>
-              <div class="h-4 bg-surface-secondary rounded overflow-hidden"><div class="h-full bg-amber-500 rounded" :style="{ width: pct(globalData.summary?.completionTokens, globalData.summary?.totalTokens) + '%' }"></div></div>
+              <div class="flex justify-between text-xs mb-1"><span class="text-text-secondary">Completion</span><span class="text-text-tertiary">{{ fmtTokens(data.summary?.completionTokens) }}</span></div>
+              <div class="h-4 bg-surface-secondary rounded overflow-hidden"><div class="h-full bg-amber-500 rounded" :style="{ width: pct(data.summary?.completionTokens, data.summary?.totalTokens) + '%' }"></div></div>
             </div>
             <div>
-              <div class="flex justify-between text-xs mb-1"><span class="text-text-secondary">Cached</span><span class="text-text-tertiary">{{ fmtTokens(globalData.summary?.cachedTokens) }}</span></div>
-              <div class="h-4 bg-surface-secondary rounded overflow-hidden"><div class="h-full bg-emerald-400 rounded" :style="{ width: pct(globalData.summary?.cachedTokens, globalData.summary?.totalTokens) + '%' }"></div></div>
+              <div class="flex justify-between text-xs mb-1"><span class="text-text-secondary">Cached</span><span class="text-text-tertiary">{{ fmtTokens(data.summary?.cachedTokens) }}</span></div>
+              <div class="h-4 bg-surface-secondary rounded overflow-hidden"><div class="h-full bg-emerald-400 rounded" :style="{ width: pct(data.summary?.cachedTokens, data.summary?.totalTokens) + '%' }"></div></div>
             </div>
           </div>
         </div>
@@ -209,10 +209,21 @@ const monthOptions = (() => {
   }
   return opts
 })()
-// 默认选中当月
+// 默认选中当月(首次加载按当月范围请求 1Panel); 空串=全部月份
 const currentMonthValue = monthOptions[0]?.value || ''
 const selectedMonth = ref(currentMonthValue)
 const monthOpen = ref(false)
+
+// 北京月份 YYYY-MM -> 1Panel UTC ISO 时间范围
+// startTime = 北京 m/1 00:00 -> UTC 前一天 16:00(浏览器 +8 时区 toISOString 自动换算)
+// endTime   = 北京 (m+1)/1 00:00 -> UTC m 月末 16:00
+function monthToRange(yyyymm) {
+  const [y, m] = yyyymm.split('-').map(Number)
+  return {
+    startTime: new Date(y, m - 1, 1).toISOString(),
+    endTime: new Date(y, m, 1).toISOString(),
+  }
+}
 
 const monthLabel = computed(() => {
   if (!selectedMonth.value) return '全部月份'
@@ -221,38 +232,22 @@ const monthLabel = computed(() => {
 })
 
 const summary = computed(() => data.value?.summary || {})
-const trends = computed(() => {
-  const all = data.value?.trends || []
-  if (selectedMonth.value) {
-    return all.filter(t => String(t.name || '').startsWith(selectedMonth.value))
-  }
-  return all
-})
-// 选月份时从 trends 本地重算汇总，接口只返回全局汇总
-const monthSummary = computed(() => {
-  if (!selectedMonth.value) return null
-  const t = trends.value
-  if (!t.length) return { requestCount: 0, totalTokens: 0, failedRequests: 0, cachedTokens: 0 }
-  return {
-    requestCount: t.reduce((s, v) => s + (v.requestCount || 0), 0),
-    totalTokens: t.reduce((s, v) => s + (v.totalTokens || 0), 0),
-    failedRequests: t.reduce((s, v) => s + (v.failedRequests || 0), 0),
-    cachedTokens: t.reduce((s, v) => s + (v.cachedTokens || 0), 0),
-  }
-})
-const displaySummary = computed(() => monthSummary.value || summary.value)
+// 后端已按 selectedMonth 时间范围返回 trends, 前端不再本地过滤
+const trends = computed(() => data.value?.trends || [])
+// 选月份时后端按月范围请求 1Panel, summary 已是该月汇总, 无需本地累加
+const displaySummary = computed(() => summary.value)
 
 // 失败率 = 失败请求 / 总请求(>5% 红色高亮)
 const failRate = computed(() => {
   const total = displaySummary.value?.requestCount || 0
-  const failed = displaySummary.value?.failedRequests ?? summary.value?.failedRequests ?? 0
+  const failed = displaySummary.value?.failedRequests || 0
   if (!total) return '0.0'
   return ((failed / total) * 100).toFixed(1)
 })
-// 缓存命中率 = cachedTokens / totalTokens (月份筛选时用月份数据)
+// 缓存命中率 = cachedTokens / totalTokens
 const cacheHitRate = computed(() => {
   const total = displaySummary.value?.totalTokens || 0
-  const cached = displaySummary.value?.cachedTokens ?? summary.value?.cachedTokens ?? 0
+  const cached = displaySummary.value?.cachedTokens || 0
   if (!total) return '0.0'
   return ((cached / total) * 100).toFixed(1)
 })
@@ -263,10 +258,10 @@ const avgTokensPerReq = computed(() => {
   if (!req) return 0
   return Math.round(total / req)
 })
-const providers = computed(() => (globalData.value?.providers || []).filter(p => p.name && p.name.trim()))
-const models = computed(() => (globalData.value?.models || []).filter(m => m.name && m.name.trim()).sort((a, b) => (b.requestCount || 0) - (a.requestCount || 0)))
-const accounts = computed(() => (globalData.value?.accounts || []).filter(a => a.name && a.name.trim()).sort((a, b) => (b.requestCount || 0) - (a.requestCount || 0)))
-const groups = computed(() => (globalData.value?.groups || []).filter(g => g.name && g.name.trim()).sort((a, b) => (b.requestCount || 0) - (a.requestCount || 0)))
+const providers = computed(() => (data.value?.providers || []).filter(p => p.name && p.name.trim()))
+const models = computed(() => (data.value?.models || []).filter(m => m.name && m.name.trim()).sort((a, b) => (b.requestCount || 0) - (a.requestCount || 0)))
+const accounts = computed(() => (data.value?.accounts || []).filter(a => a.name && a.name.trim()).sort((a, b) => (b.requestCount || 0) - (a.requestCount || 0)))
+const groups = computed(() => (data.value?.groups || []).filter(g => g.name && g.name.trim()).sort((a, b) => (b.requestCount || 0) - (a.requestCount || 0)))
 
 const topModels = computed(() => models.value.slice(0, 10))
 const maxProvider = computed(() => Math.max(...providers.value.map(p => p.requestCount || 0), 1))
@@ -310,21 +305,15 @@ const filteredUsers = computed(() => {
   return list.filter(u => u.display_name.toLowerCase().includes(kw))
 })
 
-const rankedUsers = computed(() => {
-  // 按 totalTokens 降序排序(1Panel users 数组原始顺序不定, 必须显式排序)
-  return (globalData.value?.users || [])
-    .filter(u => u.name !== 'AIProxyUserFallback')
-    .slice()
-    .sort((a, b) => (b.totalTokens || 0) - (a.totalTokens || 0))
-})
-// 红榜: 用量 Top 10(降序, 最高的在前)
-const topUsers = computed(() => rankedUsers.value.slice(0, 10))
-// 黑榜: 用量 Bottom 10(取用量最少的 10 个, 最多在前=names[0], 配合无 inverse 默认顶部=最多在上, 最少在下)
-const bottomUsers = computed(() => {
-  // rankedUsers 是降序(最高在前), slice(-10) 取最少 10 个(仍是降序, 最多在前)
-  // 不 reverse, 保持降序: names[0]=这10个里最多的, names[9]=最少的
-  return rankedUsers.value.slice(-10)
-})
+// topRank: 最近一次全局视角(descending)请求的 rankUsers(Top 10 降序), 钻取用户时不清空以维持红榜
+const topRank = ref([])
+// bottomRank: 单独一次 rankOrder=ascending 请求拿到的用量最少 10 个(已升序, 最少的在前)
+const bottomRank = ref([])
+// topUsers: Top 10 降序(1Panel 已排好序), 最高在前
+const topUsers = computed(() => topRank.value)
+// bottomUsers: 最少在下、往上递增 -> 升序数组 reverse 成[最多...最少], 配合 yAxis inverse:true
+// (与红榜一致: 数组[0]在顶), 最多在顶、最少在底
+const bottomUsers = computed(() => bottomRank.value.slice().reverse())
 
 const getToken = () => getLoginToken()
 
@@ -646,29 +635,64 @@ function switchDistTab(key) {
   nextTick(() => initDistChart())
 }
 
+// 构造查询参数: 月份范围(选月份才带) + 排行分页(全局视角才带, 钻取单用户不带)
+function buildStatsParams({ withRank = false, rankOrder = 'descending' } = {}) {
+  const params = new URLSearchParams()
+  if (selectedUser.value) params.set('userId', String(selectedUser.value))
+  if (selectedMonth.value) {
+    const { startTime, endTime } = monthToRange(selectedMonth.value)
+    params.set('startTime', startTime)
+    params.set('endTime', endTime)
+  }
+  if (withRank) {
+    params.set('rankPage', '1')
+    params.set('rankPageSize', '10')
+    params.set('rankOrderBy', 'totalTokens')
+    params.set('rankOrder', rankOrder)
+  }
+  return params.toString()
+}
+
+// 请求序号: 快速切月份/用户时, 丢弃晚到的过期响应, 防止竞态覆盖
+let fetchSeq = 0
+
 async function fetchStats(isUserSwitch = false) {
+  const seq = ++fetchSeq
   topLoading.value = true
   try {
-    const params = new URLSearchParams()
-    // 1Panel usage/statistics 不支持时间参数，只透传 userId
-    // 月份筛选在前端对返回的 trends 数据做本地过滤
-    if (selectedUser.value) params.set('userId', String(selectedUser.value))
-    const qs = params.toString()
+    // 钻取单用户时不带 rank(单用户无排行意义), 红黑榜维持上一次全局结果
+    const withRank = !isUserSwitch
+    const qs = buildStatsParams({ withRank, rankOrder: 'descending' })
     const url = `${API_BASE}/admin/usage-statistics${qs ? '?' + qs : ''}`
-    const statsRes = await fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } })
+    // 并发发两个请求: 主(descending, 拿 data/趋势/分布/Top) + Bottom(ascending, 拿最少 10 个)
+    const bottomFetch = withRank
+      ? fetch(`${API_BASE}/admin/usage-statistics?${buildStatsParams({ withRank: true, rankOrder: 'ascending' })}`, { headers: { Authorization: `Bearer ${getToken()}` } }).then(r => r.ok ? r.json() : null).catch(() => null)
+      : Promise.resolve(null)
+    const [statsRes, bottomJson] = await Promise.all([fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } }), bottomFetch])
+    // 过期响应丢弃: 用户在等待期间又切了筛选, 这次结果作废
+    if (seq !== fetchSeq) return
     if (statsRes.ok) {
       const result = await statsRes.json()
+      if (seq !== fetchSeq) return
       data.value = result
       if (!isUserSwitch || !globalData.value) {
         globalData.value = result
       }
+      if (withRank) {
+        topRank.value = (result.rankUsers || []).filter(u => u.name !== 'AIProxyUserFallback')
+        if (bottomJson?.rankUsers) {
+          bottomRank.value = bottomJson.rankUsers.filter(u => u.name !== 'AIProxyUserFallback')
+        }
+      }
       await nextTick()
       setTimeout(() => {
+        if (seq !== fetchSeq) return
         initTrendChart()
+        // 钻取用户时分布图也重绘(data 已切到该用户数据)
+        initDistChart()
         if (!isUserSwitch) {
           initRedChart()
           initBlackChart()
-          initDistChart()
         }
       }, 100)
     } else if (statsRes.status === 502) {
@@ -679,8 +703,10 @@ async function fetchStats(isUserSwitch = false) {
   } catch (e) {
     console.error('获取统计失败:', e)
   } finally {
-    topLoading.value = false
-    loading.value = false
+    if (seq === fetchSeq) {
+      topLoading.value = false
+      loading.value = false
+    }
   }
 }
 
@@ -747,9 +773,9 @@ watch(selectedUser, () => {
   fetchStats(true)
 })
 
-// 月份筛选是纯前端过滤(trends 本地过滤, 接口参数不含月份), 数据无需重拉——只本地重绘趋势图
+// 月份切换 -> 按月范围重拉 1Panel(卡片/趋势/分布/Top/Bottom 全部刷新为该月数据)
 watch(selectedMonth, () => {
-  nextTick(() => initTrendChart())
+  fetchStats(false)
 })
 
 onMounted(() => {

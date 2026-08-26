@@ -277,6 +277,7 @@ import AppDrawer from '../components/AppDrawer.vue'
 import { providerLabels } from '../data/categories.js'
 import { bannerEnabled, bannerHtml, bannerVisible } from '../composables/useAnnouncement.js'
 import { loadPermissions, can, isAdminRoleUser } from '../composables/usePermissions.js'
+import { showToast } from '../composables/useToast.js'
 import { getLoginToken } from '../lib/apiBase'
 
 const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !window.__APP_BASE__.includes('__BASE_PATH__') ? (window.__APP_BASE__.endsWith('/') ? window.__APP_BASE__ : window.__APP_BASE__ + '/') + 'api' : (import.meta.env.VITE_API_URL || '/api'))
@@ -470,11 +471,13 @@ const copyToClipboard = async (text) => {
 const copyModel = async (m) => {
   await copyToClipboard(m.api_model_name || m.display_name || m.model_name)
   copiedModelId.value = m.id; setTimeout(() => { copiedModelId.value = null }, 2000)
+  showToast('模型名已复制', 'success')
 }
 const copyText = async (text, key) => {
   if (!text) return
   await copyToClipboard(text)
   copiedRow.value = key; setTimeout(() => { copiedRow.value = '' }, 1500)
+  showToast('已复制', 'success')
 }
 
 async function fetchGatewayUrl() {

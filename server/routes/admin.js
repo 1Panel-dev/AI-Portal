@@ -1360,10 +1360,25 @@ router.get('/api/admin/portal-users/map', verifyUser, requirePermission('user:vi
 // 获取 1Panel AI 使用统计数据（代理透传）
 router.get('/api/admin/usage-statistics', verifyUser, requirePermission('user:view'), async (req, res) => {
   try {
-    const { days, userId } = req.query;
-    // 1Panel usage/statistics 只支持 userId 服务端筛选，不支持时间过滤
-    // 月份/天数筛选一律在前端对返回的 trends 数据做本地过滤
-    const body = userId ? { info: '', userId: parseInt(userId, 10), provider: '', model: '' } : {};
+    const { userId, startTime, endTime, rankPage, rankPageSize, rankOrderBy, rankOrder } = req.query;
+    // 1Panel usage/statistics 支持的 body 参数:
+    //   userId      - 服务端按用户筛选(钻取单用户)
+    //   startTime/endTime - UTC ISO 时间范围(前端按北京月份换算, 选月份=按月范围请求;
+    //                   不传=全量)。summary/trends/providers/models/accounts/groups 全部按此范围聚合
+    //   rankPage/rankPageSize/rankOrderBy/rankOrder - 排行榜分页(返回 rankUsers 数组 + rankTotal)
+    //                   Top10 用 rankOrder=descending, Bottom10 用 rankOrder=ascending, 各请求一次
+    const body = { info: '', provider: '', model: '' };
+    if (userId) {
+      const uid = parseInt(userId, 10);
+      if (Number.isFinite(uid)) body.userId = uid;
+    }
+    if (startTime) body.startTime = startTime;
+    if (endTime) body.endTime = endTime;
+    // 排行分页:有 rankOrderBy 才传(全部月份+无用户钻取时也带, 取 Top/Bottom 都靠它)
+    if (rankPage) { const v = parseInt(rankPage, 10); if (Number.isFinite(v)) body.rankPage = v; }
+    if (rankPageSize) { const v = parseInt(rankPageSize, 10); if (Number.isFinite(v)) body.rankPageSize = v; }
+    if (rankOrderBy) body.rankOrderBy = rankOrderBy;
+    if (rankOrder) body.rankOrder = rankOrder;
     const response = await panel.post('/api/v2/core/enterprise/ai-proxy/usage/statistics', body);
 
     if (response.status < 200 || response.status >= 300) {

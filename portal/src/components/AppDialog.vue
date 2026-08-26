@@ -11,17 +11,21 @@ const props = defineProps({
   confirmText: { type: String, default: '确定' },
   // 宽度: 默认 400px, 表单类弹框可传 'md'(480) / 'lg'(560)
   size: { type: String, default: 'sm' },
+  // static=true 时去掉 max-h 和 overflow 滚动, 用 overflow-visible; 适合内容不多但含悬浮下拉
+  // (absolute 定位的下拉面板不会被 overflow-y-auto 截断)的表单弹框
+  static: { type: Boolean, default: false },
 })
 const emit = defineEmits(['close', 'confirm'])
 const slots = useSlots()
 const hasBody = computed(() => !!slots.default)
 const widthClass = computed(() => ({ sm: 'w-[400px]', md: 'w-[480px]', lg: 'w-[560px]' }[props.size] || 'w-[400px]'))
+const bodyClass = computed(() => props.static ? 'max-w-[90vw] overflow-visible' : 'max-w-[90vw] max-h-[85vh] overflow-y-auto')
 </script>
 
 <template>
   <Teleport to="body">
     <div v-if="open" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/45 backdrop-blur-[8px] px-5" @click.self="$emit('close')">
-      <div class="bg-white rounded-2xl shadow-modal p-6 max-w-[90vw] max-h-[85vh] overflow-y-auto" :class="widthClass">
+      <div class="bg-white rounded-2xl shadow-modal p-6" :class="[widthClass, bodyClass]">
         <h3 v-if="title" class="text-lg font-semibold text-text mb-3">{{ title }}</h3>
         <!-- 默认插槽: 支持表单等富内容; 无插槽时回退到 message 纯文本 -->
         <div v-if="hasBody" class="text-sm text-text-secondary leading-relaxed">

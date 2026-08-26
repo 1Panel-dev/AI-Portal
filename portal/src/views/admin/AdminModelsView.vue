@@ -42,7 +42,7 @@
       </div>
       <select v-model="filterTag" class="h-10 px-3 text-sm bg-surface-secondary border border-[rgba(0,0,0,0.08)] rounded-lg outline-none">
         <option value="">全部标签</option>
-        <option v-for="t in allTags" :key="t.id" :value="t.id">{{ t.name }}</option>
+        <option v-for="t in modelTags" :key="t.id" :value="t.id">{{ t.name }}</option>
       </select>
     </div>
 
@@ -188,12 +188,12 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-text-tertiary transition-transform" :class="{ 'rotate-180': tagDropdownOpen }"><path d="m6 9 6 6 6-6"/></svg>
             </button>
             <div v-if="tagDropdownOpen" class="absolute z-10 mt-1 w-full bg-white border border-black/10 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-              <button v-for="t in allTags" :key="t.id" type="button" @click="toggleEditTag(t.id)" class="flex items-center gap-2 px-3 py-2 hover:bg-surface-secondary cursor-pointer text-sm w-full text-left">
+              <button v-for="t in modelTags" :key="t.id" type="button" @click="toggleEditTag(t.id)" class="flex items-center gap-2 px-3 py-2 hover:bg-surface-secondary cursor-pointer text-sm w-full text-left">
                 <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: t.color }"></span>
                 <span class="text-xs">{{ t.name }}</span>
                 <svg v-if="editTagIds.includes(t.id)" class="ml-auto text-accent shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>
               </button>
-              <div v-if="!allTags.length" class="px-3 py-2 text-xs text-text-tertiary">暂无标签</div>
+              <div v-if="!modelTags.length" class="px-3 py-2 text-xs text-text-tertiary">暂无可用标签</div>
             </div>
           </div>
           <div v-if="editTagIds.length" class="flex flex-wrap gap-1.5 mt-2">
@@ -215,7 +215,7 @@
       <div class="space-y-4">
         <p class="text-sm text-text-secondary">选择要添加的标签（已有标签不会重复）：</p>
         <div class="flex flex-wrap gap-2">
-          <button v-for="t in allTags" :key="t.id" type="button" @click="toggleBatchTag(t.id)" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all" :class="batchTagIds.includes(t.id) ? 'border-accent bg-accent/10 text-accent' : 'border-black/10 text-text-secondary hover:border-black/20'">
+          <button v-for="t in modelTags" :key="t.id" type="button" @click="toggleBatchTag(t.id)" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all" :class="batchTagIds.includes(t.id) ? 'border-accent bg-accent/10 text-accent' : 'border-black/10 text-text-secondary hover:border-black/20'">
             <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: t.color }"></span>{{ t.name }}
           </button>
         </div>
@@ -231,7 +231,7 @@
       <div class="space-y-4">
         <p class="text-sm text-text-secondary">选择要移除的标签：</p>
         <div class="flex flex-wrap gap-2">
-          <button v-for="t in allTags" :key="t.id" type="button" @click="toggleRemoveTag(t.id)" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all" :class="removeTagIds.includes(t.id) ? 'border-red-400 bg-red-50 text-red-600' : 'border-black/10 text-text-secondary hover:border-black/20'">
+          <button v-for="t in modelTags" :key="t.id" type="button" @click="toggleRemoveTag(t.id)" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all" :class="removeTagIds.includes(t.id) ? 'border-red-400 bg-red-50 text-red-600' : 'border-black/10 text-text-secondary hover:border-black/20'">
             <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: t.color }"></span>{{ t.name }}
           </button>
         </div>
@@ -280,6 +280,8 @@ const token = () => getLoginToken()
 
 const allModels = ref([])
 const allTags = ref([])
+// 模型管理只给模型打标签, 下拉只显示 resource_types 含 'model' 的标签
+const modelTags = computed(() => allTags.value.filter(t => Array.isArray(t.resource_types) && t.resource_types.includes('model')))
 const allFormats = ref([])  // 从 DB 加载的调用方式列表
 const loading = ref(false)
 const syncing = ref(false)
@@ -342,6 +344,10 @@ const paged = computed(() => {
 watch(searchQuery, () => { page.value = 1 })
 watch(filterTag, () => { page.value = 1 })
 watch(statusTab, () => { page.value = 1 })
+// filterTag 选了非 model 标签时自动清空(避免残留空筛选)
+watch(modelTags, (tags) => {
+  if (filterTag.value && !tags.some(t => t.id === filterTag.value)) filterTag.value = ''
+}, { immediate: true })
 // 从「调用方式管理」切回模型编辑时, 刷新下拉数据(内嵌页可能有新增/改名/停用的格式)
 watch(adminTab, (v) => { if (v === 'models') { fetchFormats(); fetchTags() } })
 

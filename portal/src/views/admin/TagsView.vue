@@ -31,7 +31,7 @@
       </div>
     </div>
 
-    <AppDialog :open="!!editing" :title="editing?.id ? '编辑标签' : '新建标签'" size="lg" @close="closeDialog">
+    <AppDialog :open="!!editing" :title="editing?.id ? '编辑标签' : '新建标签'" size="lg" static @close="closeDialog">
       <div class="space-y-5">
         <!-- 标签名称 + 排序 -->
         <div class="flex items-end gap-4">

@@ -419,6 +419,8 @@ async function syncSkillsFromPanel() {
       const title = item.name;                   // 远端没单独 title,name 兼任
       const installCommand = `skillctl install ${slug}`;
       const installUrl = `/api/skills/${slug}/download`;
+      // avatar 用技能名称首字母(大写), 替代默认 'S'
+      const avatarChar = (item.name || 'S').charAt(0).toUpperCase();
 
       await global.pool.query(`
         INSERT INTO skills (
@@ -430,18 +432,19 @@ async function syncSkillsFromPanel() {
         ) VALUES (
           $1, $2, $3,
           COALESCE($4, ''),
-          'S', 'av-blue',
+          $5, 'av-blue',
           0, 0,
-          COALESCE($5, 'v1.0.0'),
+          COALESCE($6, 'v1.0.0'),
           'skill',
           NULL,
-          COALESCE($6, '1Panel'),
-          $7, $8, NULL,
-          'panel', $9, $10, $11,
+          COALESCE($7, '1Panel'),
+          $8, $9, NULL,
+          'panel', $10, $11, $12,
           CURRENT_DATE, CURRENT_DATE, TRUE, CURRENT_TIMESTAMP
         )
         ON CONFLICT (slug) DO UPDATE SET
           title = EXCLUDED.title,
+          avatar = EXCLUDED.avatar,
           description = EXCLUDED.description,
           version = EXCLUDED.version,
           category = EXCLUDED.category,
@@ -452,7 +455,7 @@ async function syncSkillsFromPanel() {
           synced_at = CURRENT_TIMESTAMP,
           updated_at = CURRENT_DATE
       `, [
-        skillId, title, slug, item.description, item.version,
+        skillId, title, slug, item.description, avatarChar, item.version,
         item.applicableAgent || '1Panel',
         installCommand, installUrl,
         item.id, item.riskLevel || null, item.status || null,
