@@ -63,9 +63,9 @@
       <!-- 空状态 -->
       <div v-if="!paged.length" class="py-14 text-center text-sm text-text-secondary">暂无模型（点击同步从 1Panel 拉取）</div>
       <!-- 行 -->
-      <div v-for="(m, i) in paged" :key="m.id" class="grid grid-cols-[38px_1.5fr_1fr_1.1fr_60px_100px_50px] gap-2 px-4 py-3 items-center border-b border-[rgba(0,0,0,0.04)] last:border-b-0 text-sm hover:bg-surface-secondary/50 transition-colors">
+      <div v-for="(m, i) in paged" :key="m.id" class="grid grid-cols-[38px_1.5fr_1fr_1.1fr_60px_100px_50px] gap-2 px-4 py-3 items-center border-b border-[rgba(0,0,0,0.04)] last:border-b-0 text-sm hover:bg-surface-secondary/50 transition-colors" :class="can('model:edit') ? 'cursor-pointer' : ''" @click="can('model:edit') && openEdit(m)">
         <div class="flex items-center justify-center">
-          <input type="checkbox" :value="m.id" v-model="selectedIds" class="rounded border-black/20 text-accent focus:ring-accent/20 w-4 h-4" />
+          <input type="checkbox" :value="m.id" v-model="selectedIds" @click.stop class="rounded border-black/20 text-accent focus:ring-accent/20 w-4 h-4" />
         </div>
         <div>
           <div class="font-medium text-text">{{ m.display_name || m.model_name }}</div>
@@ -77,13 +77,13 @@
         </div>
         <div class="text-center text-text-secondary text-xs tabular-nums">{{ m.sort_order || 0 }}</div>
         <div class="flex items-center justify-center">
-          <button v-if="can('model:edit')" class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors" :class="m.is_public ? 'bg-accent' : 'bg-black/15'" :title="m.is_public ? '点击下架' : '点击上架'" @click="togglePublic(m)">
+          <button v-if="can('model:edit')" class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors" :class="m.is_public ? 'bg-accent' : 'bg-black/15'" :title="m.is_public ? '点击下架' : '点击上架'" @click.stop="togglePublic(m)">
             <span class="inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform" :class="m.is_public ? 'translate-x-[18px]' : 'translate-x-[3px]'" />
           </button>
           <span v-else class="px-1.5 py-0.5 rounded-full text-[10px]" :class="m.is_public ? 'bg-accent/10 text-accent' : 'bg-black/5 text-text-tertiary'">{{ m.is_public ? '已上架' : '未上架' }}</span>
         </div>
         <div class="flex items-center justify-end">
-          <button v-if="can('model:edit')" class="p-1.5 text-text-secondary hover:text-accent transition-colors" title="编辑" @click="openEdit(m)">
+          <button v-if="can('model:edit')" class="p-1.5 text-text-secondary hover:text-accent transition-colors" title="编辑" @click.stop="openEdit(m)">
             <Pencil class="w-3.5 h-3.5" />
           </button>
         </div>
