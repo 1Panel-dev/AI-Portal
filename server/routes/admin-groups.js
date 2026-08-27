@@ -993,9 +993,6 @@ async function mapAllWithType(key, adapter) {
   if (key === 'skill') return rows.map(r => ({ id: r.slug, title: r.title, subtitle: r.slug }));
   if (key === 'mcp') return rows.map(r => ({ id: String(r.panel_mcp_id ?? r.id), title: r.name || '未命名', subtitle: r.type || '' }));
   return rows.map(r => ({ id: String(r.id ?? ''), title: String(r.title ?? r.name ?? r.id ?? ''), subtitle: '' }));
-  if (key === 'skill') return rows.map(r => ({ id: r.slug, title: r.title, subtitle: r.slug }));
-  if (key === 'mcp') return rows.map(r => ({ id: String(r.panel_mcp_id ?? r.id), title: r.name || '未命名', subtitle: r.type || '' }));
-  return rows.map(r => ({ id: String(r.id ?? ''), title: String(r.title ?? r.name ?? r.id ?? ''), subtitle: '' }));
 }
 
 // ─── 模型-标签关联 ──────────────────────────────────────────
