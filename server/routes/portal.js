@@ -340,10 +340,10 @@ router.get('/api/models', verifyUser, requirePermissionOrAdminRole('model:view')
     if (rows.length) {
       try {
         const tagResult = await global.pool.query(`
-          SELECT mt.model_id, t.id, t.name, t.color
-          FROM model_tags mt
-          JOIN tags t ON t.id = mt.tag_id AND t.is_active = TRUE
-          WHERE mt.model_id = ANY($1)
+          SELECT rt.resource_id AS model_id, t.id, t.name, t.color
+          FROM resource_tags rt
+          JOIN tags t ON t.id = rt.tag_id AND t.is_active = TRUE
+          WHERE rt.resource_type = 'model' AND rt.resource_id = ANY($1)
           ORDER BY t.sort_order, t.name
         `, [rows.map(r => r.id)]);
         const tagMap = {};
@@ -351,7 +351,7 @@ router.get('/api/models', verifyUser, requirePermissionOrAdminRole('model:view')
         for (const row of rows) row.tags = tagMap[row.id] || [];
       } catch (tagErr) {
         console.error('[/api/models] 标签查询失败:', tagErr.message);
-        // model_tags 表可能尚未创建，给每个模型设空标签
+        // resource_tags 表可能尚未创建，给每个模型设空标签
         for (const row of rows) row.tags = [];
       }
     }
@@ -427,7 +427,7 @@ router.get('/api/tags', async (req, res) => {
     `);
     res.json({ data: r.rows });
   } catch (err) {
-    // model_tags / tag_resource_types 表可能尚未创建
+    // resource_tags / tag_resource_types 表可能尚未创建
     res.json({ data: [] });
   }
 });

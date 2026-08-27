@@ -921,9 +921,10 @@ router.get('/api/admin/models', verifyUser, requirePermission('model:view'), asy
     let tagMap = {};
     if (ids.length) {
       const t = await global.pool.query(`
-        SELECT mt.model_id, t.id, t.name, t.color
-        FROM model_tags mt JOIN tags t ON t.id = mt.tag_id AND t.is_active = TRUE
-        WHERE mt.model_id = ANY($1)
+        SELECT rt.resource_id AS model_id, t.id, t.name, t.color
+        FROM resource_tags rt
+        JOIN tags t ON t.id = rt.tag_id AND t.is_active = TRUE
+        WHERE rt.resource_type = 'model' AND rt.resource_id = ANY($1)
         ORDER BY t.sort_order, t.name
       `, [ids]);
       for (const row of t.rows) (tagMap[row.model_id] ??= []).push({ id: row.id, name: row.name, color: row.color });

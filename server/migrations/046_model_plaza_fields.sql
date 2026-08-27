@@ -12,9 +12,11 @@ ALTER TABLE portal_models ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT TRU
 ALTER TABLE portal_models ADD COLUMN IF NOT EXISTS invocation_formats JSONB DEFAULT '["tool"]';
 ALTER TABLE portal_models ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
--- Phase 2: 模型-标签关联表
-CREATE TABLE IF NOT EXISTS model_tags (
-  model_id INTEGER NOT NULL REFERENCES portal_models(id) ON DELETE CASCADE,
-  tag_id   INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
-  PRIMARY KEY (model_id, tag_id)
+-- Phase 2: 通用资源-标签关联表（model/skill/mcp 统一用 resource_type 区分）
+CREATE TABLE IF NOT EXISTS resource_tags (
+  resource_type VARCHAR(50) NOT NULL,
+  resource_id   INTEGER    NOT NULL,
+  tag_id        INTEGER    NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  created_at   TIMESTAMP  DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (resource_type, resource_id, tag_id)
 );

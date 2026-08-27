@@ -1023,9 +1023,9 @@ router.put('/api/admin/model-tags/:modelId', verifyUser, requirePermission('mode
     }
 
     await client.query('BEGIN');
-    await client.query('DELETE FROM model_tags WHERE model_id = $1', [modelIdNum]);
+    await client.query('DELETE FROM resource_tags WHERE resource_type = $1 AND resource_id = $2', ['model', modelIdNum]);
     for (const tagId of tag_ids) {
-      await client.query('INSERT INTO model_tags (model_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [modelIdNum, Number(tagId)]);
+      await client.query('INSERT INTO resource_tags (resource_type, resource_id, tag_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', ['model', modelIdNum, Number(tagId)]);
     }
     await client.query('COMMIT');
 
@@ -1057,7 +1057,7 @@ router.post('/api/admin/model-tags/batch', verifyUser, requirePermission('model:
     await client.query('BEGIN');
     for (const mid of validModels) {
       for (const tid of validTags) {
-        await client.query('INSERT INTO model_tags (model_id, tag_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [mid, tid]);
+        await client.query('INSERT INTO resource_tags (resource_type, resource_id, tag_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', ['model', mid, tid]);
       }
     }
     await client.query('COMMIT');
@@ -1079,7 +1079,7 @@ router.post('/api/admin/model-tags/batch-remove', verifyUser, requirePermission(
     if (!Array.isArray(tag_ids) || !tag_ids.length) return res.status(400).json({ error: '请选择标签' });
 
     await pool().query(`
-      DELETE FROM model_tags WHERE model_id = ANY($1) AND tag_id = ANY($2)
+      DELETE FROM resource_tags WHERE resource_type = 'model' AND resource_id = ANY($1) AND tag_id = ANY($2)
     `, [model_ids.map(Number).filter(Number.isFinite), tag_ids.map(Number).filter(Number.isFinite)]);
 
     res.json({ ok: true });
@@ -1095,10 +1095,10 @@ router.get('/api/admin/model-tags', verifyUser, requirePermission('model:edit'),
     if (!ids.length) return res.json({ data: {} });
 
     const result = await pool().query(`
-      SELECT mt.model_id, t.id, t.name, t.color
-      FROM model_tags mt
-      JOIN tags t ON t.id = mt.tag_id AND t.is_active = TRUE
-      WHERE mt.model_id = ANY($1)
+      SELECT rt.resource_id AS model_id, t.id, t.name, t.color
+      FROM resource_tags rt
+      JOIN tags t ON t.id = rt.tag_id AND t.is_active = TRUE
+      WHERE rt.resource_type = 'model' AND rt.resource_id = ANY($1)
       ORDER BY t.sort_order, t.name
     `, [ids]);
 
