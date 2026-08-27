@@ -12,7 +12,7 @@
     <div v-else class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-hidden shadow-card">
       <div class="grid grid-cols-[1.3fr_1.2fr_80px_100px_120px] gap-3 px-4 py-3 text-xs font-semibold text-text-secondary bg-surface-secondary border-b border-[rgba(0,0,0,0.06)]"><div>标签名称</div><div>适用资源</div><div>排序</div><div>状态</div><div class="text-right">操作</div></div>
       <div v-if="!tags.length" class="py-14 text-center text-sm text-text-secondary">暂无标签</div>
-      <div v-for="tag in tags" :key="tag.id" class="grid grid-cols-[1.3fr_1.2fr_80px_100px_120px] gap-3 px-4 py-3 items-center border-b border-[rgba(0,0,0,0.04)] last:border-b-0 text-sm">
+      <div v-for="tag in pagedTags" :key="tag.id" class="grid grid-cols-[1.3fr_1.2fr_80px_100px_120px] gap-3 px-4 py-3 items-center border-b border-[rgba(0,0,0,0.04)] last:border-b-0 text-sm">
         <div><span class="inline-flex px-2.5 py-1 rounded-full text-xs font-medium" :style="tagStyle(tag)">{{ tag.name }}</span><span class="ml-2 text-xs text-text-tertiary">{{ tag.color }}</span></div>
         <div class="flex flex-wrap gap-1.5"><span v-for="type in tag.resource_types" :key="type" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border" :style="{ color: tag.color, borderColor: `${tag.color}30`, backgroundColor: `${tag.color}08` }"><component :is="resourceTypeIcon(type)" class="w-3 h-3" />{{ resourceTypeLabel(type) }}</span></div>
         <div class="text-text-secondary">{{ tag.sort_order }}</div>
@@ -30,6 +30,8 @@
         <div class="flex items-center justify-end gap-2"><button v-if="can('tag:edit')" class="p-2 text-text-secondary hover:text-accent" title="编辑" @click="openEdit(tag)"><Pencil class="w-4 h-4" /></button><button v-if="can('tag:delete')" class="p-2 text-text-secondary hover:text-red-500" title="删除" @click="deleting = tag"><Trash2 class="w-4 h-4" /></button></div>
       </div>
     </div>
+
+    <Pagination class="mt-6" :page="page" :total-pages="totalPages" :total="tags.length" label="个标签" show-first-last :page-size="pageSize" @change="goPage" @page-size-change="onPageSizeChange" />
 
     <AppDialog :open="!!editing" :title="editing?.id ? '编辑标签' : '新建标签'" size="lg" static @close="closeDialog">
       <div class="space-y-5">
@@ -111,10 +113,11 @@
 </style>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, markRaw } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, Pencil, Trash2, ChevronDown, Sun, Puzzle, LayoutGrid } from 'lucide-vue-next'
 import AppDialog from '../../components/AppDialog.vue'
+import Pagination from '../../components/Pagination.vue'
 import { API_BASE, getLoginToken, errMsg } from '../../lib/apiBase'
 import { can, loadPermissions } from '../../composables/usePermissions.js'
 import { showToast } from '../../composables/useToast.js'
@@ -128,6 +131,17 @@ const saving = ref(false)
 const editing = ref(null)
 const deleting = ref(null)
 const form = ref({ name: '', color: '#005eeb', sort_order: 0, resource_types: [] })
+
+// 分页: 标签量不大, 前端切片
+const page = ref(1)
+const pageSize = ref(20)
+const totalPages = computed(() => Math.max(1, Math.ceil(tags.value.length / pageSize.value)))
+const pagedTags = computed(() => {
+  const start = (page.value - 1) * pageSize.value
+  return tags.value.slice(start, start + pageSize.value)
+})
+function goPage(p) { page.value = Math.min(Math.max(1, p), totalPages.value) }
+function onPageSizeChange(size) { pageSize.value = size; page.value = 1 }
 
 // 下拉多选用独立状态，避免直接修改 form 导致渲染异常
 const selectedTypes = ref([])
@@ -161,7 +175,7 @@ async function request(path, options = {}) {
   if (!res.ok) throw new Error(errMsg(data, '操作失败'))
   return data
 }
-async function fetchTags() { loading.value = true; try { tags.value = (await request('/admin/tags')).data || [] } catch (e) { showToast(e.message || '获取标签失败', 'error') } finally { loading.value = false } }
+async function fetchTags() { loading.value = true; try { tags.value = (await request('/admin/tags')).data || []; page.value = 1 } catch (e) { showToast(e.message || '获取标签失败', 'error') } finally { loading.value = false } }
 async function fetchResourceTypes() { try { resourceTypes.value = (await request('/admin/resource-types')).data || [] } catch (e) { showToast(e.message || '获取资源类型失败', 'error') } }
 function openCreate() { form.value = { name: '', color: '#005eeb', sort_order: 0, resource_types: [] }; selectedTypes.value = resourceTypes.value.map(t => t.key); editing.value = {} }
 function openEdit(tag) { form.value = { name: tag.name, color: tag.color, sort_order: tag.sort_order, resource_types: [...(tag.resource_types || [])] }; selectedTypes.value = [...(tag.resource_types || [])]; editing.value = tag }

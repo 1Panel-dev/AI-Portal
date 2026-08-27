@@ -134,7 +134,7 @@
         </div>
       </div>
 
-      <Pagination class="mt-6" :page="page" :total-pages="totalPages" :total="total" @change="goPage" />
+      <Pagination class="mt-6" :page="page" :total-pages="totalPages" :total="total" label="条记录" show-first-last :page-size="limit" @change="goPage" @page-size-change="onPageSizeChange" />
     <!-- Reject Dialog -->
     <div
       v-if="rejectingId"
@@ -202,7 +202,7 @@ const tabs = [
 
 const stats = ref({ pending: 0, approved: 0, rejected: 0 })
 const page = ref(1)
-const limit = ref(10)
+const limit = ref(20)
 const total = ref(0)
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / limit.value)))
 
@@ -321,6 +321,12 @@ function switchTab(id) {
 
 function goPage(p) {
   page.value = Math.min(Math.max(1, p), totalPages.value)
+  fetchSubmissions(false)
+}
+
+function onPageSizeChange(size) {
+  limit.value = size
+  page.value = 1
   fetchSubmissions(false)
 }
 

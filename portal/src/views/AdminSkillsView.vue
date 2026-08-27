@@ -159,7 +159,7 @@
           </div>
         </div>
 
-        <Pagination class="pt-4" :page="pagination.page" :total-pages="pagination.totalPages" :total="pagination.total" @change="goPage" />
+        <Pagination class="mt-6" :page="pagination.page" :total-pages="pagination.totalPages" :total="pagination.total" label="个技能" show-first-last :page-size="pagination.limit" @change="goPage" @page-size-change="onPageSizeChange" />
       </div>
     <!-- Edit Dialog -->
     <div
@@ -454,6 +454,12 @@ const fetchSkills = async (reset = false) => {
 const goPage = (p) => {
   if (p < 1 || p > pagination.value.totalPages) return
   pagination.value.page = p
+  fetchSkills()
+}
+
+const onPageSizeChange = (size) => {
+  pagination.value.limit = size
+  pagination.value.page = 1
   fetchSkills()
 }
 

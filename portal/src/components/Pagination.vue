@@ -1,8 +1,9 @@
 <!-- 通用分页控件: 有数据(total>0)时始终渲染(哪怕只有1页), 无数据时隐藏;
-     外层 spacing 由父组件通过 class 透传控制。
+     外层 spacing/居中由父组件通过 class 透传控制。
      showFirstLast=true 时显示 « 首页 / » 末页; 传 pageSize 时显示「每页条数」下拉。 -->
 <template>
-  <div v-if="total > 0" class="flex items-center justify-between text-sm text-text-secondary">
+  <div class="flex justify-center">
+    <div v-if="total > 0" class="flex items-center justify-between gap-4 text-sm text-text-secondary w-full max-w-[640px]">
     <span class="text-[13px]">共 {{ total }} {{ label }}</span>
     <div class="flex items-center gap-2">
       <button
@@ -37,6 +38,7 @@
     >
       <option v-for="s in pageSizeOptions" :key="s" :value="s">{{ s }} 条/页</option>
     </select>
+    </div>
   </div>
 </template>
 
