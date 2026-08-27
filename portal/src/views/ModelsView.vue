@@ -122,7 +122,7 @@
             {{ searchQuery || currentTag || currentProvider ? '没有匹配的模型' : '暂无模型数据' }}
           </div>
 
-          <Pagination v-if="filteredModelCount > 0" class="pt-5" :page="page" :total-pages="totalPages" :total="filteredModelCount" label="个模型" @change="goPage" />
+          <Pagination v-if="filteredModelCount > 0" class="pt-5" :page="page" :total-pages="totalPages" :total="filteredModelCount" label="个模型" show-first-last :page-size="pageSize" @change="goPage" @page-size-change="onPageSizeChange" />
         </main>
       </div>
     </section>
@@ -298,7 +298,7 @@ const gatewayUrl = ref('')
 const curlTemplate = ref('')  // 后台「调用示例」配置的模板
 const loading = ref(true)
 const page = ref(1)
-const PAGE_SIZE = 20
+const pageSize = ref(20)
 
 const allFormats = ref([])
 function openDetail(m) { detail.value = m }
@@ -447,14 +447,15 @@ const filteredModels = computed(() => {
 })
 
 const filteredModelCount = computed(() => filteredModels.value.length)
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredModels.value.length / PAGE_SIZE)))
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredModels.value.length / pageSize.value)))
 const pagedModels = computed(() => {
   const p = Math.min(page.value, totalPages.value)
-  const start = (p - 1) * PAGE_SIZE
-  return filteredModels.value.slice(start, start + PAGE_SIZE)
+  const start = (p - 1) * pageSize.value
+  return filteredModels.value.slice(start, start + pageSize.value)
 })
 
 const goPage = (p) => { if (p >= 1 && p <= totalPages.value) page.value = p }
+const onPageSizeChange = (size) => { pageSize.value = size; page.value = 1 }
 watch([currentTag, currentProvider, searchQuery], () => { page.value = 1 })
 
 // ── 工具 ──
