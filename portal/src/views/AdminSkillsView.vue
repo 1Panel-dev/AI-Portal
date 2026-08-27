@@ -1,3 +1,14 @@
+<style scoped>
+/* 与 AdminModelsView 的 .model-input 保持一致，编辑弹框输入框统一观感 */
+.skill-input {
+  @apply w-full h-10 px-3 text-sm text-text bg-white border border-black/10 rounded-lg outline-none transition-all placeholder:text-text-tertiary;
+}
+.skill-input:focus {
+  @apply border-text/30 ring-2 ring-accent/10;
+}
+textarea.skill-input { @apply h-auto py-2.5; }
+</style>
+
 <template>
   <div>
       <div class="flex items-center justify-between mb-6">
@@ -162,127 +173,54 @@
         <Pagination class="mt-6" :page="pagination.page" :total-pages="pagination.totalPages" :total="pagination.total" label="个技能" show-first-last :page-size="pagination.limit" @change="goPage" @page-size-change="onPageSizeChange" />
       </div>
     <!-- Edit Dialog -->
-    <div
-      v-if="editingSkill"
-      class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-    >
-      <div class="bg-white rounded-xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" @click.stop>
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="font-semibold text-text">编辑技能</h3>
-          <button
-            @click="editingSkill = null"
-            class="p-1 text-text-tertiary hover:text-text transition-colors"
-          >
-            <X class="w-5 h-5" />
-          </button>
+    <AppDialog :open="!!editingSkill" :title="`编辑技能 - ${editingSkill?.title || ''}`" size="lg" static @close="editingSkill = null">
+      <div v-if="editingSkill" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-text mb-1">标题</label>
+          <input v-model="editForm.title" class="skill-input" placeholder="技能标题" />
         </div>
-
-        <div class="space-y-4">
-          <div>
-            <label class="block text-xs text-text-secondary mb-1">标题</label>
-            <input
-              v-model="editForm.title"
-              class="w-full px-3 py-2 border border-[rgba(0,0,0,0.06)] rounded-lg text-sm"
-            >
-          </div>
-          <div>
-            <label class="block text-xs text-text-secondary mb-1">描述</label>
-            <textarea
-              v-model="editForm.description"
-              rows="3"
-              class="w-full px-3 py-2 border border-[rgba(0,0,0,0.06)] rounded-lg text-sm resize-none"
-            ></textarea>
-          </div>
-          <div>
-            <label class="block text-xs text-text-secondary mb-1">分类</label>
-            <select
-              v-model="editForm.category"
-              class="w-full px-3 py-2 border border-[rgba(0,0,0,0.06)] rounded-lg text-sm bg-white"
-            >
-              <option v-for="cat in categoryOptions" :key="cat.id" :value="cat.id">
-                {{ cat.name }}
-              </option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs text-text-secondary mb-1">安装命令</label>
-            <input
-              v-model="editForm.installCommand"
-              class="w-full px-3 py-2 border border-[rgba(0,0,0,0.06)] rounded-lg text-sm font-mono"
-            >
-          </div>
-          <div>
-            <label class="block text-xs text-text-secondary mb-1">文档链接</label>
-            <input
-              v-model="editForm.installUrl"
-              class="w-full px-3 py-2 border border-[rgba(0,0,0,0.06)] rounded-lg text-sm"
-            >
-          </div>
-          <div>
-            <label class="block text-xs text-text-secondary mb-1">版本</label>
-            <input
-              v-model="editForm.version"
-              class="w-full px-3 py-2 border border-[rgba(0,0,0,0.06)] rounded-lg text-sm"
-            >
-          </div>
+        <div>
+          <label class="block text-sm font-medium text-text mb-1">描述</label>
+          <textarea v-model="editForm.description" rows="3" class="skill-input resize-none" placeholder="技能简介"></textarea>
         </div>
-
-        <div class="flex gap-3 mt-6">
-          <button
-            @click="editingSkill = null"
-            class="flex-1 py-2 border border-[rgba(0,0,0,0.06)] rounded-lg text-sm"
-          >
-            取消
-          </button>
-          <button
-            @click="saveEdit"
-            :disabled="saving"
-            class="flex-1 py-2 bg-accent text-white rounded-lg text-sm"
-          >
-            {{ saving ? '保存中...' : '保存' }}
-          </button>
+        <div>
+          <label class="block text-sm font-medium text-text mb-1">分类</label>
+          <select v-model="editForm.category" class="skill-input">
+            <option v-for="cat in categoryOptions" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-text mb-1">安装命令</label>
+          <input v-model="editForm.installCommand" class="skill-input font-mono" placeholder="如 f2c install xxx" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-text mb-1">文档链接</label>
+          <input v-model="editForm.installUrl" class="skill-input" placeholder="https://..." />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-text mb-1">版本</label>
+          <input v-model="editForm.version" class="skill-input" placeholder="1.0.0" />
         </div>
       </div>
-    </div>
+      <template #footer>
+        <button class="px-4 py-2 text-sm btn-secondary" @click="editingSkill = null">取消</button>
+        <button class="px-4 py-2 text-sm btn-primary disabled:opacity-50" :disabled="saving" @click="saveEdit">{{ saving ? '保存中...' : '保存' }}</button>
+      </template>
+    </AppDialog>
 
     <!-- Delete Confirm Dialog -->
-    <div
-      v-if="deletingSkill"
-      class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-      @click="deletingSkill = null"
-    >
-      <div class="bg-white rounded-xl p-6 max-w-sm w-full" @click.stop>
-        <h3 class="font-semibold text-text mb-2">确认删除</h3>
-        <p class="text-sm text-text-secondary mb-4">
-          确定要删除技能「{{ deletingSkill.title }}」吗？此操作不可恢复。
-        </p>
-        <div class="flex gap-3">
-          <button
-            @click="deletingSkill = null"
-            class="flex-1 py-2 border border-[rgba(0,0,0,0.06)] rounded-lg text-sm"
-          >
-            取消
-          </button>
-          <button
-            @click="deleteSkill"
-            :disabled="deleting"
-            class="flex-1 py-2 bg-red-500 text-white rounded-lg text-sm"
-          >
-            {{ deleting ? '删除中...' : '删除' }}
-          </button>
-        </div>
-      </div>
-    </div>
+    <AppDialog :open="!!deletingSkill" title="确认删除" :message="`确定要删除技能「${deletingSkill?.title || ''}」吗？此操作不可恢复。`" type="confirm" confirmText="删除" @close="deletingSkill = null" @confirm="deleteSkill" />
   </div>
 </template>
 
 <script setup>
 import { ref, watchEffect, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ChevronDown, Search, ArrowUpDown, Inbox, Pencil, Eye, EyeOff, Trash2, X, ArrowLeft, RefreshCw } from 'lucide-vue-next'
+import { ChevronDown, Search, ArrowUpDown, Inbox, Pencil, Eye, EyeOff, Trash2, ArrowLeft, RefreshCw } from 'lucide-vue-next'
 import { avatarColors, categories } from '../data/categories.js'
 
 import { getLoginToken, errMsg } from '../lib/apiBase'
+import AppDialog from '../components/AppDialog.vue'
 import Pagination from '../components/Pagination.vue'
 import { can, loadPermissions } from '../composables/usePermissions.js'
 import { showToast } from '../composables/useToast.js'
