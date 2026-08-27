@@ -1,7 +1,11 @@
--- 按功能细分权限(合并原 041+042):一个功能按钮 = 一个独立权限位,消除粗粒度权限的勾选联动。
--- 原 skill:edit 同时含「审核 + 上架/下架」; user:edit 同时含「改密 + 批量改密 + 分配角色」;
--- group:edit 同时含「面板同步」。拆成独立权限位,各自可单独授予。
+-- 040: 权限重构
+-- 合并: 040_rename_permission_labels + 041_split_permissions + 042_remove_submit_switches
 
+-- 1. 权限位显示名修正
+UPDATE permissions SET name = '授权成员' WHERE key = 'group:assign';
+UPDATE permissions SET name = 'API Key 重置' WHERE key = 'key:edit';
+
+-- 2. 按功能细分权限（一个功能按钮 = 一个独立权限位）
 INSERT INTO permissions (module, action, key, name) VALUES
 ('skill', 'review', 'skill:review', '技能审核'),
 ('group', 'panel-sync', 'group:panel-sync', '面板同步'),
@@ -11,8 +15,8 @@ INSERT INTO permissions (module, action, key, name) VALUES
 ('user', 'assign', 'user:assign', '分配角色')
 ON CONFLICT (key) DO NOTHING;
 
--- 存量角色补授(历史数据关键):原粗权限拆细后,已持旧权限的角色补齐新权限位,保证行为不变。
--- skill:edit → skill:review
+-- 3. 存量角色补授（历史数据关键）
+-- skill:edit → skill:review + skill:publish
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT DISTINCT rp.role_id, rv.id
 FROM role_permissions rp
@@ -20,7 +24,6 @@ JOIN permissions p ON p.id = rp.permission_id AND p.key = 'skill:edit'
 JOIN permissions rv ON rv.key = 'skill:review'
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
--- skill:edit → skill:publish
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT DISTINCT rp.role_id, sp.id
 FROM role_permissions rp
@@ -43,3 +46,6 @@ FROM role_permissions rp
 JOIN permissions p ON p.id = rp.permission_id AND p.key = 'group:edit'
 JOIN permissions gs ON gs.key = 'group:panel-sync'
 ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+-- 4. 提交技能改为权限位控制，移除管理员开关
+DELETE FROM system_config WHERE key IN ('portal_skill_submit_enabled', 'panel_skill_upload_enabled');

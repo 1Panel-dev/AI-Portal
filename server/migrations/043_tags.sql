@@ -1,4 +1,7 @@
--- 043: 全局标签库
+-- 043: 标签体系
+-- 合并: 043_tags + 044_tag_resource_types + 045_tag_permissions_fix
+
+-- 1. 全局标签库
 CREATE TABLE IF NOT EXISTS tags (
   id SERIAL PRIMARY KEY,
   name VARCHAR(50) NOT NULL UNIQUE,
@@ -17,27 +20,24 @@ INSERT INTO tags (name, color, sort_order) VALUES
   ('重排', '#be123c', 50)
 ON CONFLICT (name) DO NOTHING;
 
--- 标签查看权限（菜单入口 + 列表展示用）
-INSERT INTO permissions (module, action, key, name) VALUES
-  ('tag', 'view', 'tag:view', '标签查看')
-ON CONFLICT (key) DO NOTHING;
+-- 2. 标签适用资源类型表
+CREATE TABLE IF NOT EXISTS tag_resource_types (
+  tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  resource_type VARCHAR(50) NOT NULL REFERENCES resource_types(key) ON DELETE CASCADE,
+  PRIMARY KEY (tag_id, resource_type)
+);
 
--- 标签新增权限
-INSERT INTO permissions (module, action, key, name) VALUES
-  ('tag', 'create', 'tag:create', '标签新增')
-ON CONFLICT (key) DO NOTHING;
+-- 存量预置标签先归入模型
+INSERT INTO tag_resource_types (tag_id, resource_type)
+SELECT t.id, 'model' FROM tags t
+WHERE t.name IN ('推荐', '多模态', '文本', 'Embedding', '重排')
+ON CONFLICT DO NOTHING;
 
--- 标签编辑权限
+-- 3. 标签权限（查看/新增/编辑/删除/菜单）
 INSERT INTO permissions (module, action, key, name) VALUES
-  ('tag', 'edit', 'tag:edit', '标签编辑')
-ON CONFLICT (key) DO NOTHING;
-
--- 标签删除权限
-INSERT INTO permissions (module, action, key, name) VALUES
-  ('tag', 'delete', 'tag:delete', '标签删除')
-ON CONFLICT (key) DO NOTHING;
-
--- 菜单权限
-INSERT INTO permissions (module, action, key, name) VALUES
+  ('tag', 'view', 'tag:view', '标签查看'),
+  ('tag', 'create', 'tag:create', '标签新增'),
+  ('tag', 'edit', 'tag:edit', '标签编辑'),
+  ('tag', 'delete', 'tag:delete', '标签删除'),
   ('menu', 'admin-tags', 'menu:admin-tags', '标签管理')
 ON CONFLICT (key) DO NOTHING;

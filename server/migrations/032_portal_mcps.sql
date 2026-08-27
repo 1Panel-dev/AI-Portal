@@ -1,4 +1,5 @@
 -- 032: MCP 本地缓存表（同步自 1Panel /api/v2/ai/mcp/search）
+-- 合并: 032_portal_mcps + 033_portal_mcps_fields（033 字段已在建表语句中）
 -- 存全字段供非管理员 MCP 广场页使用（status/port/baseUrl/ssePath 等）
 CREATE TABLE IF NOT EXISTS portal_mcps (
     id SERIAL PRIMARY KEY,
