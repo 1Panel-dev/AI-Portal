@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS resource_tags (
 -- 迁存量：如果 model_tags 表存在且有数据，复制到 resource_tags
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'model_tags') THEN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'model_tags' AND table_schema = 'public') THEN
     INSERT INTO resource_tags (resource_type, resource_id, tag_id)
     SELECT 'model', model_id, tag_id FROM model_tags
     ON CONFLICT DO NOTHING;

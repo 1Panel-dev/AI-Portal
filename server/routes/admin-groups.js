@@ -1078,9 +1078,13 @@ router.post('/api/admin/model-tags/batch-remove', verifyUser, requirePermission(
     if (!Array.isArray(model_ids) || !model_ids.length) return res.status(400).json({ error: '请选择模型' });
     if (!Array.isArray(tag_ids) || !tag_ids.length) return res.status(400).json({ error: '请选择标签' });
 
+    const validModels = model_ids.map(Number).filter(Number.isFinite);
+    const validTags = tag_ids.map(Number).filter(Number.isFinite);
+    if (!validModels.length || !validTags.length) return res.status(400).json({ error: '参数包含无效值' });
+
     await pool().query(`
       DELETE FROM resource_tags WHERE resource_type = 'model' AND resource_id = ANY($1) AND tag_id = ANY($2)
-    `, [model_ids.map(Number).filter(Number.isFinite), tag_ids.map(Number).filter(Number.isFinite)]);
+    `, [validModels, validTags]);
 
     res.json({ ok: true });
   } catch (e) {
