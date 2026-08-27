@@ -93,7 +93,7 @@
     <Pagination class="mt-6" :page="page" :total-pages="totalPages" :total="totalModels" label="个模型" show-first-last :page-size="pageSize" @change="page = $event" @page-size-change="pageSize = $event" />
 
     <!-- 编辑弹框 -->
-    <AppDialog :open="!!editing" :title="`编辑模型 — ${editing?.model_name || ''}`" size="lg" @close="editing = null">
+    <AppDialog :open="!!editing" :title="`编辑模型 — ${editing?.model_name || ''}`" size="lg" static @close="editing = null">
       <div v-if="editing" class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-text mb-1">展示名称</label>
