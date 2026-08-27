@@ -660,8 +660,10 @@ async function fetchStats(isUserSwitch = false) {
   const seq = ++fetchSeq
   topLoading.value = true
   try {
-    // 钻取单用户时不带 rank(单用户无排行意义), 红黑榜维持上一次全局结果
-    const withRank = !isUserSwitch
+    // 钻取单用户时不带 rank(单用户无排行意义), 红黑榜维持上一次全局结果。
+    // 注意: 切月份触发时 isUserSwitch=false, 但若当前正钻取用户(selectedUser 有值),
+    // 同样不应带 rank--否则 1Panel 按 userId 过滤后 rankUsers 只剩该用户, 红黑榜被覆盖。
+    const withRank = !isUserSwitch && !selectedUser.value
     const qs = buildStatsParams({ withRank, rankOrder: 'descending' })
     const url = `${API_BASE}/admin/usage-statistics${qs ? '?' + qs : ''}`
     // 并发发两个请求: 主(descending, 拿 data/趋势/分布/Top) + Bottom(ascending, 拿最少 10 个)
@@ -769,8 +771,10 @@ function onResize() {
   distChart?.resize()
 }
 
-watch(selectedUser, () => {
-  fetchStats(true)
+// selectedUser 变化: 选了具体用户 -> 钻取模式(isUserSwitch=true, 不带 rank);
+// 清空 -> 回到全局视角(isUserSwitch=false, 重拉红黑榜)
+watch(selectedUser, (v) => {
+  fetchStats(!!v)
 })
 
 // 月份切换 -> 按月范围重拉 1Panel(卡片/趋势/分布/Top/Bottom 全部刷新为该月数据)

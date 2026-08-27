@@ -228,7 +228,7 @@ router.post('/api/submit', async (req, res) => {
       title,
       slug,
       description,
-      avatar = title.charAt(0).toUpperCase() || 'S',
+      avatar = (title?.charAt(0)?.toUpperCase() || 'S'),
       avatar_color = 'av-teal',
       category,
       author,
