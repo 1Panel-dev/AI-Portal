@@ -175,7 +175,7 @@ async function request(path, options = {}) {
   if (!res.ok) throw new Error(errMsg(data, '操作失败'))
   return data
 }
-async function fetchTags() { loading.value = true; try { tags.value = (await request('/admin/tags')).data || []; page.value = 1 } catch (e) { showToast(e.message || '获取标签失败', 'error') } finally { loading.value = false } }
+async function fetchTags(resetPage = true) { loading.value = true; try { tags.value = (await request('/admin/tags')).data || []; if (resetPage) page.value = 1; else page.value = Math.min(page.value, totalPages.value) } catch (e) { showToast(e.message || '获取标签失败', 'error') } finally { loading.value = false } }
 async function fetchResourceTypes() { try { resourceTypes.value = (await request('/admin/resource-types')).data || [] } catch (e) { showToast(e.message || '获取资源类型失败', 'error') } }
 function openCreate() { form.value = { name: '', color: '#005eeb', sort_order: 0, resource_types: [] }; selectedTypes.value = resourceTypes.value.map(t => t.key); editing.value = {} }
 function openEdit(tag) { form.value = { name: tag.name, color: tag.color, sort_order: tag.sort_order, resource_types: [...(tag.resource_types || [])] }; selectedTypes.value = [...(tag.resource_types || [])]; editing.value = tag }
@@ -183,9 +183,10 @@ async function save() {
   saving.value = true
   try {
     form.value.resource_types = [...selectedTypes.value]
-    const path = editing.value.id ? `/admin/tags/${editing.value.id}` : '/admin/tags'
-    await request(path, { method: editing.value.id ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form.value) })
-    editing.value = null; showToast('标签已保存', 'success'); await fetchTags()
+    const isEdit = !!editing.value.id
+    const path = isEdit ? `/admin/tags/${editing.value.id}` : '/admin/tags'
+    await request(path, { method: isEdit ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form.value) })
+    editing.value = null; showToast('标签已保存', 'success'); await fetchTags(!isEdit)
   } catch (e) { showToast(e.message || '保存失败', 'error') } finally { saving.value = false }
 }
 async function toggleActive(tag) {
