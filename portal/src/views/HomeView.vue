@@ -51,9 +51,9 @@
     </div>
 
     <!-- 主内容区: 左侧标签栏 + 右侧网格 -->
-    <div class="max-w-[1024px] mx-auto px-6 pb-20 flex gap-7 items-start">
+    <div class="max-w-[1240px] mx-auto px-6 pb-20 flex gap-7 items-start">
       <!-- 左侧栏: 标签 -->
-      <aside class="w-[180px] shrink-0 sticky top-[80px]">
+      <aside class="w-[208px] shrink-0 sticky top-[64px]">
         <div class="mb-6">
           <div class="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2.5 pl-3">标签</div>
           <div class="flex flex-col gap-0.5">

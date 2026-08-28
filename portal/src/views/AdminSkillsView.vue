@@ -20,6 +20,12 @@ textarea.skill-input { @apply h-auto py-2.5; }
           <p v-if="skillError" class="text-sm text-red-500 mt-2">{{ skillError }}</p>
         </div>
         <div class="flex gap-3">
+          <button v-if="selectedIds.length && can('skill:edit')" @click="openBatchTag" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-primary">
+            <Tags class="w-4 h-4" />批量打标签 ({{ selectedIds.length }})
+          </button>
+          <button v-if="selectedIds.length && can('skill:edit')" @click="openBatchRemoveTag" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary text-red-600 hover:text-red-700 hover:border-red-300">
+            <X class="w-4 h-4" />移除标签 ({{ selectedIds.length }})
+          </button>
           <button
             v-if="can('system:config')"
             @click="syncSkills" :disabled="syncing"
@@ -109,6 +115,9 @@ textarea.skill-input { @apply h-auto py-2.5; }
           :class="!skill.is_active && 'opacity-60'"
         >
           <div class="flex items-start gap-3">
+            <div class="flex items-center pt-2">
+              <input type="checkbox" :value="skill.id" v-model="selectedIds" class="h-4 w-4 accent-accent cursor-pointer" />
+            </div>
             <div
               class="w-10 h-10 rounded-lg flex items-center justify-center text-base font-bold"
               :class="avatarColors[skill.avatarColor] || 'bg-gray-100 text-gray-700'"
@@ -233,13 +242,45 @@ textarea.skill-input { @apply h-auto py-2.5; }
 
     <!-- Delete Confirm Dialog -->
     <AppDialog :open="!!deletingSkill" title="确认删除" :message="`确定要删除技能「${deletingSkill?.title || ''}」吗？此操作不可恢复。`" type="confirm" confirmText="删除" @close="deletingSkill = null" @confirm="deleteSkill" />
+
+    <!-- Batch Tag Dialog -->
+    <AppDialog :open="batchTagOpen" :title="`批量打标签 - ${selectedIds.length} 个技能`" size="md" @close="batchTagOpen = false">
+      <div class="space-y-4">
+        <p class="text-sm text-text-secondary">选择要添加的标签（已有标签不会重复）：</p>
+        <div class="flex flex-wrap gap-2">
+          <button v-for="t in skillTags" :key="t.id" type="button" @click="toggleBatchTag(t.id)" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all" :class="batchTagIds.includes(t.id) ? 'border-accent bg-accent/10 text-accent' : 'border-black/10 text-text-secondary hover:border-black/20'">
+            <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: t.color }"></span>{{ t.name }}
+          </button>
+        </div>
+      </div>
+      <template #footer>
+        <button class="px-4 py-2 text-sm btn-secondary" @click="batchTagOpen = false">取消</button>
+        <button class="px-4 py-2 text-sm btn-primary disabled:opacity-50" :disabled="batchSaving || !batchTagIds.length" @click="saveBatchTag">{{ batchSaving ? '保存中...' : '确认添加' }}</button>
+      </template>
+    </AppDialog>
+
+    <!-- Batch Remove Tag Dialog -->
+    <AppDialog :open="batchRemoveTagOpen" :title="`移除标签 - ${selectedIds.length} 个技能`" size="md" @close="batchRemoveTagOpen = false">
+      <div class="space-y-4">
+        <p class="text-sm text-text-secondary">选择要移除的标签：</p>
+        <div class="flex flex-wrap gap-2">
+          <button v-for="t in skillTags" :key="t.id" type="button" @click="toggleBatchRemoveTag(t.id)" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all" :class="batchRemoveTagIds.includes(t.id) ? 'border-red-400 bg-red-50 text-red-600' : 'border-black/10 text-text-secondary hover:border-black/20'">
+            <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: t.color }"></span>{{ t.name }}
+          </button>
+        </div>
+      </div>
+      <template #footer>
+        <button class="px-4 py-2 text-sm btn-secondary" @click="batchRemoveTagOpen = false">取消</button>
+        <button class="px-4 py-2 text-sm bg-red-600 text-white hover:bg-red-700 rounded-lg text-sm font-medium disabled:opacity-50 transition-all" :disabled="batchRemoveSaving || !batchRemoveTagIds.length" @click="saveBatchRemoveTag">{{ batchRemoveSaving ? '移除中...' : '确认移除' }}</button>
+      </template>
+    </AppDialog>
   </div>
 </template>
 
 <script setup>
 import { ref, watchEffect, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ChevronDown, Search, ArrowUpDown, Inbox, Pencil, Eye, EyeOff, Trash2, ArrowLeft, RefreshCw } from 'lucide-vue-next'
+import { ChevronDown, Search, ArrowUpDown, Inbox, Pencil, Eye, EyeOff, Trash2, ArrowLeft, RefreshCw, Tags, X } from 'lucide-vue-next'
 import { avatarColors, categories } from '../data/categories.js'
 
 import { getLoginToken, errMsg } from '../lib/apiBase'
@@ -257,6 +298,7 @@ const searchQuery = ref('')
 const sortBy = ref('downloads')
 const loading = ref(true)
 const processing = ref({})
+const selectedIds = ref([])
 const editingSkill = ref(null)
 const editForm = ref({})
 const editTagIds = ref([])
@@ -271,6 +313,28 @@ const skillError = ref('')
 function showSkillError(msg) {
   skillError.value = msg
   if (msg) setTimeout(() => { skillError.value = '' }, 4000)
+}
+
+// 批量打标签
+const batchTagOpen = ref(false)
+const batchTagIds = ref([])
+const batchSaving = ref(false)
+function openBatchTag() { batchTagIds.value = []; batchTagOpen.value = true }
+function toggleBatchTag(id) {
+  const idx = batchTagIds.value.indexOf(id)
+  if (idx >= 0) batchTagIds.value.splice(idx, 1)
+  else batchTagIds.value.push(id)
+}
+
+// 批量移除标签
+const batchRemoveTagOpen = ref(false)
+const batchRemoveTagIds = ref([])
+const batchRemoveSaving = ref(false)
+function openBatchRemoveTag() { batchRemoveTagIds.value = []; batchRemoveTagOpen.value = true }
+function toggleBatchRemoveTag(id) {
+  const idx = batchRemoveTagIds.value.indexOf(id)
+  if (idx >= 0) batchRemoveTagIds.value.splice(idx, 1)
+  else batchRemoveTagIds.value.push(id)
 }
 
 // 可用分类列表（排除"全部"）
@@ -574,6 +638,38 @@ const deleteSkill = async () => {
   } finally {
     deleting.value = false
   }
+}
+
+// 批量打标签保存
+async function saveBatchTag() {
+  batchSaving.value = true
+  try {
+    await fetch(`${API_BASE}/admin/skill-tags/batch`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skill_ids: selectedIds.value, tag_ids: batchTagIds.value }),
+    })
+    batchTagOpen.value = false
+    showToast('标签已添加', 'success')
+    selectedIds.value = []
+    await fetchSkills(true)
+  } catch (e) { showSkillError(e.message || '操作失败') } finally { batchSaving.value = false }
+}
+
+// 批量移除标签保存
+async function saveBatchRemoveTag() {
+  batchRemoveSaving.value = true
+  try {
+    await fetch(`${API_BASE}/admin/skill-tags/batch-remove`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skill_ids: selectedIds.value, tag_ids: batchRemoveTagIds.value }),
+    })
+    batchRemoveTagOpen.value = false
+    showToast('标签已移除', 'success')
+    selectedIds.value = []
+    await fetchSkills(true)
+  } catch (e) { showSkillError(e.message || '操作失败') } finally { batchRemoveSaving.value = false }
 }
 
 onMounted(() => {
