@@ -9,7 +9,7 @@ ALTER TABLE portal_models ADD COLUMN IF NOT EXISTS cache_enabled BOOLEAN DEFAULT
 ALTER TABLE portal_models ADD COLUMN IF NOT EXISTS multimodal BOOLEAN DEFAULT FALSE;
 ALTER TABLE portal_models ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0;
 ALTER TABLE portal_models ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT TRUE;
-ALTER TABLE portal_models ADD COLUMN IF NOT EXISTS invocation_formats JSONB DEFAULT '["tool"]';
+ALTER TABLE portal_models ADD COLUMN IF NOT EXISTS invocation_formats JSONB DEFAULT '["Chat Completions"]';
 ALTER TABLE portal_models ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
 -- Phase 2: 通用资源-标签关联表（model/skill/mcp 统一用 resource_type 区分）
