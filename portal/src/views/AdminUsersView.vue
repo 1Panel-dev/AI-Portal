@@ -40,7 +40,7 @@
           </div>
           <div class="flex items-center gap-2 flex-wrap">
             <template v-if="user.role === 'admin' || user.is_portal_admin">
-              <span class="px-2 py-0.5 rounded-full text-xs bg-indigo-50 text-indigo-600">管理员</span>
+              <span class="px-2 py-0.5 rounded-full text-xs bg-indigo-50 text-indigo-600">超级管理员</span>
             </template>
             <template v-else-if="(user.user_roles || []).length">
               <span

@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- 页面级 Tab：模型管理 / 调用方式管理 -->
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center justify-between mb-4">
       <div class="flex gap-1 bg-surface-secondary rounded-lg p-1">
         <button type="button" @click="adminTab = 'models'" class="px-4 py-2 text-sm rounded-lg transition-all font-medium" :class="adminTab === 'models' ? 'bg-white text-accent shadow-card' : 'hover:text-text'">模型管理</button>
         <button v-if="can('invocation_format:view')" type="button" @click="adminTab = 'formats'" class="px-4 py-2 text-sm rounded-lg transition-all font-medium" :class="adminTab === 'formats' ? 'bg-white text-accent shadow-card' : 'hover:text-text'">调用方式管理</button>
@@ -28,7 +28,7 @@
 
     <template v-if="adminTab === 'models'">
       <!-- 模型状态 Tab -->
-      <div class="flex gap-2 mb-4">
+      <div class="flex gap-2 mb-5">
         <button v-for="tab in statusTabs" :key="tab.key" class="px-4 py-2 text-sm rounded-lg border transition-all" :class="statusTab === tab.key ? 'bg-white text-accent border-accent/30 font-semibold shadow-card' : 'bg-surface-secondary text-text-secondary border-transparent hover:text-text'" @click="statusTab = tab.key">
           {{ tab.label }} <span class="text-xs ml-1 opacity-70">{{ tab.count }}</span>
         </button>
@@ -61,7 +61,15 @@
         <div class="text-right">操作</div>
       </div>
       <!-- 空状态 -->
-      <div v-if="!paged.length" class="py-14 text-center text-sm text-text-secondary">暂无模型（点击同步从 1Panel 拉取）</div>
+      <!-- 空状态 -->
+      <div v-if="!paged.length" class="py-14 text-center text-sm text-text-secondary">
+        <template v-if="statusTab === 'public'">
+          暂无已上架模型 (<button type="button" class="text-accent hover:underline" @click="statusTab = 'private'">去上架</button>)
+        </template>
+        <template v-else>
+          暂无模型（点击同步从 1Panel 拉取）
+        </template>
+      </div>
       <!-- 行 -->
       <div v-for="(m, i) in paged" :key="m.id" class="grid grid-cols-[38px_1.5fr_1fr_1.1fr_60px_100px_50px] gap-2 px-4 py-3 items-center border-b border-[rgba(0,0,0,0.04)] last:border-b-0 text-sm hover:bg-surface-secondary/50 transition-colors" :class="can('model:edit') ? 'cursor-pointer' : ''" @click="can('model:edit') && openEdit(m)">
         <div class="flex items-center justify-center">
