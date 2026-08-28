@@ -370,6 +370,14 @@ router.get('/api/skills', verifyUser, requirePermissionOrAdminRole('skill:view')
       paramIndex++;
     }
 
+    // 标签筛选
+    const { tag } = req.query;
+    if (tag) {
+      whereClause += ` AND id IN (SELECT resource_id FROM resource_tags WHERE resource_type = 'skill' AND tag_id = $${paramIndex})`;
+      params.push(parseInt(tag));
+      paramIndex++;
+    }
+
     let orderBy;
     switch (sort) {
       case 'downloads': orderBy = 'ORDER BY downloads DESC'; break;
@@ -399,6 +407,20 @@ router.get('/api/skills', verifyUser, requirePermissionOrAdminRole('skill:view')
     const total = result.rows.length > 0 ? parseInt(result.rows[0]._total) : 0;
     // 剥掉内部计数字段，避免暴露到前端
     const data = result.rows.map(({ _total, ...row }) => row);
+
+    // 批量拉标签
+    if (data.length) {
+      const tagResult = await global.pool.query(`
+        SELECT rt.resource_id AS skill_id, t.id, t.name, t.color
+        FROM resource_tags rt
+        JOIN tags t ON t.id = rt.tag_id AND t.is_active = TRUE
+        WHERE rt.resource_type = 'skill' AND rt.resource_id = ANY($1)
+        ORDER BY t.sort_order, t.name
+      `, [data.map(r => r.id)]);
+      const tagMap = {};
+      for (const tr of tagResult.rows) (tagMap[tr.skill_id] ??= []).push({ id: tr.id, name: tr.name, color: tr.color });
+      for (const row of data) row.tags = tagMap[row.id] || [];
+    }
 
     res.json({
       data,
@@ -436,10 +458,45 @@ router.get('/api/skills/:slug', async (req, res) => {
       return res.status(404).json({ error: '技能不存在' });
     }
 
-    res.json(result.rows[0]);
+    const skill = result.rows[0];
+
+    // 拉标签
+    try {
+      const tagResult = await global.pool.query(`
+        SELECT t.id, t.name, t.color
+        FROM resource_tags rt
+        JOIN tags t ON t.id = rt.tag_id AND t.is_active = TRUE
+        WHERE rt.resource_type = 'skill' AND rt.resource_id = $1
+        ORDER BY t.sort_order, t.name
+      `, [skill.id]);
+      skill.tags = tagResult.rows;
+    } catch (tagErr) {
+      skill.tags = [];
+    }
+
+    res.json(skill);
   } catch (err) {
     console.error('Error fetching skill:', err);
     res.status(500).json({ error: '获取技能详情失败' });
+  }
+});
+
+// 公开端点:返回技能适用的活跃标签列表（供技能广场筛选）
+router.get('/api/skill-tags', async (req, res) => {
+  try {
+    const r = await global.pool.query(`
+      SELECT t.id, t.name, t.color, t.sort_order,
+             COUNT(DISTINCT rt.resource_id)::int AS count
+      FROM tags t
+      JOIN tag_resource_types trt ON trt.tag_id = t.id AND trt.resource_type = 'skill'
+      LEFT JOIN resource_tags rt ON rt.tag_id = t.id AND rt.resource_type = 'skill'
+      WHERE t.is_active = TRUE
+      GROUP BY t.id
+      ORDER BY t.sort_order, t.name
+    `);
+    res.json({ data: r.rows });
+  } catch (err) {
+    res.json({ data: [] });
   }
 });
 

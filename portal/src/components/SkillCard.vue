@@ -25,6 +25,12 @@
       {{ skill.description }}
     </p>
 
+    <!-- 标签 -->
+    <div v-if="skill.tags && skill.tags.length" class="flex flex-wrap gap-1.5 mb-3">
+      <span v-for="tag in skill.tags.slice(0, 4)" :key="tag.id" class="px-2 py-[3px] rounded-md text-[11px] font-medium" :style="{ backgroundColor: `${tag.color}10`, color: tag.color }">{{ tag.name }}</span>
+      <span v-if="skill.tags.length > 4" class="px-2 py-[3px] rounded-md text-[11px] font-medium bg-surface-secondary text-text-tertiary">+{{ skill.tags.length - 4 }}</span>
+    </div>
+
     <!-- 安装操作:下载 / skillctl 两个等大小按钮,保持卡片底部轻盈 -->
     <div class="flex items-center gap-2 mb-3">
       <a

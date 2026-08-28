@@ -28,6 +28,7 @@ let requestSeq = 0
 
 // 当前筛选状态
 const currentCategory = ref('all')
+const currentTag = ref('')
 const searchQuery = ref('')
 const sortBy = ref('default')
 
@@ -81,6 +82,9 @@ export function useSkills() {
       if (sortBy.value !== 'default') {
         params.append('sort', sortBy.value)
       }
+      if (currentTag.value) {
+        params.append('tag', currentTag.value)
+      }
 
       const response = await fetch(`${API_BASE}/skills?${params.toString()}`, { headers: authHeaders() })
       if (!response.ok) {
@@ -133,7 +137,7 @@ export function useSkills() {
   }
 
   // 监听筛选条件变化
-  watch([currentCategory, sortBy], () => {
+  watch([currentCategory, sortBy, currentTag], () => {
     debouncedLoad(true, 100)
   })
 
@@ -224,6 +228,7 @@ export function useSkills() {
     error,
     stats,
     currentCategory,
+    currentTag,
     searchQuery,
     sortBy,
     total,
