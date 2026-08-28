@@ -171,17 +171,17 @@
         </div>
 
         <!-- 调用方式 Tab -->
-        <div v-if="activeFormats.length" class="mb-5">
-          <div class="flex gap-1 border-b border-[rgba(0,0,0,0.06)] mb-3">
+        <div v-if="activeFormats.length" class="mb-6">
+          <div class="flex gap-1 border-b border-[rgba(0,0,0,0.06)] mb-4">
             <button
               v-for="(fmt, idx) in activeFormats"
               :key="fmt.id"
               @click="selectedFormatIdx = idx"
-              class="px-3 py-1.5 text-xs font-medium transition-all border-b-2"
+              class="px-3 py-2 text-xs font-medium transition-all border-b-2"
               :class="selectedFormatIdx === idx ? 'text-accent border-accent' : 'text-text-secondary border-transparent hover:text-text'"
             >
               <span class="inline-flex items-center gap-1.5">
-                <span class="px-1 py-0.5 rounded text-[9px] font-mono" :class="fmt.method === 'GET' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'">{{ fmt.method }}</span>
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-mono" :class="fmt.method === 'GET' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'">{{ fmt.method }}</span>
                 {{ fmt.name }}
               </span>
             </button>
@@ -189,7 +189,7 @@
 
           <!-- 当前选中调用方式的详情 -->
           <div v-if="activeFormats[selectedFormatIdx]">
-            <div class="text-xs text-text-tertiary mb-2 font-mono break-all">{{ fullUrl(activeFormats[selectedFormatIdx]) }}</div>
+            <div class="text-sm text-text-secondary mb-3 py-2 px-3 bg-surface-secondary rounded-lg font-mono break-all">{{ fullUrl(activeFormats[selectedFormatIdx]) }}</div>
 
             <!-- Curl 示例 -->
             <div class="rounded-xl overflow-hidden bg-[#1a1a2e] shadow-inner">
