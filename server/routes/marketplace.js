@@ -317,18 +317,22 @@ router.get('/api/skills', verifyUser, requirePermissionOrAdminRole('skill:view')
         return res.status(403).json({ code: 'FORBIDDEN', error: '无权查看该技能' });
       }
 
-      // 拉标签
+      // 拉标签（用 panel_skill_id 关联）
       const skill = result.rows[0];
-      try {
-        const tagResult = await global.pool.query(`
-          SELECT t.id, t.name, t.color
-          FROM resource_tags rt
-          JOIN tags t ON t.id = rt.tag_id AND t.is_active = TRUE
-          WHERE rt.resource_type = 'skill' AND rt.resource_id = $1
-          ORDER BY t.sort_order, t.name
-        `, [skill.id]);
-        skill.tags = tagResult.rows;
-      } catch (tagErr) {
+      if (skill.panel_skill_id) {
+        try {
+          const tagResult = await global.pool.query(`
+            SELECT t.id, t.name, t.color
+            FROM resource_tags rt
+            JOIN tags t ON t.id = rt.tag_id AND t.is_active = TRUE
+            WHERE rt.resource_type = 'skill' AND rt.resource_id = $1
+            ORDER BY t.sort_order, t.name
+          `, [skill.panel_skill_id]);
+          skill.tags = tagResult.rows;
+        } catch (tagErr) {
+          skill.tags = [];
+        }
+      } else {
         skill.tags = [];
       }
 
@@ -411,6 +415,7 @@ router.get('/api/skills', verifyUser, requirePermissionOrAdminRole('skill:view')
         created_at as "createdAt",
         updated_at as "updatedAt",
         source, risk_level as "riskLevel", panel_status as "panelStatus",
+        panel_skill_id,
         COUNT(*) OVER() AS _total
       FROM skills
       ${whereClause}
@@ -424,18 +429,23 @@ router.get('/api/skills', verifyUser, requirePermissionOrAdminRole('skill:view')
     // 剥掉内部计数字段，避免暴露到前端
     const data = result.rows.map(({ _total, ...row }) => row);
 
-    // 批量拉标签
+    // 批量拉标签（用 panel_skill_id 关联 resource_tags）
     if (data.length) {
-      const tagResult = await global.pool.query(`
-        SELECT rt.resource_id AS skill_id, t.id, t.name, t.color
-        FROM resource_tags rt
-        JOIN tags t ON t.id = rt.tag_id AND t.is_active = TRUE
-        WHERE rt.resource_type = 'skill' AND rt.resource_id = ANY($1)
-        ORDER BY t.sort_order, t.name
-      `, [data.map(r => r.id)]);
-      const tagMap = {};
-      for (const tr of tagResult.rows) (tagMap[tr.skill_id] ??= []).push({ id: tr.id, name: tr.name, color: tr.color });
-      for (const row of data) row.tags = tagMap[row.id] || [];
+      const skillIds = data.map(r => r.panel_skill_id).filter(id => id !== null);
+      if (skillIds.length) {
+        const tagResult = await global.pool.query(`
+          SELECT rt.resource_id AS panel_skill_id, t.id, t.name, t.color
+          FROM resource_tags rt
+          JOIN tags t ON t.id = rt.tag_id AND t.is_active = TRUE
+          WHERE rt.resource_type = 'skill' AND rt.resource_id = ANY($1)
+          ORDER BY t.sort_order, t.name
+        `, [skillIds]);
+        const tagMap = {};
+        for (const tr of tagResult.rows) (tagMap[tr.panel_skill_id] ??= []).push({ id: tr.id, name: tr.name, color: tr.color });
+        for (const row of data) row.tags = tagMap[row.panel_skill_id] || [];
+      } else {
+        for (const row of data) row.tags = [];
+      }
     }
 
     res.json({
@@ -476,17 +486,21 @@ router.get('/api/skills/:slug', async (req, res) => {
 
     const skill = result.rows[0];
 
-    // 拉标签
-    try {
-      const tagResult = await global.pool.query(`
-        SELECT t.id, t.name, t.color
-        FROM resource_tags rt
-        JOIN tags t ON t.id = rt.tag_id AND t.is_active = TRUE
-        WHERE rt.resource_type = 'skill' AND rt.resource_id = $1
-        ORDER BY t.sort_order, t.name
-      `, [skill.id]);
-      skill.tags = tagResult.rows;
-    } catch (tagErr) {
+    // 拉标签（用 panel_skill_id 关联）
+    if (skill.panel_skill_id) {
+      try {
+        const tagResult = await global.pool.query(`
+          SELECT t.id, t.name, t.color
+          FROM resource_tags rt
+          JOIN tags t ON t.id = rt.tag_id AND t.is_active = TRUE
+          WHERE rt.resource_type = 'skill' AND rt.resource_id = $1
+          ORDER BY t.sort_order, t.name
+        `, [skill.panel_skill_id]);
+        skill.tags = tagResult.rows;
+      } catch (tagErr) {
+        skill.tags = [];
+      }
+    } else {
       skill.tags = [];
     }
 
