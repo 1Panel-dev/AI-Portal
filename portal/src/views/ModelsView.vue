@@ -128,7 +128,7 @@
     </section>
 
     <!-- 模型详情抽屉 -->
-    <AppDrawer :open="!!detail" :title="detail?.display_name || detail?.model_name || ''" width="lg" @close="detail = null">
+    <AppDrawer :open="!!detail" :title="detail?.display_name || detail?.model_name || ''" width="full" @close="detail = null">
       <template #title-extra v-if="detail">
         <button class="copy-btn shrink-0" :class="{ done: copiedRow === 'model' }" @click="copyText(detail.api_model_name || detail.model_name, 'model')">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -170,35 +170,40 @@
           <span v-if="detail.cache_enabled" class="cap-tag cap-tag-amber">缓存</span>
         </div>
 
-        <!-- 调用方式列表 -->
+        <!-- 调用方式 Tab -->
         <div v-if="activeFormats.length" class="mb-5">
-          <div class="panel-title">调用方式</div>
-          <div class="border border-[rgba(0,0,0,0.06)] rounded-xl overflow-hidden">
-            <div v-for="(fmt, idx) in activeFormats" :key="fmt.id" class="fmt-row" :class="idx < activeFormats.length - 1 ? 'border-b border-[rgba(0,0,0,0.04)]' : ''">
-              <span class="fmt-method-badge shrink-0" :class="fmt.method === 'GET' ? 'fmt-get' : 'fmt-post'">{{ fmt.method }}</span>
-              <span class="text-xs font-medium text-text shrink-0">{{ fmt.name }}</span>
-              <span class="text-[11px] font-mono text-text-tertiary break-all flex-1 min-w-0">{{ fullUrl(fmt) }}</span>
-              <button class="fmt-copy-btn shrink-0" @click.stop="copyText(fullUrl(fmt), 'fmt-' + fmt.id)" :class="{ done: copiedRow === 'fmt-' + fmt.id }">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-              </button>
-            </div>
+          <div class="flex gap-1 border-b border-[rgba(0,0,0,0.06)] mb-3">
+            <button
+              v-for="(fmt, idx) in activeFormats"
+              :key="fmt.id"
+              @click="selectedFormatIdx = idx"
+              class="px-3 py-1.5 text-xs font-medium transition-all border-b-2"
+              :class="selectedFormatIdx === idx ? 'text-accent border-accent' : 'text-text-secondary border-transparent hover:text-text'"
+            >
+              <span class="inline-flex items-center gap-1.5">
+                <span class="px-1 py-0.5 rounded text-[9px] font-mono" :class="fmt.method === 'GET' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'">{{ fmt.method }}</span>
+                {{ fmt.name }}
+              </span>
+            </button>
           </div>
-        </div>
 
-        <!-- 调用示例：仅展示一个 curl -->
-        <div v-if="singleCurlExample">
-          <div class="panel-title">调用示例</div>
-          <div class="rounded-xl overflow-hidden bg-[#1a1a2e] shadow-inner">
-            <div class="flex items-center gap-1.5 px-4 py-2 border-b border-white/[0.08]">
-              <span class="h-2 w-2 rounded-full bg-[#ff5f57]"></span>
-              <span class="h-2 w-2 rounded-full bg-[#febc2e]"></span>
-              <span class="h-2 w-2 rounded-full bg-[#28c840]"></span>
-              <span class="ml-2 text-[10px] text-white/35 tracking-wide" style="font-family: 'SF Mono', Consolas, monospace">curl</span>
-              <button class="ml-auto px-2 py-0.5 text-[10px] text-white/45 hover:text-white/80 rounded border border-white/10 hover:border-white/20 transition-all" @click.stop="copyText(singleCurlExample.cmd, 'curl-0')">
-                {{ copiedRow === 'curl-0' ? '✓' : '复制' }}
-              </button>
+          <!-- 当前选中调用方式的详情 -->
+          <div v-if="activeFormats[selectedFormatIdx]">
+            <div class="text-xs text-text-tertiary mb-2 font-mono break-all">{{ fullUrl(activeFormats[selectedFormatIdx]) }}</div>
+
+            <!-- Curl 示例 -->
+            <div class="rounded-xl overflow-hidden bg-[#1a1a2e] shadow-inner">
+              <div class="flex items-center gap-1.5 px-4 py-2 border-b border-white/[0.08]">
+                <span class="h-2 w-2 rounded-full bg-[#ff5f57]"></span>
+                <span class="h-2 w-2 rounded-full bg-[#febc2e]"></span>
+                <span class="h-2 w-2 rounded-full bg-[#28c840]"></span>
+                <span class="ml-2 text-[10px] text-white/35 tracking-wide" style="font-family: 'SF Mono', Consolas, monospace">curl</span>
+                <button class="ml-auto px-2 py-0.5 text-[10px] text-white/45 hover:text-white/80 rounded border border-white/10 hover:border-white/20 transition-all" @click.stop="copyText(getFormatCurl(activeFormats[selectedFormatIdx]), 'curl-' + selectedFormatIdx)">
+                  {{ copiedRow === 'curl-' + selectedFormatIdx ? '✓' : '复制' }}
+                </button>
+              </div>
+              <pre class="px-4 py-3 text-[12px] leading-[1.7] text-[#e8e8ed] break-all whitespace-pre-wrap" style="font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, monospace"><code v-html="curlHighlighted(getFormatCurl(activeFormats[selectedFormatIdx]))"></code></pre>
             </div>
-            <pre class="px-4 py-3 text-[12px] leading-[1.7] text-[#e8e8ed] break-all whitespace-pre-wrap" style="font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, monospace"><code v-html="curlHighlighted(singleCurlExample.cmd)"></code></pre>
           </div>
         </div>
       </template>
@@ -293,6 +298,7 @@ const currentTag = ref('')
 const currentProvider = ref('')
 const copiedModelId = ref(null)
 const detail = ref(null)
+const selectedFormatIdx = ref(0)
 const copiedRow = ref('')
 const gatewayUrl = ref('')
 const curlTemplate = ref('')  // 后台「调用示例」配置的模板
@@ -301,7 +307,7 @@ const page = ref(1)
 const pageSize = ref(20)
 
 const allFormats = ref([])
-function openDetail(m) { detail.value = m }
+function openDetail(m) { detail.value = m; selectedFormatIdx.value = 0 }
 const parseFormats = (v) => {
   if (!v) return []
   if (Array.isArray(v)) return v
@@ -329,6 +335,31 @@ const fullUrl = (fmt) => {
   const base = (gatewayUrl.value || 'https://your-gateway.example.com').replace(/\/+$/, '').replace(/\/v1$/, '')
   return `${base}${fmt.endpoint}`
 }
+
+// 为指定调用方式生成 curl 示例
+const getFormatCurl = (fmt) => {
+  if (!detail.value || !fmt) return ''
+  const model = detail.value.api_model_name || detail.value.model_name
+  const url = fullUrl(fmt)
+  const body = fmt.method !== 'GET'
+    ? JSON.stringify({ model, messages: [{ role: 'user', content: '你好' }] }, null, 2)
+    : null
+  let cmd = `curl -X ${fmt.method} ${url}`
+  if (fmt.method !== 'GET') {
+    cmd += ` \\\n  -H "Content-Type: application/json"`
+  }
+  if (fmt.name === 'Anthropic Messages') {
+    cmd += ` \\\n  -H "x-api-key: sk-xxx"`
+    cmd += ` \\\n  -H "anthropic-version: 2023-06-01"`
+  } else {
+    cmd += ` \\\n  -H "Authorization: Bearer sk-xxx"`
+  }
+  if (fmt.method !== 'GET') {
+    cmd += ` \\\n  -d '${body}'`
+  }
+  return cmd
+}
+
 const singleCurlExample = computed(() => {
   if (!detail.value) return null
   const model = detail.value.api_model_name || detail.value.model_name

@@ -11,7 +11,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['close'])
 const slots = useSlots()
-const widthClass = computed(() => ({ sm: 'w-[400px]', md: 'w-[480px]', lg: 'w-[560px]', xl: 'w-[640px]' }[props.width] || 'w-[480px]'))
+const widthClass = computed(() => ({ sm: 'w-[400px]', md: 'w-[480px]', lg: 'w-[560px]', xl: 'w-[640px]', full: 'w-[min(520px,33vw)]' }[props.width] || 'w-[480px]'))
 </script>
 
 <template>

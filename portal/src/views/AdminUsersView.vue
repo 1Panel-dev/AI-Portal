@@ -14,7 +14,7 @@
       </div>
 
       <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4 mb-4 flex items-center gap-3">
-        <input v-model="keyword" @keyup.enter="fetchUsers(1)" class="flex-1 px-3 py-2 border border-[rgba(0,0,0,0.08)] rounded-lg text-sm outline-none focus:border-text bg-surface-secondary" placeholder="搜索用户名或姓名..." />
+        <input v-model="keyword" class="flex-1 px-3 py-2 border border-[rgba(0,0,0,0.08)] rounded-lg text-sm outline-none focus:border-text bg-surface-secondary" placeholder="搜索用户名或姓名..." />
         <button @click="fetchUsers(1)" class="px-4 py-2 text-sm font-medium btn-primary transition-all">搜索</button>
       </div>
 
@@ -154,7 +154,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { RefreshCw, UserPlus, UserCog, KeyRound, Trash2, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-vue-next'
 import { can } from '../composables/usePermissions.js'
@@ -172,6 +172,13 @@ const pageSize = ref(10)
 const keyword = ref('')
 const sortOrder = ref('desc')
 const loading = ref(false)
+
+// 搜索防抖: 输入变化后 300ms 自动触发搜索
+let searchTimeout = null
+watch(keyword, () => {
+  clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(() => fetchUsers(1), 300)
+})
 const deleting = ref(false)
 const deletingUser = ref(null)
 const passwordUser = ref(null)
