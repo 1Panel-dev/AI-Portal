@@ -58,7 +58,7 @@
           <div class="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2.5 pl-3">标签</div>
           <div class="flex flex-col gap-0.5">
             <button @click="currentTag = ''" class="flex items-center justify-between px-3 py-[7px] rounded-lg text-[13px] transition-all cursor-pointer select-none" :class="currentTag === '' ? 'bg-accent/8 text-accent font-medium' : 'text-text-secondary hover:bg-black/[0.03]'">
-              <span>全部标签</span><span class="text-[11px] tabular-nums" :class="currentTag === '' ? 'text-accent/60' : 'text-text-tertiary'">{{ total }}</span>
+              <span>全部标签</span><span class="text-[11px] tabular-nums" :class="currentTag === '' ? 'text-accent/60' : 'text-text-tertiary'">{{ stats.totalSkills }}</span>
             </button>
             <button v-for="t in tagsWithCount" :key="t.id" @click="currentTag = currentTag === t.id ? '' : t.id" class="flex items-center justify-between px-3 py-[7px] rounded-lg text-[13px] transition-all cursor-pointer select-none" :class="currentTag === t.id ? 'bg-accent/8 text-accent font-medium' : 'text-text-secondary hover:bg-black/[0.03]'">
               <span class="flex items-center gap-2.5"><span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: t.color }"></span>{{ t.name }}</span>

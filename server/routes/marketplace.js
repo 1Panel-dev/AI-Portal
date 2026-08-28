@@ -316,7 +316,23 @@ router.get('/api/skills', verifyUser, requirePermissionOrAdminRole('skill:view')
       if (!(await canUserAccessSkill(req.portalUser.id, slug))) {
         return res.status(403).json({ code: 'FORBIDDEN', error: '无权查看该技能' });
       }
-      return res.json(result.rows[0]);
+
+      // 拉标签
+      const skill = result.rows[0];
+      try {
+        const tagResult = await global.pool.query(`
+          SELECT t.id, t.name, t.color
+          FROM resource_tags rt
+          JOIN tags t ON t.id = rt.tag_id AND t.is_active = TRUE
+          WHERE rt.resource_type = 'skill' AND rt.resource_id = $1
+          ORDER BY t.sort_order, t.name
+        `, [skill.id]);
+        skill.tags = tagResult.rows;
+      } catch (tagErr) {
+        skill.tags = [];
+      }
+
+      return res.json(skill);
     }
 
     const pageNum = Math.max(1, parseInt(page) || 1);
@@ -372,8 +388,8 @@ router.get('/api/skills', verifyUser, requirePermissionOrAdminRole('skill:view')
 
     // 标签筛选
     const { tag } = req.query;
-    if (tag) {
-      whereClause += ` AND id IN (SELECT resource_id FROM resource_tags WHERE resource_type = 'skill' AND tag_id = $${paramIndex})`;
+    if (tag && Number.isFinite(parseInt(tag))) {
+      whereClause += ` AND id IN (SELECT rt.resource_id FROM resource_tags rt JOIN tags t ON t.id = rt.tag_id WHERE rt.resource_type = 'skill' AND rt.tag_id = $${paramIndex} AND t.is_active = TRUE)`;
       params.push(parseInt(tag));
       paramIndex++;
     }
