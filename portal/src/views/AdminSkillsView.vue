@@ -278,7 +278,7 @@ textarea.skill-input { @apply h-auto py-2.5; }
 </template>
 
 <script setup>
-import { ref, watchEffect, onMounted } from 'vue'
+import { ref, computed, watchEffect, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ChevronDown, Search, ArrowUpDown, Inbox, Pencil, Eye, EyeOff, Trash2, ArrowLeft, RefreshCw, Tags, X } from 'lucide-vue-next'
 import { avatarColors, categories } from '../data/categories.js'
