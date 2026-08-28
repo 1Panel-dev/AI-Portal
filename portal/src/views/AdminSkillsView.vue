@@ -201,6 +201,29 @@ textarea.skill-input { @apply h-auto py-2.5; }
           <label class="block text-sm font-medium text-text mb-1">版本</label>
           <input v-model="editForm.version" class="skill-input" placeholder="1.0.0" />
         </div>
+        <div>
+          <label class="block text-sm font-medium text-text mb-2">标签</label>
+          <div ref="tagFieldRef" class="relative">
+            <button type="button" @click="tagDropdownOpen = !tagDropdownOpen" class="skill-input text-left flex items-center justify-between">
+              <span class="text-sm" :class="editTagIds.length ? 'text-text' : 'text-text-tertiary'">{{ editTagIds.length ? `已选 ${editTagIds.length} 个标签` : '选择标签' }}</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-text-tertiary transition-transform" :class="{ 'rotate-180': tagDropdownOpen }"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div v-if="tagDropdownOpen" class="absolute z-10 mt-1 w-full bg-white border border-black/10 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              <button v-for="t in skillTags" :key="t.id" type="button" @click="toggleEditTag(t.id)" class="flex items-center gap-2 px-3 py-2 hover:bg-surface-secondary cursor-pointer text-sm w-full text-left">
+                <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: t.color }"></span>
+                <span class="text-xs">{{ t.name }}</span>
+                <svg v-if="editTagIds.includes(t.id)" class="ml-auto text-accent shrink-0" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>
+              </button>
+              <div v-if="!skillTags.length" class="px-3 py-2 text-xs text-text-tertiary">暂无可用标签</div>
+            </div>
+          </div>
+          <div v-if="editTagIds.length" class="flex flex-wrap gap-1.5 mt-2">
+            <span v-for="tagId in editTagIds" :key="tagId" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" :style="{ backgroundColor: `${getTagColor(tagId)}15`, color: getTagColor(tagId) }">
+              {{ getTagName(tagId) }}
+              <button type="button" @click="toggleEditTag(tagId)" class="opacity-60 hover:opacity-100">&times;</button>
+            </span>
+          </div>
+        </div>
       </div>
       <template #footer>
         <button class="px-4 py-2 text-sm btn-secondary" @click="editingSkill = null">取消</button>
@@ -236,6 +259,11 @@ const loading = ref(true)
 const processing = ref({})
 const editingSkill = ref(null)
 const editForm = ref({})
+const editTagIds = ref([])
+const tagDropdownOpen = ref(false)
+const tagFieldRef = ref(null)
+const allTags = ref([])
+const skillTags = computed(() => allTags.value.filter(t => Array.isArray(t.resource_types) && t.resource_types.includes('skill')))
 const saving = ref(false)
 const deletingSkill = ref(null)
 const deleting = ref(false)
@@ -389,6 +417,18 @@ const fetchSkills = async (reset = false) => {
   }
 }
 
+// 标签相关
+const fetchTags = async () => {
+  try { allTags.value = (await (await fetch(`${API_BASE}/admin/tags`, { headers: { Authorization: `Bearer ${getToken()}` } })).json()).data || [] } catch (_) {}
+}
+const getTagName = (id) => (allTags.value.find(t => t.id === id) || {}).name || ''
+const getTagColor = (id) => (allTags.value.find(t => t.id === id) || {}).color || '#64748b'
+const toggleEditTag = (id) => {
+  const idx = editTagIds.value.indexOf(id)
+  if (idx >= 0) editTagIds.value.splice(idx, 1)
+  else editTagIds.value.push(id)
+}
+
 const goPage = (p) => {
   if (p < 1 || p > pagination.value.totalPages) return
   pagination.value.page = p
@@ -417,7 +457,7 @@ const onSearchInput = () => {
   }, 300)
 }
 
-const editSkill = (skill) => {
+const editSkill = async (skill) => {
   editingSkill.value = skill
   editForm.value = {
     title: skill.title,
@@ -432,6 +472,13 @@ const editSkill = (skill) => {
     author: skill.author,
     slug: skill.slug,
   }
+  // 加载技能标签
+  try {
+    const res = await fetch(`${API_BASE}/admin/skill-tags?skill_ids=${skill.id}`, { headers: { Authorization: `Bearer ${getToken()}` } })
+    const data = await res.json()
+    editTagIds.value = (data.data[skill.id] || []).map(t => t.id)
+  } catch (_) { editTagIds.value = [] }
+  tagDropdownOpen.value = false
 }
 
 const saveEdit = async () => {
@@ -453,6 +500,19 @@ const saveEdit = async () => {
     })
 
     if (response.ok) {
+      // 保存标签
+      try {
+        await fetch(`${API_BASE}/admin/skill-tags/${editingSkill.value.id}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${getToken()}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ tag_ids: editTagIds.value }),
+        })
+      } catch (tagErr) {
+        console.error('标签保存失败:', tagErr)
+      }
       editingSkill.value = null
       await fetchSkills(true)
     } else {
@@ -524,5 +584,6 @@ onMounted(() => {
   }
   loadPermissions()
   fetchSkills(true)
+  fetchTags()
 })
 </script>

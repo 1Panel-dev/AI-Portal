@@ -1116,4 +1116,142 @@ router.get('/api/admin/model-tags', verifyUser, requirePermission('model:edit'),
   }
 });
 
+// ---- 技能-标签关联 ----
+// 单个技能设置标签（整体替换）
+router.put('/api/admin/skill-tags/:skillId', verifyUser, requirePermission('skill:edit'), async (req, res) => {
+  const client = await pool().connect();
+  try {
+    const { skillId } = req.params;
+    // 技能 ID 可能是 '1panel-30' 格式,需要从 skills 表查 panel_skill_id
+    const skillResult = await client.query('SELECT id, panel_skill_id FROM skills WHERE id = $1', [skillId]);
+    if (!skillResult.rowCount) return res.status(404).json({ error: '技能不存在' });
+
+    const panelSkillId = skillResult.rows[0].panel_skill_id;
+    if (!panelSkillId) return res.status(400).json({ error: '该技能无 panel_skill_id, 无法关联标签' });
+
+    const { tag_ids } = req.body;
+    if (!Array.isArray(tag_ids)) return res.status(400).json({ error: 'tag_ids 必须是数组' });
+
+    // 验证所有 tag_id 存在
+    if (tag_ids.length) {
+      const validIds = tag_ids.map(Number).filter(Number.isFinite);
+      if (validIds.length !== tag_ids.length) return res.status(400).json({ error: 'tag_ids 包含无效值' });
+      const t = await client.query('SELECT id FROM tags WHERE id = ANY($1)', [validIds]);
+      if (t.rowCount !== validIds.length) return res.status(400).json({ error: '部分标签不存在' });
+    }
+
+    await client.query('BEGIN');
+    await client.query('DELETE FROM resource_tags WHERE resource_type = $1 AND resource_id = $2', ['skill', panelSkillId]);
+    for (const tagId of tag_ids) {
+      await client.query('INSERT INTO resource_tags (resource_type, resource_id, tag_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', ['skill', panelSkillId, Number(tagId)]);
+    }
+    await client.query('COMMIT');
+
+    res.json({ ok: true });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    res.status(500).json({ error: '设置技能标签失败', reason: e.message });
+  } finally {
+    client.release();
+  }
+});
+
+// 批量打标签（多技能同一批标签）
+router.post('/api/admin/skill-tags/batch', verifyUser, requirePermission('skill:edit'), async (req, res) => {
+  const client = await pool().connect();
+  try {
+    const { skill_ids, tag_ids } = req.body;
+    if (!Array.isArray(skill_ids) || !skill_ids.length) return res.status(400).json({ error: '请选择技能' });
+    if (!Array.isArray(tag_ids) || !tag_ids.length) return res.status(400).json({ error: '请选择标签' });
+
+    const validTags = tag_ids.map(Number).filter(Number.isFinite);
+    if (!validTags.length) return res.status(400).json({ error: '参数包含无效值' });
+
+    // 查询技能的 panel_skill_id
+    const skillResult = await client.query('SELECT id, panel_skill_id FROM skills WHERE id = ANY($1)', [skill_ids]);
+    const skillMap = {};
+    for (const r of skillResult.rows) {
+      if (r.panel_skill_id) skillMap[r.id] = r.panel_skill_id;
+    }
+
+    // 验证标签存在
+    const t = await client.query('SELECT id FROM tags WHERE id = ANY($1)', [validTags]);
+    if (t.rowCount !== validTags.length) return res.status(400).json({ error: '部分标签不存在' });
+
+    await client.query('BEGIN');
+    for (const sid of skill_ids) {
+      const panelId = skillMap[sid];
+      if (!panelId) continue; // 跳过无 panel_skill_id 的技能
+      for (const tid of validTags) {
+        await client.query('INSERT INTO resource_tags (resource_type, resource_id, tag_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING', ['skill', panelId, tid]);
+      }
+    }
+    await client.query('COMMIT');
+
+    res.json({ ok: true, affected: Object.keys(skillMap).length });
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    res.status(500).json({ error: '批量打标签失败', reason: e.message });
+  } finally {
+    client.release();
+  }
+});
+
+// 批量移除标签
+router.post('/api/admin/skill-tags/batch-remove', verifyUser, requirePermission('skill:edit'), async (req, res) => {
+  try {
+    const { skill_ids, tag_ids } = req.body;
+    if (!Array.isArray(skill_ids) || !skill_ids.length) return res.status(400).json({ error: '请选择技能' });
+    if (!Array.isArray(tag_ids) || !tag_ids.length) return res.status(400).json({ error: '请选择标签' });
+
+    const validSkills = skill_ids.map(Number).filter(Number.isFinite);
+    const validTags = tag_ids.map(Number).filter(Number.isFinite);
+    if (!validSkills.length || !validTags.length) return res.status(400).json({ error: '参数包含无效值' });
+
+    await pool().query(`
+      DELETE FROM resource_tags WHERE resource_type = 'skill' AND resource_id = ANY($1) AND tag_id = ANY($2)
+    `, [validSkills, validTags]);
+
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: '批量移除标签失败', reason: e.message });
+  }
+});
+
+// 查询技能标签（支持批量：?skill_ids=1panel-1,1panel-2）
+router.get('/api/admin/skill-tags', verifyUser, requirePermission('skill:edit'), async (req, res) => {
+  try {
+    const ids = (req.query.skill_ids || '').split(',').filter(Boolean);
+    if (!ids.length) return res.json({ data: {} });
+
+    // 查询 panel_skill_id
+    const skillResult = await pool().query('SELECT id, panel_skill_id FROM skills WHERE id = ANY($1)', [ids]);
+    const panelIds = skillResult.rows.map(r => r.panel_skill_id).filter(Boolean);
+    const idMap = {};
+    for (const r of skillResult.rows) idMap[r.panel_skill_id] = r.id;
+
+    if (!panelIds.length) return res.json({ data: {} });
+
+    const result = await pool().query(`
+      SELECT rt.resource_id AS panel_skill_id, t.id, t.name, t.color
+      FROM resource_tags rt
+      JOIN tags t ON t.id = rt.tag_id AND t.is_active = TRUE
+      WHERE rt.resource_type = 'skill' AND rt.resource_id = ANY($1)
+      ORDER BY t.sort_order, t.name
+    `, [panelIds]);
+
+    const map = {};
+    for (const r of result.rows) {
+      const skillId = idMap[r.panel_skill_id];
+      if (skillId) (map[skillId] ??= []).push({ id: r.id, name: r.name, color: r.color });
+    }
+    // 补齐无标签的技能
+    for (const id of ids) { if (!map[id]) map[id] = []; }
+
+    res.json({ data: map });
+  } catch (e) {
+    res.status(500).json({ error: '获取技能标签失败', reason: e.message });
+  }
+});
+
 module.exports = router;
