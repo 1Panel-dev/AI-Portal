@@ -340,9 +340,17 @@ const getFormatCurl = (fmt) => {
   if (!detail.value || !fmt) return ''
   const model = detail.value.api_model_name || detail.value.model_name
   const url = fullUrl(fmt)
-  const body = fmt.method !== 'GET'
-    ? JSON.stringify({ model, messages: [{ role: 'user', content: '你好' }] }, null, 2)
-    : null
+
+  // Anthropic Messages API 需要 max_tokens
+  let body
+  if (fmt.method !== 'GET') {
+    if (fmt.name === 'Anthropic Messages') {
+      body = JSON.stringify({ model, max_tokens: 1024, messages: [{ role: 'user', content: '你好' }] }, null, 2)
+    } else {
+      body = JSON.stringify({ model, messages: [{ role: 'user', content: '你好' }] }, null, 2)
+    }
+  }
+
   let cmd = `curl -X ${fmt.method} ${url}`
   if (fmt.method !== 'GET') {
     cmd += ` \\\n  -H "Content-Type: application/json"`
