@@ -301,7 +301,6 @@ const detail = ref(null)
 const selectedFormatIdx = ref(0)
 const copiedRow = ref('')
 const gatewayUrl = ref('')
-const curlTemplate = ref('')  // 后台「调用示例」配置的模板
 const loading = ref(true)
 const page = ref(1)
 const pageSize = ref(20)
@@ -359,41 +358,6 @@ const getFormatCurl = (fmt) => {
   }
   return cmd
 }
-
-const singleCurlExample = computed(() => {
-  if (!detail.value) return null
-  const model = detail.value.api_model_name || detail.value.model_name
-  // 优先用后台「调用示例」配置的模板,替换占位符 {{base_url}} {{model_name}} {{api_key}}
-  if (curlTemplate.value) {
-    const base = gatewayUrl.value || 'https://your-gateway.example.com'
-    const cmd = curlTemplate.value
-      .replaceAll('{{base_url}}', () => base.replace(/\/+$/, ''))
-      .replaceAll('{{model_name}}', () => model)
-      .replaceAll('{{api_key}}', 'sk-xxx')
-    return { cmd }
-  }
-  // 模板未配置时,兜底用第一个调用方式按需生成
-  if (!activeFormats.value.length) return null
-  const fmt = activeFormats.value[0]
-  const url = fullUrl(fmt)
-  const body = fmt.method !== 'GET'
-    ? JSON.stringify({ model, messages: [{ role: 'user', content: '你好' }] }, null, 2)
-    : null
-  let cmd = `curl -X ${fmt.method} ${url}`
-  if (fmt.method !== 'GET') {
-    cmd += ` \\\n  -H "Content-Type: application/json"`
-  }
-  if (fmt.name === 'Anthropic Messages') {
-    cmd += ` \\\n  -H "x-api-key: sk-xxx"`
-    cmd += ` \\\n  -H "anthropic-version: 2023-06-01"`
-  } else {
-    cmd += ` \\\n  -H "Authorization: Bearer sk-xxx"`
-  }
-  if (fmt.method !== 'GET') {
-    cmd += ` \\\n  -d '${body}'`
-  }
-  return { ...fmt, cmd }
-})
 
 const curlHighlighted = (cmd) => {
   if (!cmd) return ''
@@ -518,7 +482,6 @@ async function fetchGatewayUrl() {
     if (res.ok) {
       const data = await res.json()
       if (data.endpoint) gatewayUrl.value = data.endpoint
-      if (data.template) curlTemplate.value = data.template
     }
   } catch (_) { /* 静默 */ }
 }

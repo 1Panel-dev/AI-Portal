@@ -154,7 +154,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { RefreshCw, UserPlus, UserCog, KeyRound, Trash2, Eye, EyeOff, ChevronDown, ChevronUp } from 'lucide-vue-next'
 import { can } from '../composables/usePermissions.js'
@@ -190,7 +190,7 @@ const onUserCreated = () => { fetchUsers(1) }
 const selectedUsers = ref(new Set())
 const isBatchPassword = ref(false)
 const allSelected = computed(() => {
-  const selectable = users.value.filter(u => u.role !== 'admin')
+  const selectable = users.value.filter(u => u.role !== 'admin' && !u.is_portal_admin)
   return selectable.length > 0 && selectable.every(u => selectedUsers.value.has(u.id))
 })
 const toggleUser = (id) => {
@@ -199,7 +199,7 @@ const toggleUser = (id) => {
   selectedUsers.value = s
 }
 const toggleAll = () => {
-  const ids = users.value.filter(u => u.role !== 'admin').map(u => u.id)
+  const ids = users.value.filter(u => u.role !== 'admin' && !u.is_portal_admin).map(u => u.id)
   selectedUsers.value = allSelected.value ? new Set() : new Set(ids)
 }
 const openBatchPassword = () => {
@@ -416,4 +416,5 @@ const saveRoles = async () => {
 }
 
 onMounted(() => fetchUsers(1))
+onUnmounted(() => clearTimeout(searchTimeout))
 </script>
