@@ -278,7 +278,7 @@ textarea.skill-input { @apply h-auto py-2.5; }
 </template>
 
 <script setup>
-import { ref, computed, watchEffect, onMounted } from 'vue'
+import { ref, computed, watchEffect, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ChevronDown, Search, ArrowUpDown, Inbox, Pencil, Eye, EyeOff, Trash2, ArrowLeft, RefreshCw, Tags, X } from 'lucide-vue-next'
 import { avatarColors, categories } from '../data/categories.js'
@@ -672,6 +672,11 @@ async function saveBatchRemoveTag() {
   } catch (e) { showSkillError(e.message || '操作失败') } finally { batchRemoveSaving.value = false }
 }
 
+// 下拉弹层「点外关闭」
+function onDocMousedown(e) {
+  if (tagFieldRef.value && !tagFieldRef.value.contains(e.target)) tagDropdownOpen.value = false
+}
+
 onMounted(() => {
   const token = getToken()
   if (!token) {
@@ -681,5 +686,7 @@ onMounted(() => {
   loadPermissions()
   fetchSkills(true)
   fetchTags()
+  document.addEventListener('mousedown', onDocMousedown)
 })
+onUnmounted(() => document.removeEventListener('mousedown', onDocMousedown))
 </script>

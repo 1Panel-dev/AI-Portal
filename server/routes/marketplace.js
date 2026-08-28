@@ -390,10 +390,10 @@ router.get('/api/skills', verifyUser, requirePermissionOrAdminRole('skill:view')
       paramIndex++;
     }
 
-    // 标签筛选
+    // 标签筛选（用 panel_skill_id 关联）
     const { tag } = req.query;
     if (tag && Number.isFinite(parseInt(tag))) {
-      whereClause += ` AND id IN (SELECT rt.resource_id FROM resource_tags rt JOIN tags t ON t.id = rt.tag_id WHERE rt.resource_type = 'skill' AND rt.tag_id = $${paramIndex} AND t.is_active = TRUE)`;
+      whereClause += ` AND panel_skill_id IN (SELECT rt.resource_id FROM resource_tags rt JOIN tags t ON t.id = rt.tag_id WHERE rt.resource_type = 'skill' AND rt.tag_id = $${paramIndex} AND t.is_active = TRUE)`;
       params.push(parseInt(tag));
       paramIndex++;
     }
