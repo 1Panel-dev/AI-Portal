@@ -33,6 +33,12 @@ SELECT t.id, 'model' FROM tags t
 WHERE t.name IN ('推荐', '多模态', '文本', 'Embedding', '重排')
 ON CONFLICT DO NOTHING;
 
+-- "推荐"标签同时适用于技能(预置;其他标签可在标签管理后台手动设置)
+INSERT INTO tag_resource_types (tag_id, resource_type)
+SELECT t.id, 'skill' FROM tags t
+WHERE t.name = '推荐'
+ON CONFLICT DO NOTHING;
+
 -- 3. 标签权限（查看/新增/编辑/删除/菜单）
 INSERT INTO permissions (module, action, key, name) VALUES
   ('tag', 'view', 'tag:view', '标签查看'),
