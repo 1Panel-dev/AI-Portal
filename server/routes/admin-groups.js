@@ -1204,13 +1204,17 @@ router.post('/api/admin/skill-tags/batch-remove', verifyUser, requirePermission(
     if (!Array.isArray(skill_ids) || !skill_ids.length) return res.status(400).json({ error: '请选择技能' });
     if (!Array.isArray(tag_ids) || !tag_ids.length) return res.status(400).json({ error: '请选择标签' });
 
-    const validSkills = skill_ids.map(Number).filter(Number.isFinite);
+    // skill_ids 是 skills.id(VARCHAR '1panel-30'),不能转 Number;需先映射到 panel_skill_id
     const validTags = tag_ids.map(Number).filter(Number.isFinite);
-    if (!validSkills.length || !validTags.length) return res.status(400).json({ error: '参数包含无效值' });
+    if (!validTags.length) return res.status(400).json({ error: '参数包含无效值' });
+
+    const skillResult = await pool().query('SELECT id, panel_skill_id FROM skills WHERE id = ANY($1)', [skill_ids]);
+    const panelIds = skillResult.rows.map(r => r.panel_skill_id).filter(Boolean);
+    if (!panelIds.length) return res.json({ ok: true });
 
     await pool().query(`
       DELETE FROM resource_tags WHERE resource_type = 'skill' AND resource_id = ANY($1) AND tag_id = ANY($2)
-    `, [validSkills, validTags]);
+    `, [panelIds, validTags]);
 
     res.json({ ok: true });
   } catch (e) {

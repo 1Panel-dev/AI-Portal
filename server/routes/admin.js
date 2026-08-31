@@ -756,6 +756,10 @@ router.delete('/api/admin/skills/:id', verifyUser, requirePermission('skill:dele
         AND status = 'approved'
     `, [id]);
 
+    // 清理标签关联(通用表无 FK 级联到 skills,手动清理防孤儿行)
+    if (skill.panel_skill_id) {
+      await global.pool.query("DELETE FROM resource_tags WHERE resource_type = 'skill' AND resource_id = $1", [skill.panel_skill_id]);
+    }
     await global.pool.query('DELETE FROM skills WHERE id = $1', [id]);
 
     res.json({ success: true, message: '技能已删除' });
