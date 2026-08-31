@@ -133,11 +133,14 @@ const selectedSkill = ref(null)
 const hasVisibleBanner = computed(() => bannerEnabled.value && bannerVisible.value && !!bannerHtml.value)
 
 // 标签列表(带 count) + 可见技能总数(来自 /api/skill-tags, 按用户资源权限过滤)
+// 必须带 token: 不带会被 optionalUser 当访客 -> 全公开兜底返回全局统计,
+// 与无权限用户空列表口径不一致(修复过一次的 bug)
 const allTags = ref([])
 const visibleSkillTotal = ref(0)
 const fetchTags = async () => {
   try {
-    const res = await fetch(`${API_BASE}/skill-tags`)
+    const token = localStorage.getItem('token') || localStorage.getItem('admin_token') || ''
+    const res = await fetch(`${API_BASE}/skill-tags`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
     if (res.ok) {
       const body = await res.json()
       allTags.value = body.data || []
