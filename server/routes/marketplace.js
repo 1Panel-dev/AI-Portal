@@ -5,7 +5,7 @@ const multer = require('multer');
 const storage = require('../lib/storage');
 const downloadCounter = require('../lib/downloadCounter');
 const { panel, getPanelPayload, getPanelItems, downloadPanelSkill } = require('../panel');
-const { downloadLimiter, uploadLimiter, verifyUser, requirePermission, requirePermissionOrAdminRole } = require('../auth');
+const { downloadLimiter, uploadLimiter, verifyUser, requirePermission, requirePermissionOrAdminRole, optionalUser } = require('../auth');
 
 const router = express.Router();
 
@@ -512,21 +512,47 @@ router.get('/api/skills/:slug', async (req, res) => {
 });
 
 // 公开端点:返回技能适用的活跃标签列表（供技能广场筛选）
-router.get('/api/skill-tags', async (req, res) => {
+// 按用户可见技能过滤 count: 无资源权限的普通用户返回空(标签与列表口径一致);
+// 超管/后台角色/全公开兜底时统计全部。
+router.get('/api/skill-tags', optionalUser, async (req, res) => {
   try {
+    let visibleSkillSlugs = null;
+    if (req.portalUser && !req.portalUser.is_portal_admin) {
+      const { getVisibleResourcesForUser, isAdminRoleUser } = require('../lib/permission');
+      if (!(await isAdminRoleUser(req.portalUser.id))) {
+        const visible = await getVisibleResourcesForUser(req.portalUser.id);
+        if (Array.isArray(visible.skill)) {
+          if (visible.skill.length > 0 && typeof visible.skill[0] === 'string') {
+            visibleSkillSlugs = visible.skill;
+          } else if (visible.skill.length === 0) {
+            // 严格白名单且无任何资源组 -> 无可见技能,标签为空
+            return res.json({ data: [], total: 0 });
+          }
+        }
+      }
+    }
+
+    // total: 当前用户可见的活跃技能总数(供前端「全部标签」行使用)
+    const totalRow = visibleSkillSlugs
+      ? await global.pool.query('SELECT COUNT(*)::int AS n FROM skills WHERE is_active = TRUE AND slug = ANY($1)', [visibleSkillSlugs])
+      : await global.pool.query('SELECT COUNT(*)::int AS n FROM skills WHERE is_active = TRUE');
+    const total = totalRow.rows[0]?.n || 0;
+
     const r = await global.pool.query(`
       SELECT t.id, t.name, t.color, t.sort_order,
              COUNT(DISTINCT rt.resource_id)::int AS count
       FROM tags t
       JOIN tag_resource_types trt ON trt.tag_id = t.id AND trt.resource_type = 'skill'
       LEFT JOIN resource_tags rt ON rt.tag_id = t.id AND rt.resource_type = 'skill'
+      LEFT JOIN skills s ON s.panel_skill_id = rt.resource_id AND s.is_active = TRUE
       WHERE t.is_active = TRUE
+        ${visibleSkillSlugs ? 'AND s.slug = ANY($1)' : ''}
       GROUP BY t.id
       ORDER BY t.sort_order, t.name
-    `);
-    res.json({ data: r.rows });
+    `, visibleSkillSlugs ? [visibleSkillSlugs] : []);
+    res.json({ data: r.rows, total });
   } catch (err) {
-    res.json({ data: [] });
+    res.json({ data: [], total: 0 });
   }
 });
 
