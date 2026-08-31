@@ -44,9 +44,11 @@
           <label
             v-for="u in filteredLeft"
             :key="u.id"
-            class="flex items-center gap-2.5 px-3 py-2 border-b border-[rgba(0,0,0,0.04)] last:border-b-0 cursor-pointer hover:bg-surface-secondary"
+            class="flex items-center gap-2.5 px-3 py-2 border-b border-[rgba(0,0,0,0.04)] last:border-b-0 hover:bg-surface-secondary"
+            :class="u.is_portal_admin ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'"
+            :title="u.is_portal_admin ? '超级管理员默认可见全部资源, 无需授权' : ''"
           >
-            <input type="checkbox" :checked="leftChecked.has(u.id)" @change="toggleLeft(u.id)" class="h-4 w-4 accent-accent" />
+            <input type="checkbox" :checked="leftChecked.has(u.id)" @change="toggleLeft(u.id)" :disabled="!!u.is_portal_admin" class="h-4 w-4 accent-accent disabled:opacity-40" />
             <div class="flex-1 min-w-0">
               <div class="text-[13px] text-text truncate">{{ u.name || u.username }} <span class="text-text-tertiary font-normal text-xs">· {{ u.username }}</span></div>
             </div>
@@ -88,9 +90,11 @@
           <label
             v-for="u in filteredRight"
             :key="u.id"
-            class="flex items-center gap-2.5 px-3 py-2 border-b border-[rgba(0,0,0,0.04)] last:border-b-0 cursor-pointer hover:bg-surface-secondary"
+            class="flex items-center gap-2.5 px-3 py-2 border-b border-[rgba(0,0,0,0.04)] last:border-b-0 hover:bg-surface-secondary"
+            :class="u.is_portal_admin ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'"
+            :title="u.is_portal_admin ? '超级管理员默认可见全部资源, 无需授权' : ''"
           >
-            <input type="checkbox" :checked="rightChecked.has(u.id)" @change="toggleRight(u.id)" class="h-4 w-4 accent-accent" />
+            <input type="checkbox" :checked="rightChecked.has(u.id)" @change="toggleRight(u.id)" :disabled="!!u.is_portal_admin" class="h-4 w-4 accent-accent disabled:opacity-40" />
             <div class="flex-1 min-w-0">
               <div class="text-[13px] text-text truncate">{{ u.name || u.username }} <span class="text-text-tertiary font-normal text-xs">· {{ u.username }}</span></div>
             </div>
@@ -292,8 +296,11 @@ const filteredRight = computed(() => {
   if (!kw) return rightList.value
   return rightList.value.filter(u => (u.username || '').toLowerCase().includes(kw) || (u.name || '').toLowerCase().includes(kw))
 })
-const leftAllChecked = computed(() => filteredLeft.value.length > 0 && filteredLeft.value.every(u => leftChecked.value.has(u.id)))
-const rightAllChecked = computed(() => filteredRight.value.length > 0 && filteredRight.value.every(u => rightChecked.value.has(u.id)))
+// 全选只统计可选行(超管置灰不可授权)
+const selectableLeft = computed(() => filteredLeft.value.filter(u => !u.is_portal_admin))
+const selectableRight = computed(() => filteredRight.value.filter(u => !u.is_portal_admin))
+const leftAllChecked = computed(() => selectableLeft.value.length > 0 && selectableLeft.value.every(u => leftChecked.value.has(u.id)))
+const rightAllChecked = computed(() => selectableRight.value.length > 0 && selectableRight.value.every(u => rightChecked.value.has(u.id)))
 
 const dirty = computed(() => {
   const cur = new Set(rightList.value.map(u => u.id))
@@ -314,14 +321,14 @@ function toggleRight(id) {
 }
 function toggleAllLeft() {
   const s = new Set(leftChecked.value)
-  if (leftAllChecked.value) for (const u of filteredLeft.value) s.delete(u.id)
-  else for (const u of filteredLeft.value) s.add(u.id)
+  if (leftAllChecked.value) for (const u of selectableLeft.value) s.delete(u.id)
+  else for (const u of selectableLeft.value) s.add(u.id)
   leftChecked.value = s
 }
 function toggleAllRight() {
   const s = new Set(rightChecked.value)
-  if (rightAllChecked.value) for (const u of filteredRight.value) s.delete(u.id)
-  else for (const u of filteredRight.value) s.add(u.id)
+  if (rightAllChecked.value) for (const u of selectableRight.value) s.delete(u.id)
+  else for (const u of selectableRight.value) s.add(u.id)
   rightChecked.value = s
 }
 

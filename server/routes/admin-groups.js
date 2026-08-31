@@ -258,14 +258,24 @@ router.put('/api/admin/groups/:id/members', verifyUser, requirePermission('group
   const userIds = Array.isArray(req.body.userIds) ? req.body.userIds : [];
   const client = await pool().connect();
   try {
+    // 超管默认可见全部资源, 授权无意义: 过滤掉, 防止前端绕过写入无效配置
+    const adminIds = new Set(
+      (await client.query('SELECT id FROM portal_users WHERE is_portal_admin = TRUE')).rows.map(r => r.id)
+    );
+    const filteredIds = userIds.map(Number).filter(uid => Number.isFinite(uid) && !adminIds.has(uid));
+
     await client.query('BEGIN');
     await client.query('DELETE FROM resource_group_members WHERE group_id = $1', [id]);
-    for (const uid of userIds) {
+    for (const uid of filteredIds) {
       await client.query(
         `INSERT INTO resource_group_members (group_id, user_id) VALUES ($1,$2)
          ON CONFLICT DO NOTHING`,
-        [id, Number(uid)]
+        [id, uid]
       );
+    }
+    // 顺带清理历史上已存在的超管授权记录(无效配置)
+    if (adminIds.size) {
+      await client.query('DELETE FROM resource_group_members WHERE group_id = $1 AND user_id = ANY($2)', [id, [...adminIds]]);
     }
     await client.query('COMMIT');
     res.json({ ok: true });
