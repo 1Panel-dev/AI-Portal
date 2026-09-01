@@ -422,44 +422,81 @@ async function syncSkillsFromPanel() {
       // avatar 用技能名称首字母(大写), 替代默认 'S'
       const avatarChar = (item.name || 'S').charAt(0).toUpperCase();
 
-      await global.pool.query(`
-        INSERT INTO skills (
-          id, title, slug, description, avatar, avatar_color,
-          downloads, stars, version, category, tag, author,
-          install_command, install_url, file_path,
-          source, panel_skill_id, risk_level, panel_status,
-          created_at, updated_at, is_active, synced_at
-        ) VALUES (
-          $1, $2, $3,
-          COALESCE($4, ''),
-          $5, 'av-blue',
-          0, 0,
-          COALESCE($6, 'v1.0.0'),
-          'skill',
-          NULL,
-          COALESCE($7, '1Panel'),
-          $8, $9, NULL,
-          'panel', $10, $11, $12,
-          CURRENT_DATE, CURRENT_DATE, TRUE, CURRENT_TIMESTAMP
-        )
-        ON CONFLICT (slug) DO UPDATE SET
-          title = EXCLUDED.title,
-          avatar = EXCLUDED.avatar,
-          description = EXCLUDED.description,
-          version = EXCLUDED.version,
-          category = EXCLUDED.category,
-          risk_level = EXCLUDED.risk_level,
-          panel_skill_id = EXCLUDED.panel_skill_id,
-          panel_status = EXCLUDED.panel_status,
-          is_active = TRUE,
-          synced_at = CURRENT_TIMESTAMP,
-          updated_at = CURRENT_DATE
-      `, [
-        skillId, title, slug, item.description, avatarChar, item.version,
-        item.applicableAgent || '1Panel',
-        installCommand, installUrl,
-        item.id, item.riskLevel || null, item.status || null,
-      ]);
+      // 按 panel_skill_id 优先匹配已有行: id 是技能在 1Panel 端的稳定锚点。
+      // 旧实现只按 slug ON CONFLICT,换对接环境 / 远端删除重建技能(id 复用)时,
+      // UPDATE panel_skill_id 会撞 idx_skills_panel_unique 唯一索引导致整轮同步失败。
+      // 找到已有行则全量 UPDATE(允许 id/slug/panel_skill_id 全部切换到远端当前值),
+      // 找不到才 INSERT;INSERT 遇 slug 撞车(远端改名且 id 变化)也回退到按 slug 更新。
+      const existing = await global.pool.query(
+        `SELECT id FROM skills
+         WHERE panel_skill_id = $1 OR (panel_skill_id IS NULL AND slug = $2 AND source = 'panel')
+         ORDER BY (panel_skill_id = $1) DESC
+         LIMIT 1`,
+        [item.id, slug]
+      );
+
+      if (existing.rowCount > 0) {
+        // 不改 id(主键被 skill_versions/download_stats FK 引用且无 ON UPDATE CASCADE,
+        // 改主键会失败或级联开销大)。id 保持原值不影响功能: 路由/关联都用 slug/panel_skill_id。
+        const targetId = existing.rows[0].id;
+        await global.pool.query(`
+          UPDATE skills SET
+            title = $2, slug = $3, description = $4, avatar = $5,
+            version = $6, category = 'skill', author = $7,
+            install_command = $8, install_url = $9,
+            panel_skill_id = $10, risk_level = $11, panel_status = $12,
+            is_active = TRUE, synced_at = CURRENT_TIMESTAMP, updated_at = CURRENT_DATE
+          WHERE id = $1
+        `, [
+          targetId,
+          title, slug, item.description || '', avatarChar,
+          item.version || 'v1.0.0',
+          item.applicableAgent || '1Panel',
+          installCommand, installUrl,
+          item.id, item.riskLevel || null, item.status || null,
+        ]);
+      } else {
+        // 无 panel_skill_id/slug 命中: 新技能插入。
+        // ON CONFLICT (slug) 兜底远端改名场景(新 slug 恰与另一行相同)——罕见,保留旧语义。
+        await global.pool.query(`
+          INSERT INTO skills (
+            id, title, slug, description, avatar, avatar_color,
+            downloads, stars, version, category, tag, author,
+            install_command, install_url, file_path,
+            source, panel_skill_id, risk_level, panel_status,
+            created_at, updated_at, is_active, synced_at
+          ) VALUES (
+            $1, $2, $3,
+            COALESCE($4, ''),
+            $5, 'av-blue',
+            0, 0,
+            COALESCE($6, 'v1.0.0'),
+            'skill',
+            NULL,
+            COALESCE($7, '1Panel'),
+            $8, $9, NULL,
+            'panel', $10, $11, $12,
+            CURRENT_DATE, CURRENT_DATE, TRUE, CURRENT_TIMESTAMP
+          )
+          ON CONFLICT (slug) DO UPDATE SET
+            title = EXCLUDED.title,
+            avatar = EXCLUDED.avatar,
+            description = EXCLUDED.description,
+            version = EXCLUDED.version,
+            category = EXCLUDED.category,
+            risk_level = EXCLUDED.risk_level,
+            panel_skill_id = EXCLUDED.panel_skill_id,
+            panel_status = EXCLUDED.panel_status,
+            is_active = TRUE,
+            synced_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_DATE
+        `, [
+          skillId, title, slug, item.description, avatarChar, item.version,
+          item.applicableAgent || '1Panel',
+          installCommand, installUrl,
+          item.id, item.riskLevel || null, item.status || null,
+        ]);
+      }
       upsertCount++;
     }
 
