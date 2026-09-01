@@ -27,6 +27,17 @@ docker-compose up -d
 
 访问 `http://localhost:3000`
 
+## 反向代理注意事项
+
+通过 nginx 等反向代理对外提供 HTTPS 服务（尤其是带非标准端口，如 `:8443`）时，**必须把原始 Host 头（含端口）透传给后端**：
+
+```nginx
+proxy_set_header Host $http_host;   # $host 不含端口, 会导致 OAuth 回调地址丢失端口号
+proxy_set_header X-Forwarded-Proto $scheme;
+```
+
+否则第三方登录（企业微信等 OAuth）的回调地址会被拼成 `https://domain/...`（丢端口），企微侧校验失败无法完成登录。回调地址由后端根据请求 Host 自动推导，管理员在「第三方登录」页面可见当前生效的回调地址。
+
 ## 文档
 
 开发、配置、项目结构和默认账号说明见 [开发文档](docs/development.md)。

@@ -118,17 +118,20 @@ function cancel() {
 
       <!-- 三选项 -->
       <div v-if="mode === 'choose'" class="space-y-3">
-        <button @click="mode = 'login'"
-          class="w-full text-left px-5 py-4 border border-[rgba(0,0,0,0.08)] rounded-xl hover:border-text transition-all">
-          <div class="font-medium text-text">绑定到已有账号</div>
-          <div class="text-xs text-text-secondary mt-1">推荐:用您原有的账号登录后绑定企业微信</div>
-        </button>
         <button @click="mode = 'skip-confirm'"
-          class="w-full text-left px-5 py-4 border border-[rgba(0,0,0,0.08)] rounded-xl hover:border-text transition-all">
-          <div class="font-medium text-text">使用企业微信信息创建新账号</div>
+          class="w-full text-left px-5 py-4 border border-accent/35 rounded-xl hover:border-accent/60 transition-all relative">
+          <div class="flex items-center justify-between gap-2">
+            <div class="font-medium text-text">使用企业微信信息创建新账号</div>
+            <span class="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-accent/10 text-accent">推荐</span>
+          </div>
           <div class="text-xs text-text-secondary mt-1">
             将创建 <span class="font-mono">{{ loadingPreview ? '...' : suggestedUsername }}</span>,无需密码,后续可自行设置
           </div>
+        </button>
+        <button @click="mode = 'login'"
+          class="w-full text-left px-5 py-4 border border-[rgba(0,0,0,0.08)] rounded-xl hover:border-text transition-all">
+          <div class="font-medium text-text">绑定到已有账号</div>
+          <div class="text-xs text-text-secondary mt-1">用您原有的账号登录后绑定企业微信</div>
         </button>
         <button @click="cancel"
           class="w-full px-5 py-3 text-text-secondary text-sm hover:text-text transition-all">
