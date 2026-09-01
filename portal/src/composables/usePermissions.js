@@ -67,7 +67,16 @@ async function doLoadPermissions() {
       cache: 'no-cache',
     })
     // 304 时 res.ok 为 false,但 res.json() 可读取缓存 body
-    if (!res.ok && res.status !== 304) throw new Error(String(res.status))
+    if (!res.ok && res.status !== 304) {
+      // 401 = token 确认失效(换容器/过期): 清 token 跳登录, 不能带着死 token 卡在页面里
+      if (res.status === 401) {
+        console.warn('[permissions] token 已失效(401), 清除登录态跳转登录页')
+        clearAuth()
+        window.location.href = (window.__APP_BASE__ || '/') + 'login'
+        throw new Error('401')
+      }
+      throw new Error(String(res.status))
+    }
     const data = await res.json()
     const count = (data.permissions || []).length
     console.log(`[permissions] 加载成功, 权限数: ${count}, is_portal_admin: ${!!data.is_portal_admin}, 角色: ${(data.roles||[]).join(',')}`)
