@@ -233,6 +233,7 @@ export function useSkills() {
     sortBy,
     total,
     currentPage,
+    pageSize,
     totalPages,
     goPage,
     getSkillBySlug,

@@ -58,7 +58,7 @@
         @select="openDetail"
       />
 
-      <Pagination class="pt-6" :page="currentPage" :total-pages="totalPages" :total="total" @change="goPage" />
+      <Pagination class="pt-6" :page="currentPage" :total-pages="totalPages" :total="total" label="个服务" show-first-last :page-size="pageSize" @change="goPage" @page-size-change="onPageSizeChange" />
     </div>
 
     <McpDetailModal
@@ -82,8 +82,11 @@ import { loadPermissions, can, isAdminRoleUser } from '../composables/usePermiss
 
 const router = useRouter()
 const {
-  servers, loading, error, searchQuery, total, currentPage, totalPages, goPage, loadServers,
+  servers, loading, error, searchQuery, total, currentPage, pageSize, totalPages, goPage, loadServers,
 } = useMcpServers()
+
+// 每页条数变化: 回第 1 页重新加载
+const onPageSizeChange = (size) => { pageSize.value = size; goPage(1) }
 
 const selectedServer = ref(null)
 const hasVisibleBanner = computed(() => bannerEnabled.value && bannerVisible.value && !!bannerHtml.value)

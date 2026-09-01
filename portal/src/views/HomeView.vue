@@ -97,7 +97,7 @@
           />
         </div>
 
-        <Pagination class="pt-6" :page="currentPage" :total-pages="totalPages" :total="total" @change="goPage" />
+        <Pagination class="pt-6" :page="currentPage" :total-pages="totalPages" :total="total" label="个技能" show-first-last :page-size="pageSize" @change="goPage" @page-size-change="onPageSizeChange" />
       </main>
     </div>
 
@@ -126,8 +126,11 @@ const API_BASE = (typeof window !== 'undefined' && window.__APP_BASE__ && !windo
 const router = useRouter()
 const {
   skills, loading, error, stats, currentCategory, currentTag, searchQuery,
-  sortBy, total, currentPage, totalPages, goPage, recordDownload,
+  sortBy, total, currentPage, pageSize, totalPages, goPage, recordDownload,
 } = useSkills()
+
+// 每页条数变化: 回第 1 页重新加载
+const onPageSizeChange = (size) => { pageSize.value = size; goPage(1) }
 
 const selectedSkill = ref(null)
 const hasVisibleBanner = computed(() => bannerEnabled.value && bannerVisible.value && !!bannerHtml.value)

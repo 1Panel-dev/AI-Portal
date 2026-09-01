@@ -110,6 +110,7 @@ export function useMcpServers() {
     searchQuery,
     total,
     currentPage,
+    pageSize,
     totalPages,
     goPage,
     loadServers,
