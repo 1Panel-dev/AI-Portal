@@ -14,6 +14,7 @@ services:
     ports:
       - "3000:3000"
     environment:
+      JWT_SECRET: ${JWT_SECRET:-}
       INIT_ADMIN_PASSWORD: ${INIT_ADMIN_PASSWORD:-admintest}
       PANEL_BASE_URL: ${PANEL_BASE_URL:-}
       PANEL_API_KEY: ${PANEL_API_KEY:-}
