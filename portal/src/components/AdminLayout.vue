@@ -129,7 +129,7 @@
           :class="collapsed ? 'justify-center w-10 h-10' : 'px-3.5 py-3'"
         >
           <p v-if="!collapsed" class="flex-1 min-w-0 text-[10px] text-text-tertiary leading-relaxed">
-            AI-Portal <span class="opacity-30 mx-1">·</span> <span class="font-semibold text-text-secondary">v1.0.3</span>
+            {{ siteName }} <span class="opacity-30 mx-1">·</span> <span class="font-semibold text-text-secondary">v{{ appVersion }}</span>
           </p>
           <button
             @click="collapsed = !collapsed"
@@ -163,6 +163,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AdminTopBar from './admin/AdminTopBar.vue'
 import SideItem from './admin/SideItem.vue'
 import { siteName, siteLogo, siteLogoIsDefault } from '../composables/useSiteBranding.js'
+import { API_BASE } from '../lib/apiBase.js'
 import { bannerVisible } from '../composables/useAnnouncement.js'
 import { loadPermissions, permissions, isPortalAdmin, can } from '../composables/usePermissions.js'
 import { BarChart3, ClipboardCheck, Puzzle, UserCog, Sliders, KeyRound, PanelLeftClose, PanelLeftOpen, FolderKanban, LayoutGrid, Sun, ShieldCheck, Boxes, UserCheck, Tags } from 'lucide-vue-next'
@@ -171,6 +172,15 @@ const route = useRoute()
 const router = useRouter()
 const collapsed = ref(false)
 const permsReady = ref(false)
+// 版本号:动态拉取 /api/version(后端读 APP_VERSION 环境变量,由 CI 按 tag 注入),拉不到则隐藏
+const appVersion = ref('')
+
+onMounted(async () => {
+  try {
+    const res = await fetch(`${API_BASE}/version`)
+    if (res.ok) appVersion.value = (await res.json()).version || ''
+  } catch { /* 版本标非关键信息,失败静默 */ }
+})
 
 function isActive(path) {
   if (path === '/admin') return route.path === '/admin'

@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { verifyUser, requirePermission, requirePermissionOrAdminRole, signPortalToken } = require('../auth');
 const { panel, getPanelPayload, getPanelItems, findPanelUser, createPanelUser, syncModelsFromPanel } = require('../panel');
 const { isAnyProviderEnabled } = require('../oauth');
-const { inspectPanelBiz, listPanelKeysOfUser } = require('../lib/panel-biz');
+const { inspectPanelBiz, listPanelKeys, listPanelKeysOfUser } = require('../lib/panel-biz');
 
 const router = express.Router();
 
@@ -484,14 +484,24 @@ router.get('/api/keys', verifyUser, async (req, res) => {
       const row = result.rows[0];
 
       // 有 panel_user_id 时验证 1Panel 端 key 是否还存在
-      // 防止用户在 1Panel 管理后台删了 key 但 Portal 还在展示假数据
+      // 防止用户在 1Panel 管理后台删了 key 但 Portal 还在展示假数据。
+      // listPanelKeys 内部本就是翻全页下载后内存过滤(panel-biz.js),这里一次全量
+      // 拉取同时得到该用户的 keys 与全量列表(后者用作接口健康度证据),避免两次 search。
       if (req.portalUser.panel_user_id) {
         try {
-          const userKeys = await listPanelKeysOfUser(req.portalUser.panel_user_id);
+          const allKeys = await listPanelKeys();
+          const userKeys = allKeys.filter(k => k.userId === req.portalUser.panel_user_id);
           // 按 panel_key_id 精确匹配；若本地 panel_key_id 为空但该用户在远端恰好只有一把 key，也视为匹配
-          const match = row.panel_key_id
+          let match = row.panel_key_id
             ? userKeys.find(k => String(k.id) === String(row.panel_key_id))
             : (userKeys.length === 1 ? userKeys[0] : null);
+          // panel_key_id 漂移兜底(CLAUDE.md 规则#5:以 panel_user_id 远端 search 为准):
+          // 本地缓存的 panel_key_id 在远端已不存在,但该用户名下恰好还有一把 key
+          // (远端删了重建)→ 采纳远端这把,不误判为"被删除"
+          if (!match && row.panel_key_id && userKeys.length === 1) {
+            console.warn(`[GET /api/keys] panel_key_id 漂移(本地=${row.panel_key_id}, 远端=${userKeys[0].id}),采纳远端 key`);
+            match = userKeys[0];
+          }
 
           if (match) {
             // key 在 1Panel 还存在 → 用远端数据更新本地缓存（mask/cipher 可能已变化）
@@ -530,13 +540,25 @@ router.get('/api/keys', verifyUser, async (req, res) => {
                 token_unlimited: !!match.tokenUnlimited,
               }
             });
+          }
+
+          if (userKeys.length === 0) {
+            // 该用户名下 0 把 key。区分两种情况:
+            // - 全量列表非空(别人的 key 还能搜到) → 接口工作正常, key 确实被删了
+            //   (管理员在 1Panel 端删除):清掉本地残留行,返回 null 让前端回到
+            //   "申请 Key"空态,否则幽灵记录一直展示假数据,还会把 POST /api/keys
+            //   的"已有 API Key"检查拦死。
+            // - 全量列表也是空 → 可能是"鉴权通过但临时空响应"(CLAUDE.md 第6条的坑),
+            //   保守兜底返回本地缓存,不清理。
+            if (allKeys.length > 0) {
+              console.log(`[GET /api/keys] 1Panel 已无该用户 key(user=${req.portalUser.id}, panel_key_id=${row.panel_key_id}),清理本地残留记录`);
+              await global.pool.query('DELETE FROM portal_api_keys WHERE id = $1', [row.id]);
+              return res.json({ key: null });
+            }
+            console.warn(`[GET /api/keys] 1Panel search 全量空响应(user=${req.portalUser.id}),兜底返回本地缓存`);
           } else {
-            // 1Panel 没返回匹配的 key：可能是 key 真被删了，也可能是
-            // 鉴权通过但临时空响应（CLAUDE.md 第6条警告 sync 必须防的坑）。
-            // 保守处理：不动本地记录，兜底返回本地缓存，避免误删有效 Key。
-            // 只有后续明确拿到 404/record-not-found 才算真删了——但 search 不区分这点，
-            // 所以这里一律兜底返回本地，由用户手动 reset/delete 处理失效 key。
-            console.warn(`[GET /api/keys] 1Panel 未匹配到 key(user=${req.portalUser.id}, panel_key_id=${row.panel_key_id})，兜底返回本地缓存`);
+            // 该用户名下多把 key 但都不匹配本地 panel_key_id(异常态),不动本地记录
+            console.warn(`[GET /api/keys] 1Panel 未匹配到 key(user=${req.portalUser.id}, panel_key_id=${row.panel_key_id}, 远端 ${userKeys.length} 把),兜底返回本地缓存`);
           }
         } catch (panelErr) {
           // 1Panel 不可达时兜底返回本地记录，不断网时误伤
@@ -1399,10 +1421,13 @@ router.get('/api/usage/statistics', verifyUser, async (req, res) => {
   }
 });
 
-// GET /api/version — 返回当前版本号
+// GET /api/version — 返回当前版本号(不带 v 前缀,前端展示时自行加 v)
+// 优先读 APP_VERSION 环境变量(Docker 构建时由 CI 传 DOCKER_IMAGE_TAG 注入,
+// CI tag 形如 v1.0.5 带前缀,这里统一去掉),本地开发无该变量时 fallback 到 server/package.json
 const pkg = require('../package.json');
 router.get('/api/version', (req, res) => {
-  res.json({ version: pkg.version });
+  const raw = process.env.APP_VERSION || pkg.version || '';
+  res.json({ version: String(raw).replace(/^v/i, '') });
 });
 
 // 当前用户权限（前端 UI 控制）

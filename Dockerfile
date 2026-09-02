@@ -38,6 +38,11 @@ FROM node:20-alpine AS node-bin
 FROM postgres:17-alpine
 WORKDIR /app
 
+# 版本/构建元信息由 CI build-and-push.yml 传入(CI 已带 --build-arg,缺省兜底 dev)
+ARG DOCKER_IMAGE_TAG=dev
+ARG BUILD_AT
+ARG GITHUB_COMMIT
+
 RUN apk add --no-cache tini
 
 COPY --from=node-bin /usr/local/bin/node /usr/local/bin/node
@@ -59,6 +64,9 @@ ENV NODE_ENV=production \
     SERVE_STATIC=true \
     STATIC_PATH=/app/dist \
     LOCAL_STORAGE_PATH=/app/data/uploads \
+    APP_VERSION=${DOCKER_IMAGE_TAG} \
+    BUILD_AT=${BUILD_AT} \
+    GITHUB_COMMIT=${GITHUB_COMMIT} \
     PGDATA=/app/data/pgdata \
     DB_HOST=localhost DB_PORT=5432 \
     DB_NAME=ai_portal DB_USER=aiportal DB_PASSWORD=
