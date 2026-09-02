@@ -1684,6 +1684,7 @@ async function doSyncUsers() {
     const allPanelKeys = [];
     let kPage = 1;
     const KEY_PAGE_SIZE = 100;
+    let keysFetchComplete = false; // 是否完整拉完全部页(中途失败 break 时为 false,不可用于清理判断)
     while (kPage < 50) {
       const keyRes = await panel.post('/api/v2/core/enterprise/ai-proxy/api-keys/search', {
         page: kPage, pageSize: KEY_PAGE_SIZE, info: '',
@@ -1692,7 +1693,7 @@ async function doSyncUsers() {
       if (keyRes.status < 200 || keyRes.status >= 300 || !keyBiz.ok) break;
       const items = getPanelItems(keyRes.data);
       allPanelKeys.push(...items);
-      if (items.length < KEY_PAGE_SIZE) break;
+      if (items.length < KEY_PAGE_SIZE) { keysFetchComplete = true; break; }
       kPage++;
     }
     const keyByPanelUser = new Map();
@@ -1716,6 +1717,25 @@ async function doSyncUsers() {
       } catch (e) {
         console.error(`[sync-users] 同步用户 ${user.id} API Key 失败:`, e.message);
       }
+    }
+
+    // 对账清理:管理员在 1Panel 端删除 key 后,本地 portal_api_keys 残留幽灵行
+    // (用户个人中心会持续展示假数据)。仅在完整拉取成功时才清理:
+    // - 完整拉取(含"远端确实 0 把 key"的健康空响应) → 不在远端 key 集合内的本地行都是幽灵
+    // - 中途失败的部分数据 → 不清理,防止误删(与 CLAUDE.md 第6条"空响应不清表"同因)
+    if (keysFetchComplete) {
+      const remoteUserIds = [...keyByPanelUser.keys()].map(Number);
+      const cleaned = await global.pool.query(`
+        DELETE FROM portal_api_keys pak
+        USING portal_users pu
+        WHERE pak.user_id = pu.id AND pu.panel_user_id IS NOT NULL
+          AND pu.panel_user_id <> ALL($1::int[])
+      `, [remoteUserIds]);
+      if (cleaned.rowCount > 0) {
+        console.log(`[sync-users] 清理远端已删除的 API Key 幽灵记录 ${cleaned.rowCount} 条`);
+      }
+    } else {
+      console.warn('[sync-users] API Key 分页拉取未完成,跳过幽灵记录清理(防止部分数据误删)');
     }
   } catch (e) {
     console.error('[sync-users] 批量同步 API Key 失败:', e.message);
