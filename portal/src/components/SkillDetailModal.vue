@@ -76,7 +76,7 @@
               </li>
               <li>
                 安装 <strong class="text-text">{{ skill.title }}</strong> 技能：
-                <code class="block mt-1.5 text-[12px] font-mono text-text bg-surface-secondary rounded-lg px-3 py-1.5">skillctl install {{ skill.slug }}</code>
+                <code class="block mt-1.5 text-[12px] font-mono text-text bg-surface-secondary rounded-lg px-3 py-1.5">skillctl install {{ skillName }}</code>
               </li>
             </ol>
           </div>
@@ -226,6 +226,10 @@ const avatarColor = computed(() => {
 // 下载地址:相对路径用于展示,完整 URL 用于实际下载
 const downloadPath = computed(() => props.skill ? `/api/skills/${props.skill.slug}/download` : '')
 const latestDownloadUrl = computed(() => props.skill ? `${API_BASE}/skills/${props.skill.slug}/download` : '')
+
+// skillctl 安装用的技能名: 1Panel 同步技能的 slug 带 "1panel-" 前缀(本地 DB 唯一约束产物),
+// skillctl 直连 1Panel 按 name 查找,需去掉前缀
+const skillName = computed(() => (props.skill?.slug || '').replace(/^1panel-/, ''))
 
 const versions = ref([])
 const versionsLoading = ref(false)

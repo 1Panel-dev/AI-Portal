@@ -145,8 +145,11 @@ const formatDownloads = (num) => {
 }
 
 const copyAgentCommand = async () => {
-  // 只复制纯安装命令;前置步骤(下载/登录/配置)在详情页 skillctl 说明里给出
-  const cmd = `skillctl install ${props.skill.slug}`
+  // 只复制纯安装命令;前置步骤(下载/登录/配置)在详情页 skillctl 说明里给出。
+  // 1Panel 同步技能的 slug 带 "1panel-" 前缀(本地 DB 唯一约束产物),
+  // skillctl 直连 1Panel 按 name 查找,需去掉前缀
+  const skillName = props.skill.slug.replace(/^1panel-/, '')
+  const cmd = `skillctl install ${skillName}`
   try {
     await navigator.clipboard.writeText(cmd)
     copied.value = true

@@ -417,7 +417,9 @@ async function syncSkillsFromPanel() {
       const skillId = `1panel-${item.id}`;       // 1panel- 前缀避免和本地 skill_id 撞
       const slug = `1panel-${item.name}`;         // slug 也加 1panel- 前缀,避免与本地 skill 同名冲突 UNIQUE 约束
       const title = item.name;                   // 远端没单独 title,name 兼任
-      const installCommand = `skillctl install ${slug}`;
+      // 安装命令用 1Panel 技能名: skillctl 直连 1Panel 按 name 查找,带前缀的 slug 是本地
+      // DB 唯一约束产物,1Panel 端不存在,带前缀会装不上
+      const installCommand = `skillctl install ${item.name}`;
       const installUrl = `/api/skills/${slug}/download`;
       // avatar 用技能名称首字母(大写), 替代默认 'S'
       const avatarChar = (item.name || 'S').charAt(0).toUpperCase();
@@ -452,7 +454,7 @@ async function syncSkillsFromPanel() {
           title, slug, item.description || '', avatarChar,
           item.version || 'v1.0.0',
           item.applicableAgent || '1Panel',
-          installCommand, installUrl,
+          `skillctl install ${item.name}`, installUrl,
           item.id, item.riskLevel || null, item.status || null,
         ]);
       } else {
@@ -493,7 +495,7 @@ async function syncSkillsFromPanel() {
         `, [
           skillId, title, slug, item.description, avatarChar, item.version,
           item.applicableAgent || '1Panel',
-          installCommand, installUrl,
+          `skillctl install ${item.name}`, installUrl,
           item.id, item.riskLevel || null, item.status || null,
         ]);
       }
