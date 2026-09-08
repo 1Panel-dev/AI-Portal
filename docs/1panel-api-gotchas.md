@@ -89,6 +89,45 @@ HTTP 200 + code=400 + "request Content-Type isn't multipart/form-data"
 
 上传 zip 必须走 `server/lib/1panel-api.js::postMultipart()`，文件字段名当前使用 `file`，普通字段放 `fields`。不要把 zip 转 base64 放 JSON。
 
+### 铁律 9：证书续期后报 `UNABLE_TO_VERIFY_LEAF_SIGNATURE` = 服务端只发了裸叶子证书
+
+PANEL_BASE_URL 是 https 时，2026-09 在 sh.fit2cloud.cn 真实踩过：1Panel 证书续期后，AI-Portal 所有 `[panel-call]` 全变 `❌ unreachable UNABLE_TO_VERIFY_LEAF_SIGNATURE`，而浏览器/curl 访问面板一切正常。
+
+**两个报错码要分清**：
+
+| 报错码 | 含义 | 典型原因 |
+|---|---|---|
+| `CERT_HAS_EXPIRED`（"certificate has expired"） | 证书过期了 | 真到期，续期即可 |
+| `UNABLE_TO_VERIFY_LEAF_SIGNATURE`（"unable to verify the first certificate"） | Node 在服务端发来的链里**找不到签发者** | 只部署了叶子证书，缺中间证书链 |
+
+**为什么浏览器正常但容器报错**：Chrome 会自动补中间证书（AIA fetching + 本地缓存），Windows curl 走 schannel 也会补；Node 不补链，服务端发什么验什么。**浏览器能打开 ≠ 链完整**——别被"我浏览器访问没问题"带偏。
+
+**诊断**（容器内 node 即可，不用装 openssl）：
+
+```bash
+docker exec 1Panel-ai-portal-HkcY node -e '
+const tls = require("tls");
+tls.connect({ host: "sh.fit2cloud.cn", port: 33846, servername: "sh.fit2cloud.cn", rejectUnauthorized: false }, function () {
+  let c = this.getPeerCertificate(true), i = 0;
+  while (c && c.subject && i < 10) {
+    console.log(`#${i+1}`, c.subject.CN, "<-", c.issuer.CN, "| 到期:", c.valid_to);
+    if (!c.issuerCertificate || c.issuerCertificate === c) break;
+    c = c.issuerCertificate; i++;
+  }
+  console.log("共", i+1, "张证书");
+  this.end();
+}).on("error", e => console.error(e.message));
+'
+```
+
+- 只打出 **1 张**（且有效期是新的）→ 缺中间链，`UNABLE_TO_VERIFY_LEAF_SIGNATURE` 即由此来
+- 有效期还是旧的 → 续期没作用到这个端口，找真正终结 TLS 的那层
+- SAN 检查顺带做：`this.getPeerCertificate().subjectaltname` 必须含访问用的域名（通配符 `*.fit2cloud.cn` 也算）
+
+**修复**：证书栏贴 **fullchain**（叶子 + 中间 CA 两段，`grep -c 'BEGIN CERTIFICATE'` 必须 ≥ 2），不是 `certificate.cer`（裸叶子）也不是 `ca_bundle.cer`（只有中间链）。私钥不动。如果手头没有 fullchain 文件：叶子从线上抓（`openssl s_client -connect host:port | openssl x509`），中间证书从叶子证书 AIA 字段里的 `CA Issuers - URI` 官方地址下载，拼起来即可——拼完先 `openssl verify -CAfile 根.pem -untrusted 中间.pem 叶子.pem` 验一遍再贴。
+
+修复是纯 TLS 层操作，改完**立即生效，不用重启 AI-Portal 容器**。
+
 ## 错误码与文案对照表
 
 `server/routes/portal.js` 在 reset/create 失败时统一返 502 + 一个稳定的 `code` 字段，前端按 code 决定文案与是否允许重试：
@@ -131,6 +170,7 @@ docker logs ai-portal-app --tail 300 2>&1 \
 |---|---|---|---|
 | ~ 6 月 | reset 502 "1Panel 似乎未真正创建 API Key" | reset 漏判业务码 + delete 静默失败 + search 不翻页三连 | `routes/portal.js` 引入 `inspectPanelBiz` / `listPanelKeysOfUser` / `purgePanelKeysOfUser` |
 | `fbe2090` | 1Panel 调用错误识别不准 + 偶发误删本地缓存 | 缺统一日志 + sync 拿空数组就清表 | `panel.js` 加业务码黑名单 + 空响应跳过软删 |
+| 2026-09 | 证书续期后所有 panel-call 报 `UNABLE_TO_VERIFY_LEAF_SIGNATURE`，浏览器正常 | 续期只贴了裸叶子证书，缺中间链；Node 不补链 | 铁律 9：证书栏必须贴 fullchain（2 段 `BEGIN CERTIFICATE`） |
 
 ## 给未来改这块代码的人
 
