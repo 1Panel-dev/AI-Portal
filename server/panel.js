@@ -389,6 +389,37 @@ async function syncSkillsFromPanel() {
   const published = allItems.filter(it => it.status === 'published');
   console.log(`[syncSkills] 1Panel 返回 ${allItems.length} 个技能(published=${published.length})`);
 
+  // 远端"技能身份"全集(所有状态, 不止 published), 用于软删判断。
+  // 1Panel 每个版本是独立记录(id 独立), search 只返回各技能当前最新版本的 id;
+  // 技能出了新版本(pending)或被迭代后, 本地存的 panel_skill_id 就不在 published id 列表里,
+  // 但技能本身还在远端好好的 —— 只看 id 会把这类技能误判为"远端已删"而下架。
+  // 所以软删要再按技能名(去 1panel- 前缀后)核对一次远端全量列表。
+  const allRemoteNames = new Set();
+  let remotePage = 1;
+  while (remotePage < 50) {
+    const response = await panel.post('/api/v2/core/enterprise/skills-hub/search', {
+      page: remotePage, pageSize: PAGE_SIZE, info: '',
+    });
+    if (response.status < 200 || response.status >= 300) break;
+    const payload = getPanelPayload(response.data) || {};
+    const items = Array.isArray(payload.items) ? payload.items
+                : Array.isArray(payload.list) ? payload.list
+                : Array.isArray(payload) ? payload : [];
+    for (const it of items) {
+      if (it && it.name) allRemoteNames.add(String(it.name));
+    }
+    const total = typeof payload.total === 'number' ? payload.total : allRemoteNames.size;
+    if (allRemoteNames.size >= total || items.length < PAGE_SIZE) break;
+    remotePage++;
+  }
+  if (allRemoteNames.size === 0 && allItems.length > 0) {
+    // 全量列表拉取失败但 published 列表有数据: 用 published 的 name 兜底,
+    // 至少保证本轮 upsert 过的技能不会被误删
+    for (const it of allItems) {
+      if (it && it.name) allRemoteNames.add(String(it.name));
+    }
+  }
+
   // 空响应不清表（铁律 6, 对齐 syncModels/syncMcps 范式）:
   // 1Panel 鉴权通过但临时返回空 items 时(模型同步踩过的真实坑),不能把本地 panel 技能全部下架
   if (allItems.length === 0) {
@@ -406,13 +437,49 @@ async function syncSkillsFromPanel() {
     // 且每条字段映射有差异(slug/install_command 等需要根据 name 派生),不适合一次性批量 INSERT
     for (const item of published) {
       // 用户提交并审核通过的技能(source='local')已存在(本地 slug=技能名, 无 1panel- 前缀),
-      // 跳过, 避免重复展示 + 撞 idx_skills_panel_unique 唯一索引。
+      // 跳过插入, 避免重复展示 + 撞 idx_skills_panel_unique 唯一索引。
       // 用 slug 而非 panel_skill_id 判断: panel_skill_id 会随版本迭代漂移, 不可靠。
+      // 跳过时仍要回写远端最新发布版本(version/panel_skill_id/panel_status),
+      // 否则 local 行版本冻结在审核那一刻 —— 前端卡片永远显示旧版本(真实踩过的坑)。
+      // resource_tags 以 panel_skill_id 为关联键, 换 id 时一并搬移, 否则标签挂空。
       const dup = await global.pool.query(
-        "SELECT 1 FROM skills WHERE source = 'local' AND slug = $1 LIMIT 1",
+        "SELECT id, version, panel_skill_id FROM skills WHERE source = 'local' AND slug = $1 LIMIT 1",
         [item.name]
       );
-      if (dup.rowCount > 0) continue;
+      if (dup.rowCount > 0) {
+        const localRow = dup.rows[0];
+        const newVersion = item.version || 'v1.0.0';
+        const newPanelSkillId = item.id;
+        if (localRow.version !== newVersion || localRow.panel_skill_id !== newPanelSkillId) {
+          await global.pool.query(`
+            UPDATE skills SET
+              version = $2, panel_status = $3, synced_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+          `, [localRow.id, newVersion, item.status || null]);
+          // panel_skill_id 有唯一索引(idx_skills_panel_unique): 历史同步产生的僵尸
+          // panel 行可能仍占着新版本 id, 直接写会撞索引把整轮同步打挂, 加占用守卫
+          const moved = await global.pool.query(`
+            UPDATE skills SET panel_skill_id = $2, synced_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+              AND NOT EXISTS (SELECT 1 FROM skills WHERE panel_skill_id = $2 AND id <> $1)
+          `, [localRow.id, newPanelSkillId]);
+          if (moved.rowCount > 0 && localRow.panel_skill_id && localRow.panel_skill_id !== newPanelSkillId) {
+            // resource_tags 以 panel_skill_id 为关联键, 换 id 时一并搬移, 否则标签挂空。
+            // 新 id 上可能已有同标签(历史孪生 panel 行留下的), 直接 UPDATE 撞主键,
+            // 先删冲突行再搬, 搬完删旧 id 残留
+            await global.pool.query(`
+              DELETE FROM resource_tags
+              WHERE resource_type = 'skill' AND resource_id = $2
+                AND tag_id IN (SELECT tag_id FROM resource_tags WHERE resource_type = 'skill' AND resource_id = $1)
+            `, [localRow.panel_skill_id, newPanelSkillId]);
+            await global.pool.query(`
+              UPDATE resource_tags SET resource_id = $2
+              WHERE resource_type = 'skill' AND resource_id = $1
+            `, [localRow.panel_skill_id, newPanelSkillId]);
+          }
+        }
+        continue;
+      }
 
       const skillId = `1panel-${item.id}`;       // 1panel- 前缀避免和本地 skill_id 撞
       const slug = `1panel-${item.name}`;         // slug 也加 1panel- 前缀,避免与本地 skill 同名冲突 UNIQUE 约束
@@ -549,21 +616,29 @@ async function syncSkillsFromPanel() {
   // 软删除:远端不存在的 panel 技能(source='panel' 且本轮没同步到的)
   // 注: published 为空但 allItems 非空(远端全部撤下发布)才走全量下架;
   // allItems 也为空的瞬时空响应已在函数开头提前返回, 不会到这里
+  //
+  // 判定标准是"技能身份"而不是单看 panel_skill_id:
+  //   id 不在 published 列表里 ≠ 远端已删 —— 版本迭代会换 id(每版本独立记录),
+  //   新版本 pending 时整条记录会从 published search 里消失。
+  //   再核对技能名(去 1panel- 前缀)是否还在远端全量列表里, 还在就保留。
   let deactivatedCount = 0;
   if (published.length > 0) {
     const presentIds = published.map(it => it.id);
+    const presentNames = [...allRemoteNames];
     // 用 = ANY($1) 避免 IN 列表过长
     const result = await global.pool.query(
       `UPDATE skills
        SET is_active = FALSE, updated_at = CURRENT_DATE
        WHERE source = 'panel'
          AND is_active = TRUE
-         AND (panel_skill_id IS NULL OR NOT (panel_skill_id = ANY($1::int[])))`,
-      [presentIds]
+         AND (panel_skill_id IS NULL OR NOT (panel_skill_id = ANY($1::int[])))
+         AND substring(slug from 8) NOT IN (SELECT unnest($2::text[]))`,
+      [presentIds, presentNames]
     );
     deactivatedCount = result.rowCount;
   } else {
-    // 远端确实没有任何 published 技能 → 所有 panel 技能下架
+    // published 为空: 没有任何已发布技能, 所有 panel 行都不可见(撤下发布或已删除),
+    // 全部下架。allRemoteNames 非空只说明远端还有技能, 但都不是 published 状态
     const result = await global.pool.query(
       `UPDATE skills SET is_active = FALSE, updated_at = CURRENT_DATE
        WHERE source = 'panel' AND is_active = TRUE`

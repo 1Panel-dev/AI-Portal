@@ -128,6 +128,27 @@ tls.connect({ host: "sh.fit2cloud.cn", port: 33846, servername: "sh.fit2cloud.cn
 
 修复是纯 TLS 层操作，改完**立即生效，不用重启 AI-Portal 容器**。
 
+### 铁律 10：Skills Hub 开版本管理后，"技能"与"版本"是两层身份
+
+**现象**（2026-09 线上三连）：审核通过后 1Panel 已 published，10 分钟后自动同步把本地技能下架（1Panel 端没动）；卡片版本号不更新；管理员点上架报 `code=400 "only approved or disabled skills can be published"`。
+
+**根因**：开了版本管理后，**同一技能每个版本是独立记录（id 独立）**，`search` 只返回各技能当前最新版本的 id。任何"本地存一个 panel_skill_id 当永久身份"的假设都会在版本迭代时碎掉：
+
+| 误区 | 后果 |
+|---|---|
+| 软删只按 `panel_skill_id ∉ search 返回 id 列表` 判断 | 新版本 pending 时整条记录从 published search 消失 → 误判"远端已删" → 本地下架（1Panel 无感知） |
+| `versions` 里取 `isLatest=true` 当"线上版本" | `isLatest` 是**全版本最新（含 pending）**，审核通过后把 pending 版本的 id/版本号写进 skills 表 |
+| 对存量 id 直接发 publish | pending 版本不接受 publish（1Panel 状态机只接受 approved/disabled）→ 400 |
+
+**正确做法**（均已落实）：
+
+1. **软删按"技能身份"判断**：`panel_skill_id` 不在 published id 列表 **且** 技能名（slug 去 `1panel-` 前缀）不在远端全量 name 集合，才下架。见 `syncSkillsFromPanel`。
+2. **展示版本只取已发布**：`versions` 里优先 `isLatestPublished=true` / `status='published'` 的版本（`getLatestPanelVersion`），不要用 `isLatest`。
+3. **上下架前先看远端版本状态**（`resolveToggleTarget`）：远端已有 published 版本 → 本地只翻 `is_active`（noop，把 panel_skill_id 对齐到最新发布版本）；publish 对最新 approved 版本发；disable 对最新 published 版本发；全部 pending → 提前报错。
+4. **sync 的 dup-skip 分支要回写版本**：本地 local 行跳过 UPSERT 时，同步远端 version/panel_skill_id/panel_status，且 `panel_skill_id` 换 id 时必须**同步搬移 `resource_tags`**（skill 标签以 panel_skill_id 为关联键），回写要带占用守卫防撞 `idx_skills_panel_unique`。
+
+**怎么快速分辨这类问题**：`docker logs <容器> | grep '\[syncSkills\]'`，看下架前最后一轮 `published=X` 与 `软删除 N 个` 的差值；再拿本地 `panel_skill_id` 对比 1Panel search 返回的 id——对不上且名字还在远端，就是版本 id 漂移，不是真下架。
+
 ## 错误码与文案对照表
 
 `server/routes/portal.js` 在 reset/create 失败时统一返 502 + 一个稳定的 `code` 字段，前端按 code 决定文案与是否允许重试：
@@ -139,8 +160,8 @@ tls.connect({ host: "sh.fit2cloud.cn", port: 33846, servername: "sh.fit2cloud.cn
 | `PANEL_PURGE_FAILED` | 502 | reset 清理旧 key 阶段失败 | 提示"清理旧 key 失败"，可重试 |
 | `PANEL_SKILL_APPROVE_FAILED` | 502 | 管理员审核通过时调用 1Panel `/skills-hub/status` 失败 | 本地审核状态不改变；显示 `reason` |
 | `PANEL_SKILL_REJECT_FAILED` | 502 | 管理员审核驳回时调用 1Panel `/skills-hub/status` 失败 | 本地审核状态不改变；显示 `reason` |
-| `PANEL_SKILL_PUBLISH_FAILED` | 502 | 管理员上架技能时调用 1Panel `/skills-hub/status` 失败 | 本地 `is_active` 不改变；显示 `reason` |
-| `PANEL_SKILL_DISABLE_FAILED` | 502 | 管理员下架技能时调用 1Panel `/skills-hub/status` 失败 | 本地 `is_active` 不改变；显示 `reason` |
+| `PANEL_SKILL_PUBLISH_FAILED` | 502 | 管理员上架技能时：远端无 published/approved 版本（全部 pending），或 `/skills-hub/status` 调用失败 | 本地 `is_active` 不改变；显示 `reason` |
+| `PANEL_SKILL_DISABLE_FAILED` | 502 | 管理员下架技能时 `/skills-hub/status` 失败 | 本地 `is_active` 不改变；显示 `reason` |
 | `PANEL_SKILL_DELETE_FAILED` | 502 | 管理员删除本地技能时调用 1Panel `/skills-hub/delete` 失败 | 本地技能不删除；显示 `reason` |
 | `PANEL_SKILL_UPLOAD_FAILED` | 502 | 用户提交技能时同步上传 1Panel Skills Hub 失败 | 显示 `reason` 字段；本地待审核记录不会写入；成功时不再上传 COS/local storage |
 | `PANSL_SYNC_UNVERIFIED` | 502 | create 既没返 id，search 翻全页也找不到 | 提示让管理员检查；**注意 typo `PANSL` 是历史拼写,不要修正**——已用于运维告警匹配 |
@@ -171,6 +192,7 @@ docker logs ai-portal-app --tail 300 2>&1 \
 | ~ 6 月 | reset 502 "1Panel 似乎未真正创建 API Key" | reset 漏判业务码 + delete 静默失败 + search 不翻页三连 | `routes/portal.js` 引入 `inspectPanelBiz` / `listPanelKeysOfUser` / `purgePanelKeysOfUser` |
 | `fbe2090` | 1Panel 调用错误识别不准 + 偶发误删本地缓存 | 缺统一日志 + sync 拿空数组就清表 | `panel.js` 加业务码黑名单 + 空响应跳过软删 |
 | 2026-09 | 证书续期后所有 panel-call 报 `UNABLE_TO_VERIFY_LEAF_SIGNATURE`，浏览器正常 | 续期只贴了裸叶子证书，缺中间链；Node 不补链 | 铁律 9：证书栏必须贴 fullchain（2 段 `BEGIN CERTIFICATE`） |
+| 2026-09 | 审核通过后 sync 误下架 + 卡片版本不更新 + 上架报 400 | 版本管理下每版本独立 id：软删只认 id / `isLatest` 混入 pending / 盲发 publish | 铁律 10：身份按名字判断 + 只取 isLatestPublished + `resolveToggleTarget` 先探测后操作 |
 
 ## 给未来改这块代码的人
 

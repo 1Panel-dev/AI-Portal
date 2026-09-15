@@ -116,9 +116,14 @@ async function resolvePanelVersionId({ skillId, title, packageName, version }) {
 }
 
 /**
- * 拿指定技能的最新发布版本(1Panel versions 里 isLatest=true 的那条)。
+ * 拿指定技能的最新发布版本(1Panel versions 里 isLatestPublished=true 的那条)。
  * 返回 { version, id }, 用于 skills 表 version + panel_skill_id 展示:
  * 审核旧版本时不应把 skills 的 version/panel_skill_id 覆盖成旧版本的值。
+ *
+ * 注意 isLatest ≠ isLatestPublished: isLatest 标记的是"全版本最新"(含 pending),
+ * 存在待审新版本时会拿到 pending 版本的 id —— 它不是线上真实版本, 直接对它
+ * publish 会被 1Panel 拒绝("only approved or disabled skills can be published")。
+ * 所以优先取已发布版本; 版本记录缺 status/isLatestPublished 字段时才退回旧行为。
  */
 async function getLatestPanelVersion({ skillId, title, packageName }) {
   const latestId = await resolvePanelSkillId({ skillId, title, packageName });
@@ -128,7 +133,13 @@ async function getLatestPanelVersion({ skillId, title, packageName }) {
     const biz = inspectPanelBiz(verRes);
     if (verRes.status >= 200 && verRes.status < 300 && biz.ok) {
       const versions = getPanelItems(verRes.data) || [];
-      const latest = versions.find(v => v.isLatest === true || v.isLatest === 'true') || versions[0];
+      const publishedList = versions.filter(v =>
+        v && (v.isLatestPublished === true || v.isLatestPublished === 'true' || v.status === 'published'));
+      let latest = publishedList.find(v => v.isLatestPublished === true || v.isLatestPublished === 'true') || publishedList[0];
+      if (!latest) {
+        // 兜底: 版本记录缺 status/isLatestPublished 字段时退回旧行为
+        latest = versions.find(v => v.isLatest === true || v.isLatest === 'true') || versions[0];
+      }
       if (!latest) return null;
       return {
         version: String(latest.version || ''),
@@ -139,6 +150,60 @@ async function getLatestPanelVersion({ skillId, title, packageName }) {
     console.warn('[getLatestPanelVersion] 查询版本历史失败:', e.message);
   }
   return null;
+}
+
+/**
+ * 上下架前按远端版本状态决定动作目标。
+ * 背景: 1Panel 每个版本是独立记录(id 独立), 本地 skills.panel_skill_id 可能指向
+ * pending 版本, 远端也可能已处于目标状态(同步误下架后再点上架)。盲目 publish/disable
+ * 会撞 1Panel 状态机 400: publish 只接受 approved/disabled 的版本。
+ * 返回:
+ *   { action: 'noop', targetId }    远端已是目标状态(publish: 已有 published 版本;
+ *                                   disable: 无任何 published 版本), 本地只需翻 is_active。
+ *                                   targetId = 最新发布版本 id(对齐本地 panel_skill_id 用), 可为 null
+ *   { action: 'operate', targetId } 需对该版本 id 执行状态操作:
+ *                                   publish → 最新 approved 版本; disable → 最新 published 版本
+ *   null                            远端版本状态查不到(网络/接口失败), 调用方回退旧行为
+ * 抛错: publish 时远端所有版本都还是 pending(没有任何可上架版本)——这是必然失败的
+ * 操作, 提前给出明确错误, 而不是等 1Panel 返回一句含糊的 400
+ */
+async function resolveToggleTarget({ skillId, title, packageName, panelSkillId, operate }) {
+  let versions = [];
+  try {
+    const latestId = (await resolvePanelSkillId({ skillId, title, packageName })) || panelSkillId;
+    if (!latestId) return null;
+    const verRes = await panel.post('/api/v2/core/enterprise/skills-hub/versions', { id: latestId });
+    const biz = inspectPanelBiz(verRes);
+    if (verRes.status < 200 || verRes.status >= 300 || !biz.ok) return null;
+    versions = getPanelItems(verRes.data) || [];
+  } catch (e) {
+    console.warn('[toggle-skill] 查询远端版本状态失败, 回退直接操作存量 id:', e.message);
+    return null;
+  }
+  // versions 列表顺序无保证: 有 isLatestPublished 标记的以标记为准,
+  // 否则按 createdAt 倒序取最新(防 publish/disable 打到旧版本)
+  const tsOf = v => Date.parse(String((v && (v.createdAt || v.created_at)) || '')) || 0;
+  const published = versions.filter(v => v && v.status === 'published');
+  const latestOf = (list) =>
+    list.find(v => v.isLatestPublished === true || v.isLatestPublished === 'true')
+    || [...list].sort((a, b) => tsOf(b) - tsOf(a))[0];
+  if (operate === 'publish') {
+    if (published.length > 0) {
+      return { action: 'noop', targetId: getPanelSkillId(latestOf(published)) };
+    }
+    const approved = versions.filter(v => v && v.status === 'approved').sort((a, b) => tsOf(b) - tsOf(a));
+    if (approved.length > 0) {
+      return { action: 'operate', targetId: getPanelSkillId(approved[0]) };
+    }
+    const err = new Error('1Panel 端该技能没有可上架的版本(所有版本均待审核), 请先完成版本审核');
+    err.code = 'PANEL_SKILL_PUBLISH_FAILED';
+    throw err;
+  }
+  // disable: 只下架最新发布版本(用户当前看到的那个)
+  if (published.length > 0) {
+    return { action: 'operate', targetId: getPanelSkillId(latestOf(published)) };
+  }
+  return { action: 'noop', targetId: null };
 }
 
 async function operatePanelSkillStatus(panelSkillId, operate, errorCode) {
@@ -674,19 +739,22 @@ router.post('/api/admin/skills/:id/toggle', verifyUser, requirePermission('skill
     const skill = current.rows[0];
     const nextActive = !skill.is_active;
     const operate = nextActive ? 'publish' : 'disable';
-    let panelStatusData = null;
     let effectivePanelSkillId = skill.panel_skill_id || null;
+    let effectivePanelStatus = null;
 
     if (skill.panel_skill_id) {
+      // 先按远端版本状态决定动作: 盲目 publish 会撞 1Panel 状态机
+      // ("only approved or disabled skills can be published") —— 本地存的是
+      // pending 版本 id 或远端已是 published 时都会失败。
+      let target;
       try {
-        const operated = await operatePanelSkillStatusWithResolve({
+        target = await resolveToggleTarget({
+          skillId: skill.id,
+          title: skill.title,
+          packageName: skill.title,
           panelSkillId: skill.panel_skill_id,
           operate,
-          errorCode: nextActive ? 'PANEL_SKILL_PUBLISH_FAILED' : 'PANEL_SKILL_DISABLE_FAILED',
-          skillRef: { skillId: skill.id, title: skill.title, packageName: skill.title },
         });
-        panelStatusData = operated.data;
-        effectivePanelSkillId = operated.panelSkillId;
       } catch (e) {
         console.error(`[toggle-skill] 1Panel 技能${nextActive ? '上架' : '下架'}失败:`, e.message);
         return res.status(502).json({
@@ -695,17 +763,40 @@ router.post('/api/admin/skills/:id/toggle', verifyUser, requirePermission('skill
           code: e.code || (nextActive ? 'PANEL_SKILL_PUBLISH_FAILED' : 'PANEL_SKILL_DISABLE_FAILED'),
         });
       }
+
+      if (target && target.action === 'noop') {
+        // 远端已是目标状态(典型: 同步误下架后技能在 1Panel 端仍是 published), 本地只需翻回 is_active;
+        // 顺带把 panel_skill_id 对齐到远端真实版本 id, panel_status 写远端真实状态
+        if (target.targetId) effectivePanelSkillId = target.targetId;
+        effectivePanelStatus = nextActive ? 'published' : null;
+      } else {
+        const targetId = target ? target.targetId : skill.panel_skill_id;
+        try {
+          const operated = await operatePanelSkillStatus(targetId, operate,
+            nextActive ? 'PANEL_SKILL_PUBLISH_FAILED' : 'PANEL_SKILL_DISABLE_FAILED');
+          effectivePanelSkillId = targetId;
+          effectivePanelStatus = nextActive ? 'published' : 'disabled';
+          console.log(`[toggle-skill] 1Panel 技能状态操作成功: id=${targetId} operate=${operate}`, operated && operated.code !== undefined ? `code=${operated.code}` : '');
+        } catch (e) {
+          console.error(`[toggle-skill] 1Panel 技能${nextActive ? '上架' : '下架'}失败:`, e.message);
+          return res.status(502).json({
+            error: `1Panel 技能${nextActive ? '上架' : '下架'}失败`,
+            reason: e.message,
+            code: e.code || (nextActive ? 'PANEL_SKILL_PUBLISH_FAILED' : 'PANEL_SKILL_DISABLE_FAILED'),
+          });
+        }
+      }
     }
 
     const result = await global.pool.query(`
       UPDATE skills
       SET is_active = $2,
-          panel_status = CASE WHEN $3::integer IS NULL THEN panel_status ELSE $4 END,
-          panel_skill_id = COALESCE($5, panel_skill_id),
+          panel_status = COALESCE($3, panel_status),
+          panel_skill_id = COALESCE($4, panel_skill_id),
           updated_at = CURRENT_DATE
       WHERE id = $1
       RETURNING id, is_active
-    `, [id, nextActive, effectivePanelSkillId || null, operate, effectivePanelSkillId || null]);
+    `, [id, nextActive, effectivePanelStatus, effectivePanelSkillId]);
 
     const status = result.rows[0].is_active ? '上架' : '下架';
     res.json({ success: true, message: `技能已${status}`, is_active: result.rows[0].is_active });
