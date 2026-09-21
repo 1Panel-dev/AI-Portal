@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
       <div>
         <h1 class="text-2xl font-bold text-text">AI 网关同步信息</h1>
         <p class="text-text-secondary text-sm mt-1">同步 1Panel 用户组 / 模型组作只读参考；交集数据从成员 key 的 allowedModels 实时取</p>
@@ -25,7 +25,8 @@
     </div>
 
     <!-- 用户组表 -->
-    <div v-if="activeTab === 'userGroups'" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-hidden shadow-card">
+    <div v-if="activeTab === 'userGroups'" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-x-auto shadow-card">
+      <div class="min-w-[700px]">
       <div class="grid grid-cols-[1.2fr_0.8fr_0.8fr_1.5fr_0.8fr] gap-3 px-4 py-3 text-xs font-semibold text-text-secondary bg-surface-secondary border-b border-[rgba(0,0,0,0.06)]">
         <div>用户组名</div><div>QPS 限制</div><div>Token 限制</div><div>关联模型组</div><div>API Key 数</div>
       </div>
@@ -40,10 +41,12 @@
         </div>
         <div class="text-text-secondary">{{ g.api_key_count ?? 0 }}</div>
       </div>
+      </div>
     </div>
 
     <!-- 模型组表 -->
-    <div v-if="activeTab === 'modelGroups'" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-hidden shadow-card">
+    <div v-if="activeTab === 'modelGroups'" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-x-auto shadow-card">
+      <div class="min-w-[620px]">
       <div class="grid grid-cols-[1.2fr_2fr_1fr] gap-3 px-4 py-3 text-xs font-semibold text-text-secondary bg-surface-secondary border-b border-[rgba(0,0,0,0.06)]">
         <div>模型组名</div><div>包含模型</div><div>选择策略</div>
       </div>
@@ -55,6 +58,7 @@
           <span v-if="!(g.models || []).length" class="text-xs text-text-tertiary">-</span>
         </div>
         <div class="text-text-secondary">{{ g.selection_strategy || '-' }}</div>
+      </div>
       </div>
     </div>
 

@@ -1,9 +1,10 @@
 ﻿<template>
-  <div
-    class="bg-white rounded-card border border-[rgba(0,0,0,0.04)] p-6 cursor-pointer transition-all duration-300 ease-out flex flex-col hover:-translate-y-0.5 hover:border-[rgba(10,132,255,0.22)] hover:shadow-[0_16px_40px_rgba(10,132,255,0.10)]"
-    :style="{ animationDelay: `${0.05 + index * 0.05}s` }"
-    @click="$emit('click')"
-  >
+  <div>
+    <div
+      class="bg-white rounded-card border border-[rgba(0,0,0,0.04)] p-6 cursor-pointer transition-all duration-300 ease-out flex flex-col hover:-translate-y-0.5 hover:border-[rgba(10,132,255,0.22)] hover:shadow-[0_16px_40px_rgba(10,132,255,0.10)]"
+      :style="{ animationDelay: `${0.05 + index * 0.05}s` }"
+      @click="$emit('click')"
+    >
     <!-- Header: Icon + Title -->
     <div class="flex items-start gap-3.5 mb-3">
       <div
@@ -59,17 +60,18 @@
         {{ formatDownloads(skill.downloads) }}
       </div>
     </div>
-  </div>
+    </div>
 
-  <AppDialog
-    :open="loginDialogOpen"
-    title="提示"
-    message="请先登录后再下载技能"
-    type="confirm"
-    confirmText="去登录"
-    @close="loginDialogOpen = false"
-    @confirm="loginDialogOpen = false; router.push('/login')"
-  />
+    <AppDialog
+      :open="loginDialogOpen"
+      title="提示"
+      message="请先登录后再下载技能"
+      type="confirm"
+      confirmText="去登录"
+      @close="loginDialogOpen = false"
+      @confirm="loginDialogOpen = false; router.push('/login')"
+    />
+  </div>
 </template>
 
 <script setup>

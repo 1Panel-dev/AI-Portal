@@ -2,8 +2,8 @@
   <div>
     <NavBar />
 
-    <main class="max-w-[960px] mx-auto px-6 py-[92px] pb-20">
-      <div class="flex items-end justify-between gap-4 mb-7">
+    <main class="max-w-[960px] mx-auto px-4 sm:px-6 py-[76px] sm:py-[92px] pb-20">
+      <div class="flex items-end justify-between gap-4 flex-wrap mb-7">
         <div>
           <h1 class="text-[30px] font-bold text-text tracking-[-0.4px]">我的技能</h1>
           <p class="text-sm text-text-secondary mt-1">查看你提交的技能审核状态</p>
@@ -26,14 +26,16 @@
       </div>
 
       <div v-else class="bg-white border border-[rgba(0,0,0,0.04)] rounded-xl overflow-hidden shadow-card">
-        <div class="grid grid-cols-[1.5fr_90px_90px_110px_150px] gap-4 px-5 py-3 text-xs font-medium text-text-tertiary border-b border-[rgba(0,0,0,0.06)]">
+        <div class="overflow-x-auto">
+          <div class="min-w-[680px]">
+            <div class="grid grid-cols-[1.5fr_90px_90px_110px_150px] gap-4 px-5 py-3 text-xs font-medium text-text-tertiary border-b border-[rgba(0,0,0,0.06)]">
           <span>技能</span>
           <span>版本</span>
           <span>状态</span>
           <span>提交时间</span>
           <span class="text-right">操作</span>
-        </div>
-        <div v-for="skill in skills" :key="skill.id" class="grid grid-cols-[1.5fr_90px_90px_110px_150px] gap-4 px-5 py-4 border-b border-[rgba(0,0,0,0.05)] last:border-b-0 items-center">
+            </div>
+            <div v-for="skill in skills" :key="skill.id" class="grid grid-cols-[1.5fr_90px_90px_110px_150px] gap-4 px-5 py-4 border-b border-[rgba(0,0,0,0.05)] last:border-b-0 items-center">
           <div class="min-w-0">
             <div class="flex items-center gap-2 min-w-0">
               <p class="font-semibold text-text truncate">{{ skill.title }}</p>
@@ -48,6 +50,8 @@
           <div class="flex items-center justify-end gap-2">
             <button v-if="skill.status === 'pending'" @click="showSubmitDialog = true" class="px-2.5 py-1 text-xs text-accent border border-accent/30 rounded-lg hover:bg-accent/5 transition-colors">替换</button>
             <button v-if="skill.status === 'pending'" @click="confirmWithdraw(skill)" class="px-2.5 py-1 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">撤销</button>
+          </div>
+            </div>
           </div>
         </div>
 

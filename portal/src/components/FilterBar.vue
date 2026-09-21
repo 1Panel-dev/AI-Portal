@@ -1,6 +1,6 @@
 <template>
   <div class="max-w-[1024px] mx-auto px-6 mb-6">
-    <div class="card px-5 h-12 flex items-center gap-3 flex-wrap shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
+    <div class="card px-4 sm:px-5 min-h-12 py-2 flex items-center gap-3 flex-wrap shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
       <!-- 结果计数 -->
       <div class="text-[13px] text-text-secondary shrink-0">
         共 <span class="font-semibold text-text">{{ total }}</span> 个结果
@@ -10,7 +10,7 @@
       <div class="flex-1"></div>
 
       <!-- 过滤项: 分类 -> 排序 (右对齐) -->
-      <div class="flex items-center gap-2 shrink-0 flex-wrap">
+      <div class="w-full sm:w-auto flex items-center gap-2 shrink-0 flex-wrap sm:ml-auto">
         <FilterItem
           label="分类"
           :options="categories"

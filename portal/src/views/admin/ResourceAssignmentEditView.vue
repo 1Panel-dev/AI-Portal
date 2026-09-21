@@ -24,7 +24,7 @@
     <!-- ===== 授权 tab ===== -->
     <div v-if="activeTab === 'assign'">
     <!-- 穿梭框 -->
-    <div class="grid grid-cols-[1fr_auto_1fr] gap-3 items-start">
+    <div class="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-3 items-start">
       <!-- 左：所有用户（未授权的） -->
       <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4">
         <div class="flex items-center justify-between mb-3">
@@ -59,7 +59,7 @@
       </div>
 
       <!-- 中间操作 -->
-      <div class="flex flex-col gap-2 pt-16">
+      <div class="flex flex-row sm:flex-col justify-center gap-2 sm:pt-16">
         <button
           @click="moveRight"
           :disabled="!leftChecked.size"

@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
       <div>
         <h1 class="text-2xl font-bold text-text">标签管理</h1>
         <p class="text-text-secondary text-sm mt-1">统一管理模型、Skill、MCP 等资源可复用的标签</p>
@@ -9,7 +9,8 @@
     </div>
 
     <div v-if="loading" class="py-20 text-center text-text-secondary">加载中...</div>
-    <div v-else class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-hidden shadow-card">
+    <div v-else class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-x-auto shadow-card">
+      <div class="min-w-[680px]">
       <div class="grid grid-cols-[1.3fr_1.2fr_80px_100px_120px] gap-3 px-4 py-3 text-xs font-semibold text-text-secondary bg-surface-secondary border-b border-[rgba(0,0,0,0.06)]"><div>标签名称</div><div>适用资源</div><div>排序</div><div>状态</div><div class="text-right">操作</div></div>
       <div v-if="!tags.length" class="py-14 text-center text-sm text-text-secondary">暂无标签</div>
       <div v-for="tag in pagedTags" :key="tag.id" class="grid grid-cols-[1.3fr_1.2fr_80px_100px_120px] gap-3 px-4 py-3 items-center border-b border-[rgba(0,0,0,0.04)] last:border-b-0 text-sm">
@@ -28,6 +29,7 @@
           </button>
         </div>
         <div class="flex items-center justify-end gap-2"><button v-if="can('tag:edit')" class="p-2 text-text-secondary hover:text-accent" title="编辑" @click="openEdit(tag)"><Pencil class="w-4 h-4" /></button><button v-if="can('tag:delete')" class="p-2 text-text-secondary hover:text-red-500" title="删除" @click="deleting = tag"><Trash2 class="w-4 h-4" /></button></div>
+      </div>
       </div>
     </div>
 

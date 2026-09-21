@@ -1,11 +1,11 @@
 <template>
   <div>
-      <div class="flex items-center justify-between mb-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 class="text-2xl font-bold text-text">用户管理</h1>
           <p class="text-text-secondary text-sm mt-1">查看门户用户，删除时会先清理 1Panel 远端用户与 API Key</p>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap gap-2">
           <button @click="refreshUsers" :disabled="loading" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50"><RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />{{ loading ? '加载中...' : '刷新' }}</button>
           <button v-if="can('user:edit')" @click="syncUsers" :disabled="syncing" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50"><RefreshCw class="w-4 h-4" />{{ syncing ? '同步中...' : '同步用户' }}</button>
           <button v-if="selectedUsers.size > 0 && can('user:batch-password')" @click="openBatchPassword" class="px-4 py-2 text-sm btn-primary transition-all">{{ `批量改密 (${selectedUsers.size})` }}</button>
@@ -13,16 +13,19 @@
         </div>
       </div>
 
-      <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4 mb-4 flex items-center gap-3">
+      <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-3 sm:p-4 mb-4 flex items-center gap-2">
         <input v-model="keyword" class="flex-1 px-3 py-2 border border-[rgba(0,0,0,0.08)] rounded-lg text-sm outline-none focus:border-text bg-surface-secondary" placeholder="搜索用户名或姓名..." />
         <button @click="fetchUsers(1)" class="px-4 py-2 text-sm font-medium btn-primary transition-all">搜索</button>
       </div>
 
       <div v-if="loading && users.length === 0" class="py-20 text-center text-text-secondary">加载中...</div>
-      <div v-else class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-hidden shadow-card relative">
+      <div v-else class="relative">
         <div v-if="loading" class="absolute inset-0 bg-white/60 z-10 flex items-center justify-center">
           <span class="text-sm text-text-secondary">刷新中...</span>
         </div>
+        <!-- 桌面端表格 -->
+        <div class="hidden md:block bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-x-auto shadow-card">
+          <div class="min-w-[760px]">
         <div class="grid grid-cols-[36px_1.2fr_1fr_0.8fr_0.8fr_0.8fr_120px] gap-3 px-4 py-3 text-xs font-semibold text-text-secondary bg-surface-secondary border-b border-[rgba(0,0,0,0.06)]">
           <div class="flex items-center">
             <input type="checkbox" :checked="allSelected" @change="toggleAll" class="h-4 w-4 accent-accent cursor-pointer" />
@@ -64,21 +67,63 @@
             <span v-else class="text-xs text-text-tertiary">不可操作</span>
           </div>
         </div>
+          </div>
+        </div>
+
+        <!-- 手机端卡片：避免操作列藏在横向滚动区域里 -->
+        <div class="md:hidden space-y-2">
+          <div v-if="users.length === 0" class="bg-white rounded-xl p-8 text-center text-sm text-text-secondary shadow-card">暂无用户</div>
+          <div v-for="user in users" :key="`mobile-${user.id}`" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4 shadow-card">
+            <div class="flex items-start gap-3">
+              <input v-if="user.role !== 'admin' && !user.is_portal_admin" type="checkbox" :checked="selectedUsers.has(user.id)" @change="toggleUser(user.id)" class="mt-1 h-4 w-4 shrink-0 accent-accent cursor-pointer" />
+              <span v-else class="w-4 shrink-0"></span>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <div class="font-medium text-text truncate">{{ user.name || user.username }}</div>
+                    <div class="text-xs text-text-tertiary truncate mt-0.5">{{ user.username }} · Panel ID: {{ user.panel_user_id || '-' }}</div>
+                  </div>
+                  <span class="shrink-0 text-xs px-2 py-0.5 rounded-full" :class="user.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'">{{ user.status }}</span>
+                </div>
+                <div class="flex flex-wrap gap-1.5 mt-3">
+                  <template v-if="user.role === 'admin' || user.is_portal_admin">
+                    <span class="px-2 py-0.5 rounded-full text-xs bg-indigo-50 text-indigo-600">超级管理员</span>
+                  </template>
+                  <template v-else-if="(user.user_roles || []).length">
+                    <span v-for="r in user.user_roles" :key="`mobile-role-${user.id}-${r.id}`" class="px-2 py-0.5 rounded-full text-xs" :class="r.name === 'user' ? 'bg-slate-100 text-slate-600' : 'bg-accent/10 text-accent'">{{ r.name === 'user' ? '普通用户' : r.name }}</span>
+                  </template>
+                  <span v-else class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">未分配角色</span>
+                </div>
+                <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-black/[0.06] text-xs">
+                  <div><div class="text-text-tertiary">API Key</div><div class="text-text-secondary mt-0.5">{{ user.api_key_count || 0 }}</div></div>
+                  <div><div class="text-text-tertiary">提交数</div><div class="text-text-secondary mt-0.5">{{ user.submission_count || 0 }}</div></div>
+                  <div><div class="text-text-tertiary">创建时间</div><div class="text-text-secondary mt-0.5">{{ formatDate(user.created_at) }}</div></div>
+                </div>
+                <div class="flex items-center justify-end gap-1 mt-3 pt-3 border-t border-black/[0.06]">
+                  <button v-if="user.role !== 'admin' && !user.is_portal_admin && can('user:assign') && can('role:view')" @click="openRoleDialog(user)" class="p-2 text-text-secondary hover:text-accent transition-all" title="分配角色"><UserCog class="w-4 h-4" /></button>
+                  <button v-if="user.role !== 'admin' && !user.is_portal_admin && can('user:password')" @click="openPasswordDialog(user)" class="p-2 text-text-secondary hover:text-accent transition-all" title="修改密码"><KeyRound class="w-4 h-4" /></button>
+                  <button v-if="user.role !== 'admin' && !user.is_portal_admin && user.id !== currentUserId && can('user:delete')" @click="confirmDelete(user)" class="p-2 text-text-secondary hover:text-red-500 transition-all" title="删除"><Trash2 class="w-4 h-4" /></button>
+                  <span v-if="user.role === 'admin' || user.is_portal_admin || user.id === currentUserId" class="text-xs text-text-tertiary">不可操作</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="flex items-center justify-between mt-6 text-sm text-text-secondary">
-        <span class="text-[13px]">共 {{ total }} 个用户</span>
-        <div class="flex items-center gap-1.5">
+      <div class="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 mt-6 text-sm text-text-secondary sm:flex sm:justify-between">
+        <span class="text-[13px] shrink-0">共 {{ total }} 个用户</span>
+        <div class="col-span-2 row-start-2 justify-self-center flex items-center gap-1.5 shrink-0 sm:order-2 sm:col-auto sm:row-auto sm:justify-self-auto">
           <button @click="fetchUsers(1)" :disabled="page <= 1" class="w-9 h-9 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px] font-medium">«</button>
           <button @click="fetchUsers(page - 1)" :disabled="page <= 1" class="h-9 px-2 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">‹</button>
-          <template v-for="p in pageNumbers" :key="p">
-            <span v-if="p === '...'" class="px-1 text-text-tertiary">...</span>
-            <button v-else @click="fetchUsers(p)" class="w-9 h-9 rounded-lg text-[13px] font-medium transition-all" :class="p === page ? 'bg-accent text-white' : 'border border-[rgba(0,0,0,0.08)] hover:bg-surface-secondary'">{{ p }}</button>
+          <template v-for="(p, index) in pageNumbers">
+            <span v-if="p === '...'" :key="`ellipsis-${index}`" class="px-1 text-text-tertiary">...</span>
+            <button v-else :key="`page-${p}`" @click="fetchUsers(p)" class="w-9 h-9 rounded-lg text-[13px] font-medium transition-all" :class="p === page ? 'bg-accent text-white' : 'border border-[rgba(0,0,0,0.08)] hover:bg-surface-secondary'">{{ p }}</button>
           </template>
           <button @click="fetchUsers(page + 1)" :disabled="page >= totalPages" class="h-9 px-2 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px]">›</button>
           <button @click="fetchUsers(totalPages)" :disabled="page >= totalPages" class="w-9 h-9 border border-[rgba(0,0,0,0.1)] rounded-lg disabled:opacity-30 hover:bg-surface-secondary text-[13px] font-medium">»</button>
         </div>
-        <select v-model.number="pageSize" @change="fetchUsers(1)" class="px-2.5 py-1.5 border border-[rgba(0,0,0,0.1)] rounded-lg text-[13px] bg-white outline-none cursor-pointer">
+        <select v-model.number="pageSize" @change="fetchUsers(1)" class="px-2.5 py-1.5 border border-[rgba(0,0,0,0.1)] rounded-lg text-[13px] bg-white outline-none cursor-pointer shrink-0 sm:order-3">
           <option :value="10">10 条/页</option>
           <option :value="20">20 条/页</option>
           <option :value="50">50 条/页</option>

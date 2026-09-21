@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
       <div>
         <h1 class="text-2xl font-bold text-text">资源组授权</h1>
         <p class="text-text-secondary text-sm mt-1">以资源组为单位管理用户授权。点击「管理成员」图标给组添加/移除授权用户；「预览」图标查看该组包含的资源</p>
@@ -15,7 +15,7 @@
     </div>
 
     <!-- 搜索 -->
-    <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4 mb-4 flex items-center gap-3">
+    <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-3 sm:p-4 mb-4 flex items-center gap-2">
       <input
         v-model="keyword"
         class="flex-1 px-3 py-2 border border-[rgba(0,0,0,0.08)] rounded-lg text-sm outline-none focus:border-text bg-surface-secondary"
@@ -25,7 +25,8 @@
     </div>
 
     <!-- 组列表 -->
-    <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-hidden shadow-card">
+    <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-x-auto shadow-card">
+      <div class="min-w-[620px]">
       <div class="grid grid-cols-[1.5fr_2fr_1fr_80px] gap-3 px-4 py-3 text-xs font-semibold text-text-secondary bg-surface-secondary border-b border-[rgba(0,0,0,0.06)]">
         <div>资源组</div><div>描述</div><div>已授权用户</div><div class="text-right">操作</div>
       </div>
@@ -46,6 +47,7 @@
           <button class="p-2 text-text-secondary hover:text-accent transition-all" title="编辑授权" @click.stop="goManage(g.id)"><Pencil class="w-4 h-4" /></button>
           <button class="p-2 text-text-secondary hover:text-accent transition-all" title="预览组内资源" @click.stop="openPreview(g)"><Eye class="w-4 h-4" /></button>
         </div>
+      </div>
       </div>
     </div>
 

@@ -11,7 +11,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['close'])
 const slots = useSlots()
-const widthClass = computed(() => ({ sm: 'w-[400px]', md: 'w-[480px]', lg: 'w-[560px]', xl: 'w-[640px]', full: 'w-[min(600px,50vw)]' }[props.width] || 'w-[480px]'))
+const widthClass = computed(() => ({ sm: 'w-full sm:w-[400px]', md: 'w-full sm:w-[480px]', lg: 'w-full sm:w-[560px]', xl: 'w-full sm:w-[640px]', full: 'w-full sm:w-[min(600px,50vw)]' }[props.width] || 'w-full sm:w-[480px]'))
 </script>
 
 <template>
@@ -22,7 +22,7 @@ const widthClass = computed(() => ({ sm: 'w-[400px]', md: 'w-[480px]', lg: 'w-[5
       <!-- 抽屉本体 -->
       <div class="relative h-full bg-white shadow-modal animate-drawer-in" :class="widthClass">
         <!-- 头部 -->
-        <div class="flex items-center justify-between px-6 py-5 border-b border-[rgba(0,0,0,0.06)]">
+        <div class="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 sm:py-5 border-b border-[rgba(0,0,0,0.06)]">
           <div class="flex items-center gap-2 min-w-0">
             <h3 class="text-lg font-semibold text-text truncate">{{ title }}</h3>
             <slot name="title-extra" />
@@ -32,7 +32,7 @@ const widthClass = computed(() => ({ sm: 'w-[400px]', md: 'w-[480px]', lg: 'w-[5
           </button>
         </div>
         <!-- 内容 -->
-        <div class="px-6 py-5 overflow-y-auto h-[calc(100%-65px)]">
+        <div class="px-4 sm:px-6 py-5 overflow-y-auto h-[calc(100%-65px)]">
           <slot />
         </div>
       </div>

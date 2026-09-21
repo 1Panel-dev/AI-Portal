@@ -1,8 +1,9 @@
 <template>
-  <div class="flex h-screen">
+  <div class="flex h-screen overflow-hidden">
     <!-- Sidebar：全高，贯穿顶到底 -->
     <aside
-      class="flex-shrink-0 flex flex-col bg-white border-r border-[rgba(0,0,0,0.05)] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden"
+      class="fixed inset-y-0 left-0 z-[280] flex flex-col bg-white border-r border-[rgba(0,0,0,0.05)] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden md:static md:z-auto"
+      :class="mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'"
       :style="{ width: collapsed ? '64px' : '240px' }"
     >
       <!-- 顶部：Logo + 折叠按钮（固定不滚，与右侧顶栏等高对齐） -->
@@ -144,14 +145,16 @@
       </div>
     </aside>
 
+    <div v-if="mobileMenuOpen" class="fixed inset-0 z-[270] bg-black/30 md:hidden" @click="mobileMenuOpen = false"></div>
+
     <!-- 右列：顶栏 + 内容区（独立滚动） -->
     <div class="flex-1 flex flex-col min-w-0">
-      <AdminTopBar />
+      <AdminTopBar @toggle-mobile-menu="mobileMenuOpen = !mobileMenuOpen" />
       <main class="flex-1 overflow-y-auto">
-        <div v-if="permsReady" class="px-10 py-8">
+        <div v-if="permsReady" class="px-4 py-5 sm:px-6 sm:py-6 lg:px-10 lg:py-8">
           <router-view />
         </div>
-        <div v-else class="px-10 py-8 text-text-tertiary text-sm">加载中…</div>
+        <div v-else class="px-4 py-5 sm:px-6 sm:py-6 lg:px-10 lg:py-8 text-text-tertiary text-sm">加载中…</div>
       </main>
     </div>
   </div>
@@ -171,6 +174,7 @@ import { BarChart3, ClipboardCheck, Puzzle, UserCog, Sliders, KeyRound, PanelLef
 const route = useRoute()
 const router = useRouter()
 const collapsed = ref(false)
+const mobileMenuOpen = ref(false)
 const permsReady = ref(false)
 // 版本号:动态拉取 /api/version(后端读 APP_VERSION 环境变量,由 CI 按 tag 注入),拉不到则隐藏
 const appVersion = ref('')

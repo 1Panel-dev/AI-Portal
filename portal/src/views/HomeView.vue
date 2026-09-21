@@ -4,13 +4,13 @@
 
     <!-- Hero -->
     <section
-      class="pb-8 text-center max-w-[720px] mx-auto animate-fade-up"
-      :class="hasVisibleBanner ? 'pt-[248px]' : 'pt-[208px]'"
+      class="px-4 pb-8 text-center max-w-[720px] mx-auto animate-fade-up"
+      :class="hasVisibleBanner ? 'pt-[172px] sm:pt-[248px]' : 'pt-[132px] sm:pt-[208px]'"
     >
       <h1 class="text-[52px] font-bold text-text tracking-[-1.6px] leading-[1.05] mb-3 max-md:text-[40px] max-sm:text-[32px]">
         查找可安装的 AI 技能
       </h1>
-      <p class="text-[18px] text-text-secondary font-normal mb-8 leading-relaxed">
+      <p class="text-[16px] sm:text-[18px] text-text-secondary font-normal mb-8 leading-relaxed">
         查找适合的 Skill，一键复制安装指令，快速扩展你的 AI 能力
       </p>
 
@@ -51,9 +51,9 @@
     </div>
 
     <!-- 主内容区: 左侧标签栏 + 右侧网格 -->
-    <div class="max-w-[1240px] mx-auto px-6 pb-20 flex gap-7 items-start">
+    <div class="max-w-[1240px] mx-auto px-4 sm:px-6 pb-20 flex flex-col md:flex-row gap-5 md:gap-7 items-stretch md:items-start">
       <!-- 左侧栏: 标签 -->
-      <aside class="w-[208px] shrink-0 sticky top-[64px]">
+      <aside class="w-full md:w-[208px] md:shrink-0 md:sticky md:top-[64px]">
         <div class="mb-6">
           <div class="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2.5 pl-3">标签</div>
           <div class="flex flex-col gap-0.5">

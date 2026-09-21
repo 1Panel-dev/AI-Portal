@@ -1,13 +1,13 @@
 <template>
   <div>
     <!-- 页面级 Tab：模型管理 / 调用方式管理 -->
-    <div class="flex items-center justify-between mb-4">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
       <div class="flex gap-1 bg-surface-secondary rounded-lg p-1">
         <button type="button" @click="adminTab = 'models'" class="px-4 py-2 text-sm rounded-lg transition-all font-medium" :class="adminTab === 'models' ? 'bg-white text-accent shadow-card' : 'hover:text-text'">模型管理</button>
         <button v-if="can('invocation_format:view')" type="button" @click="adminTab = 'formats'" class="px-4 py-2 text-sm rounded-lg transition-all font-medium" :class="adminTab === 'formats' ? 'bg-white text-accent shadow-card' : 'hover:text-text'">调用方式管理</button>
       </div>
       <!-- 右侧操作按钮（仅模型视图） -->
-      <div v-if="adminTab==='models'" class="flex gap-3">
+      <div v-if="adminTab==='models'" class="flex flex-wrap gap-2">
         <button v-if="selectedIds.length && can('model:edit')" @click="batchTogglePublic(false)" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary">
           <EyeOff class="w-4 h-4" />下架 ({{ selectedIds.length }})
         </button>
@@ -28,14 +28,14 @@
 
     <template v-if="adminTab === 'models'">
       <!-- 模型状态 Tab -->
-      <div class="flex gap-2 mb-5">
+      <div class="flex gap-2 mb-5 overflow-x-auto pb-1">
         <button v-for="tab in statusTabs" :key="tab.key" class="px-4 py-2 text-sm rounded-lg border transition-all" :class="statusTab === tab.key ? 'bg-white text-accent border-accent/30 font-semibold shadow-card' : 'bg-surface-secondary text-text-secondary border-transparent hover:text-text'" @click="statusTab = tab.key">
           {{ tab.label }} <span class="text-xs ml-1 opacity-70">{{ tab.count }}</span>
         </button>
       </div>
 
     <!-- 搜索 + 筛选 -->
-    <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4 mb-4 flex items-center gap-3">
+    <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-3 sm:p-4 mb-4 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
       <div class="flex-1 relative">
         <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
         <input v-model="searchQuery" type="text" placeholder="搜索模型名称、账户或供应商..." class="w-full pl-10 pr-4 py-2 bg-surface-secondary border border-[rgba(0,0,0,0.08)] rounded-lg text-sm outline-none focus:border-text transition-all" />
@@ -49,6 +49,8 @@
     <div v-if="loading" class="py-20 text-center text-text-secondary">加载中...</div>
     <div v-else class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-hidden shadow-card">
       <!-- 表头 -->
+      <div class="overflow-x-auto">
+        <div class="min-w-[760px]">
       <div class="grid grid-cols-[38px_1.5fr_1fr_1.1fr_60px_100px_50px] gap-2 px-4 py-3 text-xs font-semibold text-text-secondary bg-surface-secondary border-b border-[rgba(0,0,0,0.06)] items-center">
         <div class="flex items-center justify-center">
           <input type="checkbox" :checked="isAllSelected" @change="toggleSelectAll" class="rounded border-black/20 text-accent focus:ring-accent/20 w-4 h-4" />
@@ -71,7 +73,7 @@
         </template>
       </div>
       <!-- 行 -->
-      <div v-for="(m, i) in paged" :key="m.id" class="grid grid-cols-[38px_1.5fr_1fr_1.1fr_60px_100px_50px] gap-2 px-4 py-3 items-center border-b border-[rgba(0,0,0,0.04)] last:border-b-0 text-sm hover:bg-surface-secondary/50 transition-colors" :class="can('model:edit') ? 'cursor-pointer' : ''" @click="can('model:edit') && openEdit(m)">
+      <div v-for="m in paged" :key="m.id" class="grid grid-cols-[38px_1.5fr_1fr_1.1fr_60px_100px_50px] gap-2 px-4 py-3 items-center border-b border-[rgba(0,0,0,0.04)] last:border-b-0 text-sm hover:bg-surface-secondary/50 transition-colors" :class="can('model:edit') ? 'cursor-pointer' : ''" @click="can('model:edit') && openEdit(m)">
         <div class="flex items-center justify-center">
           <input type="checkbox" :value="m.id" v-model="selectedIds" @click.stop class="rounded border-black/20 text-accent focus:ring-accent/20 w-4 h-4" />
         </div>
@@ -94,6 +96,8 @@
           <button v-if="can('model:edit')" class="p-1.5 text-text-secondary hover:text-accent transition-colors" title="编辑" @click.stop="openEdit(m)">
             <Pencil class="w-3.5 h-3.5" />
           </button>
+        </div>
+      </div>
         </div>
       </div>
     </div>

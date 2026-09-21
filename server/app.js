@@ -55,7 +55,7 @@ app.set('trust proxy', 1);
 if (!SERVE_STATIC) {
   app.use(cors({
     origin: (origin, callback) => {
-      if (!origin || /^https?:\/\/localhost:\d+$/.test(origin)) {
+      if (!origin || /^https?:\/\/(?:localhost|127\.0\.0\.1):\d+$/.test(origin)) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));

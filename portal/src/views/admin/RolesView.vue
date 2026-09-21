@@ -7,9 +7,9 @@
       </div>
     </div>
 
-    <div class="flex gap-6 items-start">
+    <div class="flex flex-col md:flex-row gap-5 md:gap-6 items-stretch md:items-start">
       <!-- 左栏：角色列表 -->
-      <div class="w-[340px] shrink-0">
+      <div class="w-full md:w-[340px] md:shrink-0">
         <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl shadow-card overflow-hidden">
           <div class="flex items-center justify-between px-4 py-3 border-b border-[rgba(0,0,0,0.06)]">
             <span class="text-sm font-semibold text-text">角色列表</span>
@@ -84,7 +84,7 @@
           </div>
 
           <div class="space-y-4">
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label class="block text-sm font-medium text-text mb-1.5">角色名 <span class="text-red-500">*</span></label>
                 <input

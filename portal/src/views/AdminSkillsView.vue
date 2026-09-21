@@ -11,7 +11,7 @@ textarea.skill-input { @apply h-auto py-2.5; }
 
 <template>
   <div>
-      <div class="flex items-center justify-between mb-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 class="text-2xl font-bold text-text">技能管理</h1>
           <p class="text-text-secondary text-sm mt-1">
@@ -19,7 +19,7 @@ textarea.skill-input { @apply h-auto py-2.5; }
           </p>
           <p v-if="skillError" class="text-sm text-red-500 mt-2">{{ skillError }}</p>
         </div>
-        <div class="flex gap-3">
+        <div class="flex flex-wrap gap-2">
           <button v-if="selectedIds.length && can('skill:edit')" @click="openBatchTag" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-primary">
             <Tags class="w-4 h-4" />批量打标签 ({{ selectedIds.length }})
           </button>
@@ -43,8 +43,8 @@ textarea.skill-input { @apply h-auto py-2.5; }
       </div>
 
       <!-- Filter & Search & Sort -->
-      <div class="flex gap-3 mb-6">
-        <div class="flex gap-1">
+      <div class="flex flex-wrap items-center gap-3 mb-6">
+        <div class="w-full sm:w-auto flex gap-1 overflow-x-auto pb-1">
           <button
             v-for="tab in tabs"
             :key="tab.id"
@@ -71,7 +71,7 @@ textarea.skill-input { @apply h-auto py-2.5; }
           </select>
           <ChevronDown class="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary pointer-events-none" />
         </div>
-        <div class="flex-1 relative">
+        <div class="w-full sm:flex-1 relative order-last sm:order-none">
           <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
           <input
             v-model="searchQuery"

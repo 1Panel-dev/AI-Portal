@@ -20,10 +20,10 @@
 
       <template v-else-if="globalData">
         <!-- 筛选栏 -->
-        <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4 mb-4 flex items-center gap-3 flex-wrap">
+        <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-3 sm:p-4 mb-4 flex items-center gap-3 flex-wrap">
           <span class="text-xs font-semibold text-text-secondary uppercase tracking-wide">筛选</span>
-          <div class="h-5 w-px bg-[rgba(0,0,0,0.06)]"></div>
-          <span class="text-xs text-text-secondary">时间</span>
+          <div class="hidden sm:block h-5 w-px bg-[rgba(0,0,0,0.06)]"></div>
+          <span class="w-full sm:w-auto text-xs text-text-secondary">时间</span>
           <div class="relative month-picker">
             <button @click="monthOpen = !monthOpen" class="flex items-center gap-1 px-2 py-1 text-xs border border-[rgba(0,0,0,0.08)] rounded-md bg-white h-7 hover:border-accent transition-colors">
               {{ monthLabel }}<span class="text-text-tertiary ml-0.5">▾</span>
@@ -33,7 +33,7 @@
               <div v-for="m in monthOptions" :key="m.value" @click="selectedMonth = m.value; monthOpen = false" class="px-3 py-1.5 text-xs cursor-pointer hover:bg-accent hover:text-white transition-colors whitespace-nowrap" :class="{ 'bg-accent/10 text-accent font-medium': selectedMonth === m.value }">{{ m.label }}</div>
             </div>
           </div>
-          <div class="h-5 w-px bg-[rgba(0,0,0,0.06)]"></div>
+          <div class="hidden sm:block h-5 w-px bg-[rgba(0,0,0,0.06)]"></div>
           <span class="text-xs text-text-secondary">用户</span>
           <div class="relative user-picker">
             <input
@@ -65,7 +65,7 @@
             </div>
           </div>
           <button v-if="selectedUser || usernameFilter || selectedMonth" @click="clearFilters" class="text-xs text-accent hover:underline shrink-0">清除筛选</button>
-          <div class="flex-1"></div>
+          <div class="hidden sm:block flex-1"></div>
         </div>
 
         <!-- 顶部数据区 -->
@@ -112,7 +112,7 @@
         </div>
 
         <!-- 用量 Top 10 / Bottom 10 -->
-        <div class="grid grid-cols-2 gap-4 mb-4">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
           <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4">
             <div class="text-sm font-semibold text-text mb-3">用量 Top 10</div>
             <div v-if="selectedUser" class="text-xs text-accent mb-2">当前用户：{{ selectedUserName }}</div>

@@ -1,18 +1,18 @@
 <template>
   <div>
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
       <div>
         <h1 class="text-2xl font-bold text-text">MCP 管理</h1>
         <p class="text-text-secondary text-sm mt-1">MCP 资源来自 1Panel 同步，共 {{ total }} 个</p>
       </div>
-      <div class="flex gap-3">
+      <div class="flex flex-wrap gap-2">
         <button v-if="can('system:config')" @click="syncMcps" :disabled="syncing" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50">
           <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': syncing }" />{{ syncing ? '同步中...' : '同步' }}
         </button>
       </div>
     </div>
 
-    <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4 mb-4 flex items-center gap-3">
+    <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-3 sm:p-4 mb-4 flex items-center gap-2">
       <div class="flex-1 relative">
         <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
         <input
@@ -27,7 +27,8 @@
     </div>
 
     <div v-if="loading" class="py-20 text-center text-text-secondary">加载中...</div>
-    <div v-else class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-hidden shadow-card">
+    <div v-else class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-x-auto shadow-card">
+      <div class="min-w-[620px]">
       <div class="grid grid-cols-[1.5fr_1fr_1fr_0.8fr] gap-3 px-4 py-3 text-xs font-semibold text-text-secondary bg-surface-secondary border-b border-[rgba(0,0,0,0.06)]">
         <div>名称</div><div>类型</div><div>1Panel ID</div><div>状态</div>
       </div>
@@ -37,6 +38,7 @@
         <div class="text-text-secondary">{{ m.type || '-' }}</div>
         <div class="text-text-tertiary text-xs truncate">{{ m.panel_mcp_id }}</div>
         <div><span class="px-2 py-0.5 rounded-full text-xs bg-emerald-50 text-emerald-600">同步</span></div>
+      </div>
       </div>
     </div>
 

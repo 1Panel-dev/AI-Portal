@@ -1,15 +1,27 @@
 <template>
-  <header
-    class="flex-shrink-0 h-[52px] flex items-center justify-between px-6 bg-white border-b border-[rgba(0,0,0,0.06)] shadow-[0_1px_10px_rgba(15,23,42,0.04)]"
+  <div>
+    <header
+    class="flex-shrink-0 h-[52px] flex items-center justify-between px-4 sm:px-6 bg-white border-b border-[rgba(0,0,0,0.06)] shadow-[0_1px_10px_rgba(15,23,42,0.04)]"
   >
     <!-- 左：返回门户 -->
-    <router-link
-      to="/"
-      class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] text-text-secondary rounded-lg transition-colors hover:bg-black/5 hover:text-text no-underline"
-    >
-      <ArrowLeft class="w-4 h-4" />
-      返回门户
-    </router-link>
+    <div class="flex items-center gap-1">
+      <button
+        class="md:hidden w-9 h-9 inline-flex items-center justify-center rounded-lg text-text-secondary hover:bg-black/5 hover:text-text"
+        aria-label="打开管理菜单"
+        @click="emit('toggle-mobile-menu')"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+      <router-link
+        to="/"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] text-text-secondary rounded-lg transition-colors hover:bg-black/5 hover:text-text no-underline"
+      >
+        <ArrowLeft class="w-4 h-4" />
+        <span class="hidden sm:inline">返回门户</span>
+      </router-link>
+    </div>
 
     <!-- 右：管理员头像下拉 -->
     <div class="relative">
@@ -65,9 +77,10 @@
         <button class="px-4 py-2 text-sm btn-primary disabled:opacity-50" :disabled="changing || !oldPassword || !newPassword || newPassword.length < 6" @click="doChangePassword">{{ changing ? '修改中...' : '确认修改' }}</button>
       </template>
     </AppDialog>
-  </header>
-  <!-- 点击外部关闭下拉 -->
-  <div v-if="showDropdown" class="fixed inset-0 z-[250]" @click="showDropdown = false"></div>
+    </header>
+    <!-- 点击外部关闭下拉 -->
+    <div v-if="showDropdown" class="fixed inset-0 z-[250]" @click="showDropdown = false"></div>
+  </div>
 </template>
 
 <script setup>
@@ -78,6 +91,7 @@ import { API_BASE, getLoginToken, clearAuth } from '../../lib/apiBase'
 import AppDialog from '../AppDialog.vue'
 
 const router = useRouter()
+const emit = defineEmits(['toggle-mobile-menu'])
 const showDropdown = ref(false)
 const showPasswordDialog = ref(false)
 const oldPassword = ref('')

@@ -1,7 +1,7 @@
 <template>
   <div>
       <!-- Stats Cards -->
-      <div class="grid grid-cols-4 gap-4 mb-8">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-8">
         <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4">
           <div class="text-2xl font-bold text-text">{{ dashboardStats.skills?.total || 0 }}</div>
           <div class="text-xs text-text-secondary">总技能数</div>

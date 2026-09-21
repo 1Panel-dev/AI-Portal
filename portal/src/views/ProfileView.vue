@@ -125,9 +125,9 @@
           </div>
 
           <!-- API Keys -->
-          <div v-if="activeTab === 'keys'" class="card p-6 shadow-card">
+          <div v-if="activeTab === 'keys'" class="card p-4 sm:p-6 shadow-card">
             <p v-if="keyError" class="text-sm mb-4" :class="keyErrorOk ? 'text-emerald-600' : 'text-red-500'">{{ keyError }}</p>
-            <div class="flex items-center justify-between mb-6">
+            <div class="flex items-start justify-between gap-3 flex-wrap mb-6">
               <div class="flex items-center gap-2">
                 <h2 class="text-lg font-semibold text-text">API Key 管理</h2>
                 <button @click="refreshKeys" :disabled="keysLoading" :title="keysLoading ? '加载中' : '刷新'"
@@ -135,7 +135,7 @@
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ 'animate-spin': keysLoading }"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                 </button>
               </div>
-              <div v-if="apiKeyData" class="flex items-center gap-2">
+              <div v-if="apiKeyData" class="flex items-center gap-2 flex-wrap">
                 <button v-if="can('key:edit')" @click="openResetDialog" :disabled="resettingKey || deletingKey"
                   class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.12)] text-text-secondary rounded-lg hover:bg-surface-secondary transition-all disabled:opacity-50">
                   {{ resettingKey ? '重置中...' : '重置 Key' }}
@@ -262,7 +262,7 @@
                 <h3 class="text-[13px] font-semibold text-text mb-3">模型用量</h3>
                 <div v-if="sortedModels.length" class="bg-[#fafafa] rounded-xl p-4">
                   <div class="space-y-2 max-h-[260px] overflow-y-auto pr-1">
-                    <div v-for="(m, mi) in sortedModels" :key="m.name"
+                    <div v-for="m in sortedModels" :key="m.name"
                       class="flex items-center gap-2"
                       @mouseenter="onModelEnter($event, m)" @mousemove="onModelMove($event)" @mouseleave="onModelLeave">
                       <span class="text-[12px] text-text w-[120px] shrink-0 truncate text-right" :title="m.name">{{ m.name }}</span>

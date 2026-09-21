@@ -12,7 +12,7 @@
     </section>
 
     <!-- 左右布局 -->
-    <section class="max-w-[1240px] mx-auto px-6 pb-12">
+    <section class="max-w-[1240px] mx-auto px-4 sm:px-6 pb-12">
       <div v-if="loading" class="text-center py-20"><p class="text-text-secondary text-sm">加载中...</p></div>
 
       <div v-else-if="permError" class="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 flex items-start gap-3">
@@ -28,9 +28,9 @@
         </div>
       </div>
 
-      <div v-else class="flex gap-7 items-start">
+      <div v-else class="flex flex-col md:flex-row gap-5 md:gap-7 items-stretch md:items-start">
         <!-- 左栏 -->
-        <aside class="w-[208px] shrink-0 sticky top-[64px]">
+        <aside class="w-full md:w-[208px] md:shrink-0 md:sticky md:top-[64px]">
           <div class="mb-6">
             <div class="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider mb-2.5 pl-3">标签</div>
             <div class="flex flex-col gap-0.5">

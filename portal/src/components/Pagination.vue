@@ -2,10 +2,10 @@
      外层 spacing/居中由父组件通过 class 透传控制。
      showFirstLast=true 时显示 « 首页 / » 末页; 传 pageSize 时显示「每页条数」下拉。 -->
 <template>
-  <div class="flex justify-center">
-    <div v-if="total > 0" class="flex items-center justify-between gap-4 text-sm text-text-secondary w-full max-w-[640px]">
-    <span class="text-[13px]">共 {{ total }} {{ label }}</span>
-    <div class="flex items-center gap-2">
+  <div class="flex justify-center w-full">
+    <div v-if="total > 0" class="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 text-sm text-text-secondary w-full max-w-[640px] sm:flex sm:justify-between">
+    <span class="text-[13px] shrink-0">共 {{ total }} {{ label }}</span>
+    <div class="col-span-2 row-start-2 justify-self-center flex items-center gap-1.5 shrink-0 sm:order-2 sm:col-auto sm:row-auto sm:justify-self-auto">
       <button
         v-if="showFirstLast"
         @click="emit('change', 1)"
@@ -34,7 +34,7 @@
       v-if="pageSize != null"
       :value="pageSize"
       @change="onPageSizeChange"
-      class="px-2.5 py-1.5 border border-[rgba(0,0,0,0.1)] rounded-lg text-[13px] bg-white outline-none cursor-pointer"
+      class="px-2.5 py-1.5 border border-[rgba(0,0,0,0.1)] rounded-lg text-[13px] bg-white outline-none cursor-pointer shrink-0 sm:order-3"
     >
       <option v-for="s in pageSizeOptions" :key="s" :value="s">{{ s }} 条/页</option>
     </select>

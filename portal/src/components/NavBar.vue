@@ -1,9 +1,10 @@
 ﻿<template>
-  <nav
+  <div>
+    <nav
     class="fixed left-0 right-0 z-[260] h-[52px] border-b border-[rgba(0,0,0,0.06)] bg-white shadow-[0_1px_10px_rgba(15,23,42,0.04)]"
     :class="hasVisibleBanner ? 'top-10' : 'top-0'"
   >
-    <div class="max-w-[1024px] mx-auto px-6 h-full flex items-center md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:gap-4">
+    <div class="max-w-[1024px] mx-auto px-4 sm:px-6 h-full flex items-center md:grid md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:gap-4">
       <router-link to="/" class="flex min-w-0 items-center text-[18px] text-text no-underline md:w-full">
         <!-- 默认 logo 直接渲染 SVG 图片,避免小尺寸 mask 栅格化后边缘发虚。 -->
         <img v-if="siteLogoIsDefault"
@@ -16,7 +17,7 @@
         <span class="min-w-0 truncate font-[900] [-webkit-text-stroke:0.5px_currentColor]">{{ siteName }}</span>
       </router-link>
 
-      <div class="flex items-center gap-2 ml-6 md:ml-0 md:justify-self-center">
+      <div class="hidden md:flex items-center gap-2 md:ml-0 md:justify-self-center">
         <router-link v-if="isLoggedIn && (can('menu:models') || isAdminRoleUser)" to="/models"
           class="px-4 py-2 text-[15px] text-text rounded-lg transition-colors hover:bg-black/5 no-underline"
           :class="isActive('/models') ? 'font-semibold text-text' : 'text-text-secondary'">
@@ -37,10 +38,21 @@
 
       <div class="flex items-center gap-2 ml-auto md:ml-0 md:justify-self-end">
         <router-link v-if="!isLoggedIn || can('menu:docs')" to="/docs"
-          class="flex items-center gap-1.5 px-3 py-2 text-[14px] text-text-secondary rounded-lg transition-colors hover:bg-black/5 hover:text-text no-underline">
+          class="hidden sm:flex items-center gap-1.5 px-3 py-2 text-[14px] text-text-secondary rounded-lg transition-colors hover:bg-black/5 hover:text-text no-underline">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
           在线文档
         </router-link>
+        <button
+          class="md:hidden w-9 h-9 rounded-lg flex items-center justify-center text-text-secondary hover:bg-black/5 hover:text-text transition-colors"
+          :aria-expanded="showMobileMenu"
+          aria-label="打开导航菜单"
+          @click="showMobileMenu = !showMobileMenu"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+
         <!-- User Dropdown (logged in) -->
         <div v-if="isLoggedIn" class="relative">
           <button @click="showDropdown = !showDropdown"
@@ -58,7 +70,7 @@
             <!-- 管理后台:超管 + 管理角色 -->
             <router-link v-if="showAdminEntry" to="/admin" @click="showDropdown = false"
               class="flex items-center gap-2 px-4 py-2.5 text-sm text-text hover:bg-black/5 no-underline transition-colors">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
               管理后台
             </router-link>
             <!-- 个人中心/API Key:仅普通用户(非后台角色)显示;管理角色/超管只看后台 -->
@@ -69,7 +81,7 @@
             </router-link>
             <router-link v-if="hasPortalToken && !isAdminRoleUser && can('menu:api-keys')" to="/profile?tab=api-keys" @click="showDropdown = false"
               class="flex items-center gap-2 px-4 py-2.5 text-sm text-text hover:bg-black/5 no-underline transition-colors">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1 7.78-7.78 5.5 5.5 0 0 1 7.78-7.78zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
               API Key 管理
             </router-link>
             <div class="my-1 border-t border-[rgba(0,0,0,0.06)]"></div>
@@ -83,13 +95,23 @@
 
         <!-- Login button (not logged in) -->
         <router-link v-else to="/login"
-          class="ml-2 px-4 py-2 text-[14px] btn-primary transition-all no-underline">
+          class="hidden sm:block ml-2 px-4 py-2 text-[14px] btn-primary transition-all no-underline">
           登录
         </router-link>
       </div>
     </div>
-  </nav>
-  <div v-if="showDropdown" class="fixed inset-0 z-[250]" @click="showDropdown = false"></div>
+    </nav>
+    <div v-if="showMobileMenu" class="md:hidden fixed inset-x-0 z-[255] border-b border-[rgba(0,0,0,0.08)] bg-white shadow-[0_8px_20px_rgba(15,23,42,0.08)]" :class="hasVisibleBanner ? 'top-[92px]' : 'top-[52px]'">
+      <div class="max-w-[1024px] mx-auto px-4 py-3 flex flex-col gap-1">
+        <router-link v-if="isLoggedIn && (can('menu:models') || isAdminRoleUser)" to="/models" @click="showMobileMenu = false" class="px-3 py-3 rounded-lg text-sm no-underline" :class="isActive('/models') ? 'bg-accent/8 text-accent font-semibold' : 'text-text-secondary'">模型广场</router-link>
+        <router-link v-if="isLoggedIn && (can('menu:skills') || isAdminRoleUser)" to="/skills" @click="showMobileMenu = false" class="px-3 py-3 rounded-lg text-sm no-underline" :class="isActive('/skills') ? 'bg-accent/8 text-accent font-semibold' : 'text-text-secondary'">Skill 广场</router-link>
+        <router-link v-if="isLoggedIn && (can('menu:mcp') || isAdminRoleUser)" to="/mcp" @click="showMobileMenu = false" class="px-3 py-3 rounded-lg text-sm no-underline" :class="isActive('/mcp') ? 'bg-accent/8 text-accent font-semibold' : 'text-text-secondary'">MCP 广场</router-link>
+        <router-link v-if="!isLoggedIn || can('menu:docs')" to="/docs" @click="showMobileMenu = false" class="px-3 py-3 rounded-lg text-sm text-text-secondary no-underline">在线文档</router-link>
+        <router-link v-if="!isLoggedIn" to="/login" @click="showMobileMenu = false" class="sm:hidden px-3 py-3 rounded-lg text-sm text-accent font-medium no-underline">登录</router-link>
+      </div>
+    </div>
+    <div v-if="showDropdown" class="fixed inset-0 z-[250]" @click="showDropdown = false"></div>
+  </div>
 </template>
 
 <script setup>
@@ -103,6 +125,7 @@ import { clearAuth } from '../lib/apiBase'
 const route = useRoute()
 const router = useRouter()
 const showDropdown = ref(false)
+const showMobileMenu = ref(false)
 const hasVisibleBanner = computed(() => bannerEnabled.value && bannerVisible.value && !!bannerHtml.value)
 
 const isActive = (path) => {
@@ -151,6 +174,7 @@ onMounted(() => {
 // 登录/登出后 token 变化,但 NavBar 是全局组件不重新挂载,
 // 这里监听路由变化重新加载权限,确保 can()/showAdminEntry 反映最新角色
 watch(() => route.path, () => {
+  showMobileMenu.value = false
   loadPermissions()
 })
 onUnmounted(() => document.removeEventListener('keydown', handleKeydown))

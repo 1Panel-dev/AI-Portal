@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div v-if="!embedded" class="flex items-center justify-between mb-6">
+    <div v-if="!embedded" class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
       <div>
         <h1 class="text-2xl font-bold text-text">调用方式管理</h1>
         <p class="text-text-secondary text-sm mt-1">统一维护模型可用的调用方式，编辑模型时从此处配置的列表中勾选</p>
@@ -12,7 +12,8 @@
     </div>
 
     <div v-if="loading" class="py-20 text-center text-text-secondary">加载中...</div>
-    <div v-else class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-hidden shadow-card">
+    <div v-else class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-x-auto shadow-card">
+      <div class="min-w-[700px]">
       <div class="grid grid-cols-[1.2fr_80px_1.5fr_80px_100px_120px] gap-3 px-4 py-3 text-xs font-semibold text-text-secondary bg-surface-secondary border-b border-[rgba(0,0,0,0.06)]">
         <div>名称</div>
         <div>方法</div>
@@ -44,6 +45,7 @@
           <button v-if="can('invocation_format:edit')" class="p-2 text-text-secondary hover:text-accent" title="编辑" @click="openEdit(item)"><Pencil class="w-4 h-4" /></button>
           <button v-if="can('invocation_format:delete')" class="p-2 text-text-secondary hover:text-red-500" title="删除" @click="deleting = item"><Trash2 class="w-4 h-4" /></button>
         </div>
+      </div>
       </div>
     </div>
 

@@ -2,10 +2,10 @@
   <div class="min-h-screen bg-[#f5f5f7]">
     <div class="h-[92px]"></div>
 
-    <div class="max-w-[1400px] mx-auto px-6 pb-16 flex gap-8">
+    <div class="max-w-[1400px] mx-auto px-4 sm:px-6 pb-16 flex flex-col md:flex-row gap-5 md:gap-8">
       <!-- 左侧:章节导航 -->
-      <aside class="w-[200px] shrink-0">
-        <div class="sticky top-[100px]">
+      <aside class="w-full md:w-[200px] md:shrink-0">
+        <div class="md:sticky md:top-[100px]">
           <button @click="goBack"
             class="w-full flex items-center gap-1.5 px-3 py-2 text-[14px] font-semibold text-text hover:text-text-secondary transition-colors rounded-lg no-underline">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>
@@ -14,7 +14,7 @@
 
           <div class="mx-3 my-2 border-t border-[rgba(0,0,0,0.06)]"></div>
 
-          <nav class="flex flex-col gap-0.5">
+          <nav class="flex flex-col gap-0.5 max-md:max-h-48 max-md:overflow-y-auto">
             <template v-for="g in groupedChapters" :key="g.group">
               <div class="px-3 pt-4 pb-1 text-[11px] font-semibold text-text-tertiary uppercase tracking-[1.2px]">{{ g.group }}</div>
               <button
@@ -34,7 +34,7 @@
       </aside>
 
       <!-- 中间:正文 -->
-      <main ref="mainEl" class="flex-1 min-w-0 bg-white rounded-2xl p-6 md:p-8 overflow-x-hidden">
+      <main ref="mainEl" class="flex-1 min-w-0 bg-white rounded-2xl p-4 sm:p-6 md:p-8 overflow-x-hidden">
         <p v-if="activeChapter?.description" class="text-[13px] text-[#2563eb] bg-[#eef2ff] border border-[#dbeafe] rounded-xl px-4 py-3 mb-6 leading-relaxed">{{ activeChapter.description }}</p>
         <div v-if="activeChapter" class="markdown-body" v-html="activeChapterHtml"></div>
         <div v-else class="text-text-secondary text-[14px]">未找到文档内容。</div>

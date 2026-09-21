@@ -1,11 +1,11 @@
 <template>
   <div>
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
       <div>
         <h1 class="text-2xl font-bold text-text">资源组管理</h1>
         <p class="text-text-secondary text-sm mt-1">把模型 / Skill / MCP 打包成资源组，授权给成员</p>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="flex flex-wrap gap-2">
         <button @click="fetchGroups" :disabled="loading" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50">
           <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />刷新
         </button>
@@ -16,7 +16,8 @@
     </div>
 
     <div v-if="loading && !groups.length" class="py-20 text-center text-text-secondary">加载中...</div>
-    <div v-else class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-hidden shadow-card">
+    <div v-else class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-x-auto shadow-card">
+      <div class="min-w-[720px]">
       <div class="grid grid-cols-[1.5fr_1fr_1.4fr_1fr_120px] gap-3 px-4 py-3 text-xs font-semibold text-text-secondary bg-surface-secondary border-b border-[rgba(0,0,0,0.06)]">
         <div>资源组名</div><div>授权成员</div><div>包含资源</div><div>创建时间</div><div class="text-right">操作</div>
       </div>
@@ -34,9 +35,10 @@
         </div>
         <div class="text-text-secondary">{{ Number(g.member_count) }}</div>
         <div class="flex items-center gap-2 flex-wrap">
-          <template v-for="rc in resourceCountEntries(g.resource_counts)" :key="rc.key">
+          <template v-for="rc in resourceCountEntries(g.resource_counts)">
             <span
               v-if="rc.cnt > 0"
+              :key="rc.key"
               class="px-2 py-0.5 rounded-full text-xs"
               :class="rc.key === 'model' ? 'bg-[rgba(0,94,235,0.05)] text-accent' : 'bg-slate-100 text-slate-600'"
             >{{ resourceTypeLabel(rc.key) }} {{ rc.cnt }}</span>
@@ -48,6 +50,7 @@
           <button v-if="can('group:edit')" class="p-2 text-text-secondary hover:text-accent transition-all" title="编辑" @click.stop="$router.push(`/admin/groups/${g.id}`)"><Pencil class="w-4 h-4" /></button>
           <button v-if="can('group:delete')" class="p-2 text-text-secondary hover:text-red-500 transition-all" title="删除" @click.stop="confirmDelete(g)"><Trash2 class="w-4 h-4" /></button>
         </div>
+      </div>
       </div>
     </div>
 
