@@ -400,47 +400,113 @@ router.post('/api/admin/approve/:id', verifyUser, requirePermission('skill:revie
       }
     }
 
-    // 插入到正式表（使用 COALESCE 处理可能的 NULL 值）
-    await global.pool.query(`
-      INSERT INTO skills (
-        id, title, slug, description, avatar, avatar_color,
-        downloads, stars, version, category, tag, author,
-        install_command, install_url, file_path, type, runtime,
-        source, panel_skill_id, panel_status,
-        created_at, updated_at, is_active
-      ) VALUES (
-        $1, $2, $3,
-        COALESCE($4, ''),
-        COALESCE($5, 'S'),
-        COALESCE($6, 'av-teal'),
-        0, 0,
-        COALESCE($7, 'v1.0.0'),
-        $8,
-        NULL,
-        $9,
-        COALESCE($10, ''),
-        COALESCE($11, ''),
-        $12,
-        $13, $14,
-        'local', $15, $16,
-        CURRENT_DATE, CURRENT_DATE, TRUE
-      )
-      ON CONFLICT (id) DO UPDATE SET
-        title = EXCLUDED.title,
-        description = EXCLUDED.description,
-        version = EXCLUDED.version,
-        file_path = EXCLUDED.file_path,
-        type = EXCLUDED.type,
-        runtime = EXCLUDED.runtime,
-        source = EXCLUDED.source,
-        panel_skill_id = EXCLUDED.panel_skill_id,
-        panel_status = EXCLUDED.panel_status,
-        is_active = TRUE,
-        updated_at = CURRENT_DATE
-    `, [skill.skill_id, skill.title, skill.slug, skill.description,
-        skill.avatar, skill.avatar_color, displayVersion, skill.category,
-        skill.author, skill.install_command, skill.install_url, skill.file_path,
-        detected.type, detected.runtime, displayPanelSkillId || null, panelApprovedStatus]);
+    // ===== 绑定原有技能行做版本迭代, 而不是新建同名行 =====
+    // 同一技能的已有行有两种形态:
+    //   - 本地已上架: id/slug = 技能名(此前也是门户提交审批上架的)
+    //   - 1Panel 同步来: id/slug = '1panel-<远端id>/<技能名>'(source='panel')
+    // 旧行为 INSERT..ON CONFLICT (id) 只能命中第一种; 原技能是 panel 同步行时
+    // 会新建一个同名本地行, 下轮 sync 的 dupDeactivation 又把原 panel 行当重复
+    // 下架 —— 表现为"原技能被下架, 顶上来一个同名新技能"。
+    // 这里先按技能名(含 1panel- 前缀形态)与本次远端记录 id 找原行, 命中就在原行上
+    // 迭代版本(保住下载量/标签/版本历史/资源组授权), 都未命中才插入新行。
+    // 排序: 本地行 > panel 行; 同为 panel 行时优先非本次版本 id 的(更早的原行,
+    // 防极端并发下 sync 先插入的同 id 新行被误选)。
+    const existingSkill = await global.pool.query(
+      `SELECT id, source, slug, panel_skill_id
+       FROM skills
+       WHERE id = $1 OR slug = $1 OR slug = '1panel-' || $1 OR panel_skill_id = $2
+       ORDER BY (source = 'local') DESC, (id = $1) DESC,
+                (panel_skill_id = $2) ASC NULLS LAST, created_at ASC
+       LIMIT 1`,
+      [skill.skill_id, displayPanelSkillId || null]
+    );
+
+    let effectiveSkillId = skill.skill_id;
+    if (existingSkill.rowCount > 0) {
+      const orig = existingSkill.rows[0];
+      effectiveSkillId = orig.id;
+      // slug 仅在原行为 1panel- 前缀形态时纠正为技能名(转为门户本地托管,
+      // 后续 sync 走 dup-skip 回写分支持续迭代版本); 其他形态不动, 防撞 slug 唯一约束
+      const newSlug = orig.slug === `1panel-${skill.skill_id}` ? (skill.slug || skill.skill_id) : orig.slug;
+      // install_url 按生效 slug 派生(panel 行去前缀后仍指向自己的下载地址)
+      const newInstallUrl = `/api/skills/${newSlug}/download`;
+      await global.pool.query(`
+        UPDATE skills SET
+          title = $2, slug = $3,
+          description = COALESCE($4, description),
+          avatar = COALESCE($5, avatar),
+          avatar_color = COALESCE($6, avatar_color),
+          version = $7, category = $8, author = $9,
+          install_command = COALESCE($10, install_command),
+          install_url = $11,
+          file_path = $12, type = $13, runtime = $14,
+          source = 'local',
+          panel_skill_id = COALESCE($15, panel_skill_id),
+          panel_status = COALESCE($16, panel_status),
+          is_active = TRUE,
+          updated_at = CURRENT_DATE
+        WHERE id = $1
+      `, [orig.id, skill.title, newSlug, skill.description,
+          skill.avatar, skill.avatar_color, displayVersion, skill.category,
+          skill.author, skill.install_command, newInstallUrl, skill.file_path,
+          detected.type, detected.runtime, displayPanelSkillId || null, panelApprovedStatus]);
+
+      // panel_skill_id 换 id 时搬移 resource_tags(对齐 syncSkillsFromPanel 的 dup-skip 分支):
+      // 新 id 上可能已挂同标签(历史孪生 panel 行), 先删冲突再搬, 防撞主键
+      if (orig.panel_skill_id && displayPanelSkillId && orig.panel_skill_id !== displayPanelSkillId) {
+        await global.pool.query(`
+          DELETE FROM resource_tags
+          WHERE resource_type = 'skill' AND resource_id = $2
+            AND tag_id IN (SELECT tag_id FROM resource_tags WHERE resource_type = 'skill' AND resource_id = $1)
+        `, [orig.panel_skill_id, displayPanelSkillId]);
+        await global.pool.query(`
+          UPDATE resource_tags SET resource_id = $2
+          WHERE resource_type = 'skill' AND resource_id = $1
+        `, [orig.panel_skill_id, displayPanelSkillId]);
+      }
+    } else {
+      // 无任何同身份行: 全新技能插入（使用 COALESCE 处理可能的 NULL 值）
+      await global.pool.query(`
+        INSERT INTO skills (
+          id, title, slug, description, avatar, avatar_color,
+          downloads, stars, version, category, tag, author,
+          install_command, install_url, file_path, type, runtime,
+          source, panel_skill_id, panel_status,
+          created_at, updated_at, is_active
+        ) VALUES (
+          $1, $2, $3,
+          COALESCE($4, ''),
+          COALESCE($5, 'S'),
+          COALESCE($6, 'av-teal'),
+          0, 0,
+          COALESCE($7, 'v1.0.0'),
+          $8,
+          NULL,
+          $9,
+          COALESCE($10, ''),
+          COALESCE($11, ''),
+          $12,
+          $13, $14,
+          'local', $15, $16,
+          CURRENT_DATE, CURRENT_DATE, TRUE
+        )
+        ON CONFLICT (id) DO UPDATE SET
+          title = EXCLUDED.title,
+          description = EXCLUDED.description,
+          version = EXCLUDED.version,
+          file_path = EXCLUDED.file_path,
+          type = EXCLUDED.type,
+          runtime = EXCLUDED.runtime,
+          source = EXCLUDED.source,
+          panel_skill_id = EXCLUDED.panel_skill_id,
+          panel_status = EXCLUDED.panel_status,
+          is_active = TRUE,
+          updated_at = CURRENT_DATE
+      `, [skill.skill_id, skill.title, skill.slug, skill.description,
+          skill.avatar, skill.avatar_color, displayVersion, skill.category,
+          skill.author, skill.install_command, skill.install_url, skill.file_path,
+          detected.type, detected.runtime, displayPanelSkillId || null, panelApprovedStatus]);
+    }
 
     // 更新提交记录状态
     await global.pool.query(`
@@ -455,14 +521,15 @@ router.post('/api/admin/approve/:id', verifyUser, requirePermission('skill:revie
       WHERE id = $1
     `, [id, reviewer, panelApprovedStatus, (panelApproveData || panelPublishData) ? { approve: panelApproveData, publish: panelPublishData } : {}, effectivePanelSkillId || null]);
 
-    // 记录版本历史
+    // 记录版本历史(挂在真实技能行上: 原行为 1panel 同步行转换而来时,
+    // 其 id 是 '1panel-<远端id>' 而非技能名, skill_versions.skill_id 外键指向 skills.id)
     await global.pool.query(`
       INSERT INTO skill_versions (skill_id, version, file_path, description)
       VALUES ($1, $2, $3, $4)
       ON CONFLICT (skill_id, version) DO UPDATE SET
         file_path = EXCLUDED.file_path,
         description = EXCLUDED.description
-    `, [skill.skill_id, skill.version || 'v1.0.0', skill.file_path, skill.description || '']);
+    `, [effectiveSkillId, skill.version || 'v1.0.0', skill.file_path, skill.description || '']);
 
     res.json({ success: true, message: '审核通过，技能已上线' });
   } catch (err) {

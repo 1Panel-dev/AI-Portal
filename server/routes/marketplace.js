@@ -869,7 +869,16 @@ router.get('/api/my/skills', verifyUser, async (req, res) => {
         live.downloads,
         COUNT(*) OVER() AS _total
       FROM skill_submissions s
-      LEFT JOIN skills live ON live.id = s.skill_id
+      -- 原技能是 1Panel 同步行时, 审核通过会把该行转为本地托管(slug=技能名),
+      -- 但行 id 仍是 '1panel-<远端id>' ≠ skill_id, 需按 slug 兜底关联。
+      -- LATERAL + LIMIT 1: id 命中优先, 防历史脏数据下 id/slug 各命中一行产生重复
+      LEFT JOIN LATERAL (
+        SELECT live.*
+        FROM skills live
+        WHERE live.id = s.skill_id OR live.slug = s.skill_id
+        ORDER BY (live.id = s.skill_id) DESC
+        LIMIT 1
+      ) live ON TRUE
       WHERE s.submitted_by_user_id = $1
       ORDER BY s.submitted_at DESC
       LIMIT $2 OFFSET $3
@@ -1096,6 +1105,29 @@ router.get('/api/skills/:slug/download', verifyUser, requirePermission('skill:vi
         }
         filePath = result.rows[0].file_path;
         panelSkillId = result.rows[0].panel_skill_id || null;
+        // 技能已对接 1Panel(门户上传的包 file_path 为空, sync 写入的是远端路径)时,
+        // 行上的 panel_skill_id 是"当前版本"的远端 id —— 直接下载旧版本会拿到新版本包。
+        // 这里按版本号解析该版本自己的远端记录 id(versions 接口传任一版本 id 可查全版本),
+        // 解析失败保持原值走旧逻辑。
+        if (panelSkillId) {
+          try {
+            const verRes = await panel.post('/api/v2/core/enterprise/skills-hub/versions', { id: panelSkillId });
+            if (verRes.status >= 200 && verRes.status < 300 && !panelBizError(verRes)) {
+              const versions = getPanelPayload(verRes.data);
+              const list = Array.isArray(versions) ? versions : [];
+              const matched = list.find(v => v && String(v.version) === String(version));
+              if (matched) {
+                const vid = getPanelSkillId(matched);
+                if (vid) {
+                  panelSkillId = vid;
+                  filePath = null; // 包在远端, 不走本地文件
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('[download] 按版本解析远端记录失败, 回退:', e.message);
+          }
+        }
         downloadCounter.increment(skillRow.id);
         global.pool.query(
           `INSERT INTO download_stats (skill_id, user_agent, ip_hash, user_id) VALUES ($1, $2, $3, $4)`,

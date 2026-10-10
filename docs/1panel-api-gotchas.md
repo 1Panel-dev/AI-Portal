@@ -149,6 +149,21 @@ tls.connect({ host: "sh.fit2cloud.cn", port: 33846, servername: "sh.fit2cloud.cn
 
 **怎么快速分辨这类问题**：`docker logs <容器> | grep '\[syncSkills\]'`，看下架前最后一轮 `published=X` 与 `软删除 N 个` 的差值；再拿本地 `panel_skill_id` 对比 1Panel search 返回的 id——对不上且名字还在远端，就是版本 id 漂移，不是真下架。
 
+### 铁律 11：审核通过写入 skills 表前，先按"技能身份"找原行做版本迭代
+
+**现象**（2026-09 线上）：用户给已有技能上传新版本，管理员审核通过后原技能没变；点同步后原技能被下架，顶上来一个同名"新"技能（版本是最新版），下载量/标签/版本历史全断。
+
+**根因**：审核通过的写入是 `INSERT INTO skills (id=技能名...) ON CONFLICT (id) DO UPDATE`。`ON CONFLICT (id)` 只能命中 **id=技能名** 的行（此前也走门户审批上架的技能）。若原技能最初是 **1Panel 同步来的**（`source='panel'`，行是 `id='1panel-<远端id>'`、`slug='1panel-<技能名>'`），INSERT 匹配不到它 → 新建一个同名本地行；下一轮 sync 的 dupDeactivation 发现有本地同名 slug，又把原 panel 行当"重复"下架。两个 bug 叠加，看起来就像"同步把原技能顶掉了"。
+
+**正确做法**（已落实，`routes/admin.js` 审核通过）：
+
+1. **先按技能身份找原行**：`id=技能名 OR slug=技能名 OR slug='1panel-'||技能名 OR panel_skill_id=本次远端记录id` 四种形态都认，命中就在原行上 UPDATE 迭代版本（下载量/标签/版本历史/资源组授权全部保住），都未命中才 INSERT。
+2. **panel 行转为本地托管**：命中 panel 行时 `source='local'`、slug 去 `1panel-` 前缀、install_url 按新 slug 派生；行 **id 不改**（主键被 skill_versions/download_stats FK 引用且无 ON UPDATE CASCADE）。此后 sync 走 dup-skip 回写分支持续迭代版本（铁律 10 第 4 条）。
+3. **版本历史挂真实行 id**：`skill_versions.skill_id` 外键指向 `skills.id`，写入用查到的原行 id，不要想当然用提交记录的 `skill_id`（panel 行转换后两者不相等，写错直接 FK 违例）。
+4. **panel_skill_id 换 id 时搬 resource_tags**：与 sync dup-skip 分支同款（先删新 id 上的冲突标签再搬），审核时就搬，别等下一轮 sync（那时两边 id 已相等，sync 不会再搬）。
+
+**关联修复**：`/api/my/skills` 的 `LEFT JOIN skills live ON live.id = s.skill_id` 补 `OR live.slug = s.skill_id`，否则转换后的行在"我的技能"里查不到 live 状态，显示成已下架。
+
 ## 错误码与文案对照表
 
 `server/routes/portal.js` 在 reset/create 失败时统一返 502 + 一个稳定的 `code` 字段，前端按 code 决定文案与是否允许重试：
@@ -193,6 +208,7 @@ docker logs ai-portal-app --tail 300 2>&1 \
 | `fbe2090` | 1Panel 调用错误识别不准 + 偶发误删本地缓存 | 缺统一日志 + sync 拿空数组就清表 | `panel.js` 加业务码黑名单 + 空响应跳过软删 |
 | 2026-09 | 证书续期后所有 panel-call 报 `UNABLE_TO_VERIFY_LEAF_SIGNATURE`，浏览器正常 | 续期只贴了裸叶子证书，缺中间链；Node 不补链 | 铁律 9：证书栏必须贴 fullchain（2 段 `BEGIN CERTIFICATE`） |
 | 2026-09 | 审核通过后 sync 误下架 + 卡片版本不更新 + 上架报 400 | 版本管理下每版本独立 id：软删只认 id / `isLatest` 混入 pending / 盲发 publish | 铁律 10：身份按名字判断 + 只取 isLatestPublished + `resolveToggleTarget` 先探测后操作 |
+| 2026-09 | 审核通过新版本后原技能没更新，同步后原技能被下架、顶上来同名新技能 | `ON CONFLICT (id)` 只命中 id=技能名的行，panel 同步行匹配不到 → 新建同名行 + sync dupDeactivation 下架原行 | 铁律 11：审核写入前按技能身份找原行迭代版本，panel 行转本地托管，版本历史挂真实行 id |
 
 ## 给未来改这块代码的人
 
