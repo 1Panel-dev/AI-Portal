@@ -10,42 +10,17 @@ description: 使用 skillctl 登录 1Panel Skills Hub、搜索并安装 Skill。
 
 `skillctl` 是 1Panel Enterprise Skills Hub 的命令行客户端，用于登录 1Panel 端点、搜索 Skill，并将 Skill 安装到本地 Agent 的 `skills` 目录。
 
-## 适用场景
+## 功能概览
 
-- 从 1Panel Skills Hub 搜索可用 Skill。
-- 将 Skill 一键安装到本地 Agent 的 Skill 目录。
-- 管理多个 1Panel 端点和多个本地 Agent 安装目标。
-- 指定 Skill 版本安装或覆盖已有 Skill。
-
-## 构建 skillctl
-
-进入 `skillctl` 目录：
-
-```bash
-cd skillctl
-```
-
-构建当前平台二进制：
-
-```bash
-make build
-```
-
-构建产物默认输出到：
-
-```text
-skillctl/dist/skillctl
-```
-
-也可以构建指定平台：
-
-```bash
-make linux-amd64
-make linux-arm64
-make darwin-amd64
-make darwin-arm64
-make windows-amd64
-```
+| 命令 | 功能 |
+|------|------|
+| `login` | 登录 1Panel 端点，保存凭据 |
+| `logout` | 退出当前或指定端点 |
+| `whoami` | 查看当前登录身份 |
+| `config` | 查看或切换端点配置 |
+| `agent` | 管理本地 Agent 安装目标 |
+| `search` | 在 Skills Hub 中搜索 Skill |
+| `install` | 将 Skill 安装到本地 Agent 或指定目录 |
 
 ## 下载 skillctl
 
@@ -59,22 +34,9 @@ make windows-amd64
 | 🐧 Linux x86_64 | [skillctl-linux-amd64](/downloads/skillctl-linux-amd64) |
 | 🐧 Linux ARM64 | [skillctl-linux-arm64](/downloads/skillctl-linux-arm64) |
 
-Linux / macOS 下载后，需要赋予执行权限并安装到系统命令目录：
+Linux / macOS 下载后需要赋予执行权限并安装到系统命令目录，见下方「Linux / macOS 安装到系统命令」；Windows 请使用下方「Windows 一次安装，任意目录使用」流程。
 
-```bash
-chmod +x ./skillctl-linux-amd64
-sudo mv ./skillctl-linux-amd64 /usr/local/bin/skillctl
-```
-
-请将 `skillctl-linux-amd64` 替换为当前 Linux 或 macOS 平台对应的下载文件名。Windows 请使用下方的 Windows 安装流程。
-
-验证安装：
-
-```bash
-skillctl help
-```
-
-### Windows 一次安装，任意目录使用
+## Windows 一次安装，任意目录使用
 
 下载 `skillctl-windows-amd64.zip` 并完整解压，解压后的结构为：
 
@@ -100,12 +62,14 @@ skillctl login https://panel.example.com --token <token>
 
 ## Linux / macOS 安装到系统命令
 
-以下命令仅适用于 Linux 和 macOS。将当前平台的二进制文件安装为系统命令：
+以下命令仅适用于 Linux 和 macOS。将下载的二进制文件安装为系统命令：
 
 ```bash
-chmod +x ./skillctl
-sudo cp ./skillctl /usr/local/bin/skillctl
+chmod +x ./skillctl-linux-amd64
+sudo mv ./skillctl-linux-amd64 /usr/local/bin/skillctl
 ```
+
+请将 `skillctl-linux-amd64` 替换为当前平台对应的下载文件名（如 `skillctl-darwin-arm64`）。
 
 安装后可以检查命令是否可用：
 
@@ -407,55 +371,6 @@ skillctl install demo
 
 覆盖安装时，`skillctl` 会先临时备份旧目录；如果复制新文件失败，会尽量恢复旧目录。
 
-## 常见示例
-
-搜索并安装最新版本：
-
-```bash
-skillctl search redis
-skillctl install redis-helper
-```
-
-查看所有版本并安装指定版本：
-
-```bash
-skillctl search redis-helper --all-versions
-skillctl install redis-helper@1.2.0
-```
-
-安装到指定 Agent：
-
-```bash
-skillctl agent create prod --skills-path /opt/prod-agent/skills
-skillctl install redis-helper --agent prod
-```
-
-直接安装到指定目录：
-
-```bash
-skillctl install redis-helper --path /opt/agent/skills
-```
-
-切换端点后搜索：
-
-```bash
-skillctl config use https://panel.example.com
-skillctl search
-```
-
-## 限制和安全校验
-
-- 1Panel 端点必须以 `http://` 或 `https://` 开头。
-- `--path` 和 `--agent` 不能同时使用。
-- Agent 名称不能是 `.`、`..`，也不能包含路径分隔符。
-- Skill 名称和版本不能包含路径分隔符。
-- Skill 安装目录不能是文件系统根目录。
-- 单个 Skill 安装包最大下载限制为 100 MB。
-- Skill 安装包必须是 zip 格式。
-- Skill 安装包不能包含软链接。
-- Skill 安装包不能包含越权路径，例如 `../`。
-- Skill 安装包只能包含普通文件和目录。
-
 ## 常见错误处理
 
 ### 未配置端点
@@ -528,46 +443,4 @@ pass init <gpg-key-id>
 
 ```bash
 skillctl login https://panel.example.com --token <token> --auth-store file
-```
-
-## 命令总览
-
-```text
-skillctl is the command line client for 1Panel Enterprise Skills Hub.
-
-Usage:
-  skillctl <command> [options]
-
-Commands:
-  login    Login to a 1Panel endpoint
-  logout   Logout from the current or specified endpoint
-  whoami   Show current login identity
-  config   View or switch endpoint configuration
-  agent    Manage local agent install targets
-  search   Search skills in Skills Hub
-  install  Install a skill to an agent or path
-
-Command usage:
-  skillctl login <endpoint> --token <token> [--auth-store file|pass]
-  skillctl logout [endpoint]
-  skillctl whoami [--endpoint <endpoint>]
-  skillctl config view
-  skillctl config current
-  skillctl config use <endpoint>
-  skillctl agent create <agent-name> --skills-path <skills-path>
-  skillctl agent list
-  skillctl agent use <agent-name>
-  skillctl agent current
-  skillctl search [keyword] [--endpoint <endpoint>] [--limit <n>] [--filter <key=value>] [--all-versions] [--no-trunc]
-  skillctl install <skill-name> [--agent <agent-name>] [--path <skills-path>] [--endpoint <endpoint>] [--force]
-
-Search filters:
-  agent=<agent-type>  Filter by applicable agent type
-  risk=<level>        Filter by risk level
-  version=<version>   Filter by skill version
-
-Search defaults to the latest published version of each skill. Use --all-versions to show every published version.
-
-Environment:
-  SKILLCTL_CONFIG  Override the config file path
 ```
