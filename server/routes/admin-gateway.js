@@ -8,7 +8,7 @@
 
 const express = require('express');
 const { verifyUser, requirePermission } = require('../auth');
-const { getGateway, reloadGateway, currentProviderName } = require('../lib/gateway');
+const { getGateway, reloadGateway, currentProviderName, providers } = require('../lib/gateway');
 
 const router = express.Router();
 const pool = () => global.pool;
@@ -87,6 +87,42 @@ function validateGatewayConfig(body) {
   return { provider, baseUrl, defaultUserGroupId, timeout, apiKey: String(body.apiKey || '').trim() };
 }
 
+async function readSavedConnection() {
+  const r = await pool().query(
+    `SELECT key, value FROM system_config WHERE key = ANY($1)`,
+    [['gateway_base_url', 'gateway_api_key', 'gateway_api_timeout']]
+  );
+  const map = {};
+  for (const row of r.rows) map[row.key] = row.value;
+  return {
+    baseUrl: map.gateway_base_url || '',
+    apiKey: map.gateway_api_key || '',
+    timeout: Number(map.gateway_api_timeout) || undefined,
+  };
+}
+
+/**
+ * 解析「测试连接 / 拉取选项」的连接参数：
+ * 表单值优先（支持首次配置——provider 尚未切换、配置尚未保存），缺省回落已保存值。
+ * 返回 { mod, opts }：mod = 按表单 provider 直接取的适配器模块（不经 getGateway 缓存）。
+ */
+async function resolveConnectionFor(body) {
+  const provider = String(body?.provider || '').trim();
+  if (!PROVIDERS.includes(provider)) {
+    throw Object.assign(new Error(`provider 仅支持: ${PROVIDERS.join(' / ')}`), { code: 'invalid_request' });
+  }
+  const saved = await readSavedConnection();
+  const opts = {};
+  if (provider === 'ai-gateway') {
+    // gateway_base_url / gateway_api_key 是 AI-Gateway 专属配置，
+    // 不能喂给 1Panel 适配器当覆盖值（否则 1Panel 测试会连到网关地址）
+    opts.baseUrl = String(body?.baseUrl || '').trim() || saved.baseUrl || undefined;
+    opts.apiKey = String(body?.apiKey || '').trim() || saved.apiKey || undefined;
+    opts.timeout = Number(body?.timeout) || saved.timeout || undefined;
+  }
+  return { mod: providers[provider], opts };
+}
+
 // ---- 读取 ----
 router.get('/api/admin/gateway-config', verifyUser, requirePermission('system:config'), async (req, res) => {
   try {
@@ -140,32 +176,35 @@ router.put('/api/admin/gateway-config', verifyUser, requirePermission('system:co
   res.json({ data: await readGatewayConfig() });
 });
 
-// ---- 测试连接（用表单当前值，支持未保存先测）----
+// ---- 测试连接（用表单当前值，支持首次配置：provider 尚未切换/配置尚未保存）----
 router.post('/api/admin/gateway-config/test', verifyUser, requirePermission('system:config'), async (req, res) => {
-  const body = req.body || {};
-  const provider = String(body.provider || '').trim() || currentProviderName();
-  if (!PROVIDERS.includes(provider)) {
-    return res.status(400).json({ error: `provider 仅支持: ${PROVIDERS.join(' / ')}` });
-  }
   try {
-    const gw = await getGateway(pool());
-    if (gw.name !== provider) {
-      return res.status(400).json({ error: `表单 provider (${provider}) 与当前生效 provider (${gw.name}) 不一致，请先保存` });
-    }
-    // 表单值覆盖：apiKey 未填 = 用已保存凭证
-    await gw.verifyConnection({
-      baseUrl: String(body.baseUrl || '').trim() || undefined,
-      apiKey: String(body.apiKey || '').trim() || undefined,
-      timeout: Number(body.timeout) || undefined,
-    });
-    res.json({ ok: true, provider });
+    const { mod, opts } = await resolveConnectionFor(req.body);
+    await mod.verifyConnection(opts);
+    res.json({ ok: true, provider: String(req.body?.provider || '').trim() });
   } catch (e) {
-    console.error(`[gateway-config] 测试连接失败 (${provider}):`, e.message);
-    res.status(502).json({
-      error: '连接失败',
-      reason: e.message,
+    console.error(`[gateway-config] 测试连接失败:`, e.message);
+    const status = e.code === 'invalid_request' ? 400 : 502;
+    res.status(status).json({
+      error: status === 400 ? e.message : '连接失败',
+      reason: status === 400 ? undefined : e.message,
       code: e.code || 'GATEWAY_UNREACHABLE',
     });
+  }
+});
+
+// ---- 用户组下拉选项（配置页「默认用户组」用；表单值覆盖，首次配置未保存也能拉）----
+router.post('/api/admin/gateway-config/user-group-options', verifyUser, requirePermission('system:config'), async (req, res) => {
+  try {
+    const { mod, opts } = await resolveConnectionFor(req.body);
+    if (typeof mod.listUserGroupOptions !== 'function') {
+      return res.status(400).json({ error: `provider (${mod.name}) 不支持拉取用户组选项` });
+    }
+    const items = await mod.listUserGroupOptions(opts);
+    res.json({ data: items });
+  } catch (e) {
+    console.error('[gateway-config] 拉取用户组选项失败:', e.message);
+    res.status(502).json({ error: '拉取用户组失败', reason: e.message, code: e.code || 'GATEWAY_UNREACHABLE' });
   }
 });
 

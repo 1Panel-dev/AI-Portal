@@ -396,14 +396,29 @@
                 <p class="text-xs text-text-secondary mt-1">留空保留原值;填新值则覆盖。凭证有有效期（最长 365 天）,过期前请轮换</p>
               </div>
               <div>
-                <label class="block text-sm font-medium text-text mb-1">默认用户组 ID</label>
-                <input
-                  v-model.number="gatewayForm.defaultUserGroupId"
-                  type="number"
-                  min="1"
-                  class="w-full px-3 py-2 border border-[rgba(0,0,0,0.06)] rounded-lg text-text bg-surface-secondary outline-none focus:border-text"
-                />
-                <p class="text-xs text-text-secondary mt-1">企微注册代建网关用户时进入该组;切到 AI-Gateway 前必填（组在网关后台预先创建）</p>
+                <label class="block text-sm font-medium text-text mb-1">默认用户组</label>
+                <div class="flex gap-2">
+                  <select
+                    v-model="gatewayForm.defaultUserGroupId"
+                    :disabled="gatewayForm.provider !== 'ai-gateway'"
+                    class="w-full px-3 py-2 border border-[rgba(0,0,0,0.06)] rounded-lg text-text bg-surface-secondary outline-none focus:border-text disabled:opacity-50"
+                  >
+                    <option :value="null" disabled>{{ gatewayGroupOptions.length ? '请选择用户组' : '请先拉取用户组' }}</option>
+                    <option v-for="g in gatewayGroupOptions" :key="g.id" :value="g.id">
+                      {{ g.name }}{{ g.isDefault ? '（网关默认组）' : '' }}{{ g.enabled ? '' : '（已停用）' }}
+                    </option>
+                  </select>
+                  <button
+                    @click="fetchGatewayGroups"
+                    :disabled="gatewayGroupsLoading || gatewayForm.provider !== 'ai-gateway'"
+                    class="shrink-0 inline-flex items-center px-3 py-2 text-sm btn-secondary transition-all disabled:opacity-50"
+                    title="从网关拉取用户组列表"
+                  >
+                    <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': gatewayGroupsLoading }" />
+                  </button>
+                </div>
+                <p v-if="gatewayGroupsError" class="text-xs text-red-500 mt-1">{{ gatewayGroupsError }}</p>
+                <p v-else class="text-xs text-text-secondary mt-1">企微注册代建网关用户时进入该组;切到 AI-Gateway 前必选（列表实时从网关拉取，组需在网关后台预先创建）</p>
               </div>
               <div>
                 <label class="block text-sm font-medium text-text mb-1">请求超时 (ms)</label>
@@ -920,6 +935,47 @@ const gatewaySaving = ref(false)
 const gatewayTesting = ref(false)
 const gatewayMsg = ref('')
 const gatewayMsgOk = ref(false)
+
+// 用户组下拉选项（从网关实时拉取）
+const gatewayGroupOptions = ref([])
+const gatewayGroupsLoading = ref(false)
+const gatewayGroupsError = ref('')
+
+const fetchGatewayGroups = async () => {
+  if (gatewayForm.value.provider !== 'ai-gateway') return
+  gatewayGroupsLoading.value = true
+  gatewayGroupsError.value = ''
+  try {
+    const res = await fetch(`${API_BASE}/admin/gateway-config/user-group-options`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      body: JSON.stringify({
+        baseUrl: gatewayForm.value.baseUrl,
+        apiKey: gatewayForm.value.apiKey || '',   // 留空 = 用已保存凭证
+        timeout: gatewayForm.value.timeout,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) {
+      gatewayGroupOptions.value = data.data || []
+      if (!gatewayGroupOptions.value.length) {
+        gatewayGroupsError.value = '网关未返回任何用户组，请先在网关后台创建用户组后点刷新'
+      }
+    } else {
+      gatewayGroupOptions.value = []
+      gatewayGroupsError.value = data.reason ? `${data.error || '拉取失败'}: ${data.reason}` : (data.error || '拉取失败')
+    }
+  } catch (e) {
+    gatewayGroupsError.value = '网络异常'
+  } finally {
+    gatewayGroupsLoading.value = false
+  }
+}
+
+// 切到 AI-Gateway 且已填地址时自动拉一次组列表
+watch(() => gatewayForm.value.provider, (p) => {
+  if (p === 'ai-gateway' && gatewayForm.value.baseUrl) fetchGatewayGroups()
+})
 
 const fetchGatewayConfig = async () => {
   try {

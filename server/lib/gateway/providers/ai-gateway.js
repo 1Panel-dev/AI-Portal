@@ -226,6 +226,24 @@ async function listModelGroups() {
   }));
 }
 
+/**
+ * 用户组下拉选项（配置页「默认用户组」选择用）。
+ * 网关 GET /admin/user-groups/options：最多 1000 条，含 enabled/isDefault 标记。
+ * opts: { baseUrl, apiKey, timeout } 表单值覆盖（未保存先拉）。
+ */
+async function listUserGroupOptions(opts = {}) {
+  const data = await request('GET', '/admin/user-groups/options', {
+    query: {},
+    override: opts,
+  });
+  return (data?.items || []).map(g => ({
+    id: g.id,
+    name: g.name || `Group ${g.id}`,
+    enabled: g.enabled !== false,
+    isDefault: !!g.isDefault,
+  }));
+}
+
 async function listUsers() {
   const items = await listAll('/admin/users');
   return items.map(u => ({
@@ -353,6 +371,7 @@ module.exports = {
 
   listModels,
   listUserGroups,
+  listUserGroupOptions,
   listModelGroups,
   listUsers,
   findUser,
