@@ -44,7 +44,7 @@
 | Key 创建 | 门户自生成明文 `api-keys/create` 推送 | `POST /admin/users/{id}/api-keys` {name}，明文 `apiKey` **仅此一次返回** | ✅ 满足 | 门户改为落库网关返回的明文（`api_key_cipher` 已有） |
 | Key 重置/删除 | `api-keys/delete` + create | `DELETE /admin/users/{id}/api-keys/{keyId}` + create | ✅ 满足 | 重置语义 = 删旧建新，保持门户现有交互 |
 | Key 明文反查（reveal） | `api-keys/reveal` | **无对应** | ⚠️ 回退 | reveal 接口回退读本地 `api_key_cipher`（门户本就落库明文，无功能损失） |
-| 使用统计 | `POST /ai-proxy/usage/statistics` | `GET /admin/usage-statistics` | ⏸ 本次不切 | 网关有对等接口，列入后续版本（见 D-14） |
+| 使用统计 | `POST /ai-proxy/usage/statistics` | `GET /admin/usage-statistics`（另有 call-logs、token-trend 更细粒度） | ✅ 已拍板切换（D-13） | 参数形态 POST body → GET query、返回结构不同，需字段映射（见 §3.8） |
 | skill / MCP 同步 | `skills-hub/*`、`ai/mcp/search` | — | ✅ 不动 | 继续同步 1Panel |
 
 ### 1.2 用户组字段映射（缓存表对齐）
@@ -146,7 +146,17 @@ provider = 'ai-gateway':
 
 完全不动，继续同步 1Panel（`skillsSync.js` / `mcpSync.js` / `panel.js` 相关函数原样）。
 
-### 3.7 配置项（system_config）
+### 3.7 数据统计（D-13 已拍板，M6）
+
+- 现状：[admin.js](../../../server/routes/admin.js) 数据统计接口 `POST /ai-proxy/usage/statistics`（1Panel），前端 AdminStatsView 消费。
+- 切换：跟随 `gateway_provider` 开关——`ai-gateway` 模式下改调网关 `GET /admin/usage-statistics`。
+- **参数形态差异**：1Panel 是 POST body，网关是 GET query（`from/to/userId/userGroupId/apiKeyId/upstreamAccountId/provider/clientProtocol/requestModel`）。
+- **返回结构差异**：网关返回 `{range, summary, providers[], models[], modelGroups[], upstreamAccounts[], userGroups[], users[]}`（UsageDistributionItem = id/key/name/deleted + 聚合计数，计数为**十进制字符串**），需做字段映射适配 AdminStatsView 的现有消费结构。
+- **适配器扩展**：ai-gateway provider 新增 `getUsageStatistics(params)` 域方法（M6 实现，同步补 contract.js）。
+- **增强可选**：网关的 `GET /admin/overview/token-trend`（24h/7d/30d 趋势）与 `GET /admin/call-logs`（调用日志明细）是 1Panel 没有的能力，M6 可顺带给统计页加趋势图（可选，不阻塞）。
+- **数据连续性**：跟随开关切换，切换点之前的历史明细留在 1Panel（见 D-13）。
+
+### 3.8 配置项（system_config）
 
 | 键 | 说明 |
 |---|---|
@@ -214,6 +224,7 @@ M5 统一改名：`panel_user_id→gateway_user_id`、`panel_key_id→gateway_ke
 | **M3 组同步 + 授权链** | gateway_* 表 + syncGatewayGroups（含归属回填）+ getUserAllowedModels 双分支 | 资源组 ∩ 网关模型组交集正确；1Panel 链路回归不变 |
 | **M4 用户 / Key** | 企微注册追加网关代建 + 用户禁用/删除联动 + Key 路由切网关 | 新用户网关侧自动建档入默认组；Key 创建/重置/删除/reveal 回退全通过 |
 | **M5 改名 + 迁移** | 044 列改名 + `scripts/migrate-to-gateway.js`（存量用户批量代建，幂等） | grep 验收旧列名清零（V1 冻结文件除外）；代建可重跑 |
+| **M6 统计切换** | ai-gateway adapter 加 `getUsageStatistics()` + 统计接口按 provider 分支 + AdminStatsView 字段映射（可选：token-trend 趋势图） | 网关模式下统计页数据与 `GET /admin/usage-statistics` 一致；1Panel 模式回归不变 |
 
 ---
 
@@ -251,11 +262,12 @@ M5 统一改名：`panel_user_id→gateway_user_id`、`panel_key_id→gateway_ke
 
 > 旧 D-06~D-12 中：D-09（资源组模型 tab 只读）**随方案 B 作废**；其余保留。新增：
 
-### D-13 使用统计是否本次切换？
-门户数据统计页现用 1Panel `ai-proxy/usage/statistics`；网关有对等 `GET /admin/usage-statistics`（且更细：call-logs、token-trend）。
-- 选项 A：本次不切（范围最小，推荐）
-- 选项 B：一并切（M3 加一路，数据口径需对齐验证）
-- **建议 A**，统计切换放 V3。
+### D-13 数据统计切换到网关统计接口 ✅ 已拍板（2026-10-14）
+
+门户数据统计页从 1Panel `ai-proxy/usage/statistics` 切换到网关 `GET /admin/usage-statistics`。
+实现要点见 §3.8，纳入里程碑 **M6**（可与 M2-M4 并行开发，但上线跟随 provider 切换）。
+
+**注意（数据连续性）**：统计数据跟随 `gateway_provider` 开关——切到网关后，统计页只能看到切换之后的调用记录，历史调用明细仍留在 1Panel 侧且不再展示。运营上建议在流量低谷期切换。
 
 ### D-14 网关 Key 的一人一 Key 与命名
 网关支持每用户多 Key（有上限 409 `api_key_limit_reached`），门户现强制一人一 Key。
@@ -280,3 +292,4 @@ M5 统一改名：`panel_user_id→gateway_user_id`、`panel_key_id→gateway_ke
 |------|------|------|
 | 2026-10-10 | 初稿：方案 B（网关为授权真相源）+ 适配器骨架 + M1-M5 + D-06~D-12 | D-01~D-05 |
 | 2026-10-14 | **方向调整（门户为主）**：网关仅替换模型同步/组同步数据源/Key 签发/用户同步四个点；资源组与组织架构不动；skill/MCP 不动；接口评估结论满足度全绿；D-09 作废；新增 D-13~D-16 | D-13（门户为主，覆盖 D-01 的「网关真相源」与 D-02 的资源组降级） |
+| 2026-10-14 | D-13 拍板：数据统计切网关 `GET /admin/usage-statistics`，新增 §3.7 统计域设计与里程碑 M6；M1 配置层开发完成（adde7d3 + 09b3201） | D-13 ✅ |
