@@ -950,6 +950,7 @@ const fetchGatewayGroups = async () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
       body: JSON.stringify({
+        provider: gatewayForm.value.provider,
         baseUrl: gatewayForm.value.baseUrl,
         apiKey: gatewayForm.value.apiKey || '',   // 留空 = 用已保存凭证
         timeout: gatewayForm.value.timeout,
