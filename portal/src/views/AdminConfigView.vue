@@ -394,6 +394,15 @@
                   </button>
                 </div>
                 <p class="text-xs text-text-secondary mt-1">留空保留原值;填新值则覆盖。凭证有有效期（最长 365 天）,过期前请轮换</p>
+                <label class="inline-flex items-center gap-1.5 mt-1.5 cursor-pointer" title="网关签发凭证时选择了永不过期则勾选;按官方契约凭证最长 365 天,请以网关实际签发选项为准">
+                  <input
+                    v-model="gatewayForm.neverExpires"
+                    type="checkbox"
+                    class="w-3.5 h-3.5 accent-emerald-600"
+                    @change="gatewayForm.neverExpires || fetchGatewayConfig()"
+                  />
+                  <span class="text-xs text-text-secondary">该凭证永不过期（不显示剩余天数倒计时）</span>
+                </label>
               </div>
               <div>
                 <label class="block text-sm font-medium text-text mb-1">默认用户组</label>
@@ -434,7 +443,17 @@
 
             <!-- 凭证有效期提醒 -->
             <div
-              v-if="gatewayForm.apiKeyConfigured && gatewayForm.credentialDaysRemaining != null"
+              v-if="gatewayForm.apiKeyConfigured && gatewayForm.neverExpires"
+              class="mt-4 flex items-center justify-between p-3 rounded-lg bg-emerald-500/5 border border-emerald-100"
+            >
+              <div>
+                <div class="text-sm font-medium text-text">API 凭证有效期</div>
+                <div class="text-xs text-text-secondary mt-0.5">已标记为永久有效。注意：按网关官方契约凭证最长 365 天,若网关后续轮换策略变化请及时在此更新</div>
+              </div>
+              <div class="text-sm font-semibold text-emerald-600 whitespace-nowrap">永久有效</div>
+            </div>
+            <div
+              v-else-if="gatewayForm.apiKeyConfigured && gatewayForm.credentialDaysRemaining != null"
               class="mt-4 flex items-center justify-between p-3 rounded-lg"
               :class="gatewayForm.credentialDaysRemaining <= 30 ? 'bg-amber-50 border border-amber-200' : 'bg-surface-secondary'"
             >
@@ -927,6 +946,7 @@ const gatewayForm = ref({
   apiKeyConfigured: false,
   defaultUserGroupId: null,
   timeout: 10000,
+  neverExpires: false,
   credentialDaysRemaining: null,
   activeProvider: '1panel',
 })
@@ -990,6 +1010,7 @@ const fetchGatewayConfig = async () => {
         apiKeyConfigured: !!data.apiKeyConfigured,
         defaultUserGroupId: data.defaultUserGroupId ?? null,
         timeout: data.timeout || 10000,
+        neverExpires: !!data.neverExpires,
         credentialDaysRemaining: data.credentialDaysRemaining ?? null,
         activeProvider: data.activeProvider || data.provider || '1panel',
       }
@@ -1010,6 +1031,7 @@ const saveGatewayConfig = async () => {
         apiKey: gatewayForm.value.apiKey || '',
         defaultUserGroupId: gatewayForm.value.defaultUserGroupId,
         timeout: gatewayForm.value.timeout,
+        neverExpires: gatewayForm.value.neverExpires === true,
       }),
     })
     const data = await res.json().catch(() => ({}))

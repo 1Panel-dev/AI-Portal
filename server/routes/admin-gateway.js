@@ -20,6 +20,7 @@ const GATEWAY_CONFIG_KEYS = [
   'gateway_default_user_group_id',
   'gateway_api_timeout',
   'gateway_api_key_updated_at',
+  'gateway_api_key_never_expires',
 ];
 
 const PROVIDERS = ['1panel', 'ai-gateway'];
@@ -41,10 +42,12 @@ async function readGatewayConfig() {
   const apiKey = map.gateway_api_key?.value || '';
   const provider = map.gateway_provider?.value || '1panel';
   const updatedAt = map.gateway_api_key_updated_at?.updated_at || null;
+  const neverExpires = (map.gateway_api_key_never_expires?.value || '') === 'true';
 
-  // 剩余天数按「凭证写入时间 + 最长有效期」估算（网关不提供凭证元信息查询，见设计文档 D-07）
+  // 剩余天数按「凭证写入时间 + 最长有效期」估算（网关不提供凭证元信息查询，见设计文档 D-07）；
+  // 用户标记「永久有效」时返回 null，前端显示永久徽章而非倒计时
   let credentialDaysRemaining = null;
-  if (apiKey && updatedAt) {
+  if (apiKey && !neverExpires && updatedAt) {
     // Math.ceil：DB 时钟可能略超前，避免差值为负时 floor 出多算一天
     const days = DEFAULT_CREDENTIAL_DAYS - Math.ceil((Date.now() - new Date(updatedAt).getTime()) / 86400000);
     credentialDaysRemaining = Math.max(0, days);
@@ -58,6 +61,7 @@ async function readGatewayConfig() {
     defaultUserGroupId: Number(map.gateway_default_user_group_id?.value) || null,
     timeout: Number(map.gateway_api_timeout?.value) || 10000,
     apiKeyUpdatedAt: updatedAt,
+    neverExpires,
     credentialDaysRemaining,
     activeProvider: currentProviderName(),
   };
@@ -155,6 +159,7 @@ router.put('/api/admin/gateway-config', verifyUser, requirePermission('system:co
       await upsert('gateway_api_key', v.apiKey);
       await upsert('gateway_api_key_updated_at', new Date().toISOString());
     }
+    await upsert('gateway_api_key_never_expires', req.body?.neverExpires === true ? 'true' : 'false');
     await upsert('gateway_default_user_group_id', v.defaultUserGroupId == null ? '' : String(v.defaultUserGroupId));
     await upsert('gateway_api_timeout', String(v.timeout));
     await client.query('COMMIT');
