@@ -99,19 +99,23 @@ function logCall(method, path, status, ms) {
 /**
  * Management API 统一请求。path 形如 '/admin/users'（自动拼 /api/v1 前缀）。
  * AI-Gateway 用标准 HTTP 状态码，>=400 即失败并携带稳定业务码。
+ * override: { baseUrl, apiKey, timeout } —— 「测试连接」用表单未保存值临时覆盖（不落库）。
  */
-function request(method, path, { query, body } = {}) {
+function request(method, path, { query, body, override = {} } = {}) {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
-    if (!currentConfig.apiKey) {
+    const baseUrl = override.baseUrl || currentConfig.baseUrl;
+    const apiKey = override.apiKey || currentConfig.apiKey;
+    const timeout = override.timeout || currentConfig.timeout;
+    if (!apiKey) {
       return reject(err('请配置 GATEWAY_API_KEY（管理后台 → 系统配置 → 独立网关）', undefined, 'config_missing'));
     }
-    if (!currentConfig.baseUrl) {
+    if (!baseUrl) {
       return reject(err('请配置 GATEWAY_BASE_URL（管理后台 → 系统配置 → 独立网关）', undefined, 'config_missing'));
     }
     let url;
     try {
-      url = new URL(currentConfig.baseUrl.replace(/\/+$/, '') + '/api/v1' + path);
+      url = new URL(baseUrl.replace(/\/+$/, '') + '/api/v1' + path);
       if (query) for (const [k, v] of Object.entries(query)) url.searchParams.set(k, String(v));
     } catch (e) {
       return reject(err(`GATEWAY_BASE_URL 无效: ${e.message}`, undefined, 'config_invalid'));
@@ -123,11 +127,11 @@ function request(method, path, { query, body } = {}) {
       {
         method,
         headers: {
-          Authorization: `Bearer ${currentConfig.apiKey}`,
+          Authorization: `Bearer ${apiKey}`,
           Accept: 'application/json',
           ...(bodyBuffer ? { 'Content-Type': 'application/json', 'Content-Length': bodyBuffer.length } : {}),
         },
-        timeout: currentConfig.timeout,
+        timeout,
       },
       (res) => {
         const chunks = [];
@@ -333,9 +337,9 @@ async function revealKey() {
 
 // ============ 元信息 / 连接校验 ============
 
-async function verifyConnection() {
-  // 最便宜的已授权端点：用户组第一页
-  await request('GET', '/admin/user-groups', { query: { pageSize: 1 } });
+async function verifyConnection(opts = {}) {
+  // 最便宜的已授权端点：用户组第一页；opts 允许用表单未保存值测试
+  await request('GET', '/admin/user-groups', { query: { pageSize: 1 }, override: opts });
   return { ok: true };
 }
 

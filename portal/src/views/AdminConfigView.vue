@@ -339,6 +339,124 @@
 
         </div><!-- /Tab: 1Panel 配置 -->
 
+        <!-- ===== Tab: 独立网关 (V2: 模型/组同步/Key 走 AI-Gateway; 用户与 skill/MCP 仍走 1Panel) ===== -->
+        <div v-show="activeTab === 'gateway'" class="space-y-6">
+          <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-6">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h2 class="text-lg font-semibold text-text">独立网关配置</h2>
+                <p class="text-xs text-text-secondary mt-1">对接 AI-Gateway 独立网关：模型同步、用户组/模型组同步与 API Key 签发改走该网关；用户/组织架构与 skill/MCP 仍走 1Panel</p>
+              </div>
+              <span v-if="gatewayForm.activeProvider === 'ai-gateway'" class="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-500/10 text-blue-600">
+                当前生效: AI-Gateway
+              </span>
+              <span v-else class="px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-500/10 text-emerald-600">
+                当前生效: 1Panel
+              </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-text mb-1">网关类型</label>
+                <select
+                  v-model="gatewayForm.provider"
+                  class="w-full px-3 py-2 border border-[rgba(0,0,0,0.08)] rounded-lg text-sm focus:outline-none focus:border-text bg-white"
+                >
+                  <option value="1panel">1Panel（默认，现有链路）</option>
+                  <option value="ai-gateway">AI-Gateway（独立网关）</option>
+                </select>
+                <p class="text-xs text-text-secondary mt-1">切换立即生效（保存后）；可随时切回 1Panel 回滚</p>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-text mb-1">网关地址</label>
+                <input
+                  v-model="gatewayForm.baseUrl"
+                  type="text"
+                  class="w-full px-3 py-2 border border-[rgba(0,0,0,0.06)] rounded-lg text-text bg-surface-secondary outline-none focus:border-text font-mono text-sm"
+                  placeholder="http://192.168.1.100:8080"
+                />
+                <p class="text-xs text-text-secondary mt-1">AI-Gateway 管理地址,需包含协议和端口</p>
+              </div>
+              <div class="col-span-2">
+                <label class="block text-sm font-medium text-text mb-1">API 凭证（Bearer agw_at_...）</label>
+                <div class="relative">
+                  <input
+                    v-model="gatewayForm.apiKey"
+                    :type="showGatewayKey ? 'text' : 'password'"
+                    class="w-full px-3 py-2 pr-10 border border-[rgba(0,0,0,0.06)] rounded-lg text-text bg-surface-secondary outline-none focus:border-text font-mono text-sm"
+                    :placeholder="gatewayForm.apiKeyConfigured ? '已配置,如需修改请输入新值' : '在网关「系统设置 → Open API」中签发'"
+                  />
+                  <button
+                    @click="showGatewayKey = !showGatewayKey"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text"
+                  >
+                    <component :is="showGatewayKey ? EyeOff : Eye" class="w-4 h-4" />
+                  </button>
+                </div>
+                <p class="text-xs text-text-secondary mt-1">留空保留原值;填新值则覆盖。凭证有有效期（最长 365 天）,过期前请轮换</p>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-text mb-1">默认用户组 ID</label>
+                <input
+                  v-model.number="gatewayForm.defaultUserGroupId"
+                  type="number"
+                  min="1"
+                  class="w-full px-3 py-2 border border-[rgba(0,0,0,0.06)] rounded-lg text-text bg-surface-secondary outline-none focus:border-text"
+                />
+                <p class="text-xs text-text-secondary mt-1">企微注册代建网关用户时进入该组;切到 AI-Gateway 前必填（组在网关后台预先创建）</p>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-text mb-1">请求超时 (ms)</label>
+                <input
+                  v-model.number="gatewayForm.timeout"
+                  type="number"
+                  min="1000"
+                  step="1000"
+                  class="w-full px-3 py-2 border border-[rgba(0,0,0,0.06)] rounded-lg text-text bg-surface-secondary outline-none focus:border-text"
+                />
+              </div>
+            </div>
+
+            <!-- 凭证有效期提醒 -->
+            <div
+              v-if="gatewayForm.apiKeyConfigured && gatewayForm.credentialDaysRemaining != null"
+              class="mt-4 flex items-center justify-between p-3 rounded-lg"
+              :class="gatewayForm.credentialDaysRemaining <= 30 ? 'bg-amber-50 border border-amber-200' : 'bg-surface-secondary'"
+            >
+              <div>
+                <div class="text-sm font-medium text-text">API 凭证有效期</div>
+                <div class="text-xs text-text-secondary mt-0.5">凭证过期后所有网关调用将失败,请及时到网关后台重新签发并在此更新</div>
+              </div>
+              <div class="text-sm font-semibold whitespace-nowrap" :class="gatewayForm.credentialDaysRemaining <= 30 ? 'text-amber-600' : 'text-text'">
+                {{ gatewayForm.credentialDaysRemaining > 0 ? `剩余约 ${gatewayForm.credentialDaysRemaining} 天` : '已到期' }}
+              </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="flex items-center gap-3 mt-4 flex-wrap">
+              <button
+                v-if="can('system:config')"
+                @click="testGatewayConnection"
+                :disabled="gatewayTesting"
+                class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50"
+              >
+                <PlugZap class="w-4 h-4" />{{ gatewayTesting ? '测试中...' : '测试连接' }}
+              </button>
+              <button
+                v-if="can('system:config')"
+                @click="saveGatewayConfig"
+                :disabled="gatewaySaving"
+                class="px-4 py-2 text-sm font-medium btn-primary transition-all disabled:opacity-50"
+              >
+                {{ gatewaySaving ? '保存中...' : '保存配置' }}
+              </button>
+              <span v-if="gatewayMsg" class="text-sm" :class="gatewayMsgOk ? 'text-green-600' : 'text-red-500'">
+                {{ gatewayMsg }}
+              </span>
+            </div>
+          </div>
+        </div><!-- /Tab: 独立网关 -->
+
         <!-- ===== Tab: 站点设置 (合并: 站点品牌 + 调用示例 + 公告横幅) ===== -->
         <div v-show="activeTab === 'site'" class="space-y-6">
 
@@ -639,6 +757,7 @@ function showSwitchError(msg) {
 // Tab 切换 + URL hash 双向同步
 const tabs = [
   { id: 'panel',   label: '1Panel 配置' },
+  { id: 'gateway', label: '独立网关' },
   { id: 'site',    label: '站点设置' },
 ]
 const VALID_TAB_IDS = tabs.map(t => t.id)
@@ -782,6 +901,110 @@ const saveModelExample = async () => {
   } finally {
     modelExampleSaving.value = false
     setTimeout(() => { modelExampleMsg.value = '' }, 4000)
+  }
+}
+
+// ============ 独立网关 (V2) ============
+const gatewayForm = ref({
+  provider: '1panel',
+  baseUrl: '',
+  apiKey: '',
+  apiKeyConfigured: false,
+  defaultUserGroupId: null,
+  timeout: 10000,
+  credentialDaysRemaining: null,
+  activeProvider: '1panel',
+})
+const showGatewayKey = ref(false)
+const gatewaySaving = ref(false)
+const gatewayTesting = ref(false)
+const gatewayMsg = ref('')
+const gatewayMsgOk = ref(false)
+
+const fetchGatewayConfig = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/admin/gateway-config`, { headers: { Authorization: `Bearer ${getToken()}` } })
+    if (res.ok) {
+      const { data } = await res.json()
+      gatewayForm.value = {
+        provider: data.provider || '1panel',
+        baseUrl: data.baseUrl || '',
+        apiKey: '',
+        apiKeyConfigured: !!data.apiKeyConfigured,
+        defaultUserGroupId: data.defaultUserGroupId ?? null,
+        timeout: data.timeout || 10000,
+        credentialDaysRemaining: data.credentialDaysRemaining ?? null,
+        activeProvider: data.activeProvider || data.provider || '1panel',
+      }
+    }
+  } catch (e) { console.error('加载独立网关配置失败:', e) }
+}
+
+const saveGatewayConfig = async () => {
+  gatewaySaving.value = true
+  gatewayMsg.value = ''
+  try {
+    const res = await fetch(`${API_BASE}/admin/gateway-config`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      body: JSON.stringify({
+        provider: gatewayForm.value.provider,
+        baseUrl: gatewayForm.value.baseUrl,
+        apiKey: gatewayForm.value.apiKey || '',
+        defaultUserGroupId: gatewayForm.value.defaultUserGroupId,
+        timeout: gatewayForm.value.timeout,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) {
+      gatewayMsg.value = '已保存并热生效'
+      gatewayMsgOk.value = true
+      // 回填脱敏态：清空明文输入框，刷新已配置标记与剩余天数
+      gatewayForm.value.apiKey = ''
+      gatewayForm.value.apiKeyConfigured = !!data.data?.apiKeyConfigured
+      gatewayForm.value.credentialDaysRemaining = data.data?.credentialDaysRemaining ?? null
+      gatewayForm.value.activeProvider = data.data?.activeProvider || gatewayForm.value.provider
+    } else {
+      gatewayMsg.value = data.error || '保存失败'
+      gatewayMsgOk.value = false
+    }
+  } catch (e) {
+    gatewayMsg.value = '网络异常'
+    gatewayMsgOk.value = false
+  } finally {
+    gatewaySaving.value = false
+    setTimeout(() => { gatewayMsg.value = '' }, 5000)
+  }
+}
+
+const testGatewayConnection = async () => {
+  gatewayTesting.value = true
+  gatewayMsg.value = ''
+  try {
+    const res = await fetch(`${API_BASE}/admin/gateway-config/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+      body: JSON.stringify({
+        provider: gatewayForm.value.provider,
+        baseUrl: gatewayForm.value.baseUrl,
+        apiKey: gatewayForm.value.apiKey || '',
+        timeout: gatewayForm.value.timeout,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok && data.ok) {
+      gatewayMsg.value = '连接成功'
+      gatewayMsgOk.value = true
+    } else {
+      gatewayMsg.value = data.reason ? `${data.error || '连接失败'}: ${data.reason}` : (data.error || '连接失败')
+      gatewayMsgOk.value = false
+    }
+  } catch (e) {
+    gatewayMsg.value = '网络异常'
+    gatewayMsgOk.value = false
+  } finally {
+    gatewayTesting.value = false
+    setTimeout(() => { gatewayMsg.value = '' }, 6000)
   }
 }
 
@@ -1279,6 +1502,7 @@ onMounted(() => {
   loadPermissions()
   fetchConfig()
   fetchPanelConfig()
+  fetchGatewayConfig()
   fetchModelExample()
   loadBranding()
   loadAnnouncement()

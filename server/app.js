@@ -109,6 +109,7 @@ app.use('/api', (req, res, next) => {
   next();
 });
 app.use(require('./routes/admin'));
+app.use(require('./routes/admin-gateway'));
 app.use(require('./routes/admin-groups'));
 app.use(require('./routes/marketplace'));
 app.use(require('./routes/portal'));

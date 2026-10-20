@@ -64,10 +64,15 @@ async function getGateway(pool) {
 async function reloadGateway(pool) {
   const name = await readProviderName(pool);
   if (name !== cachedName) {
-    // provider 切换：丢弃缓存，下次 getGateway 重新 init
-    cachedName = null;
-    cachedAdapter = null;
-    inited = false;
+    // provider 切换：立即 init 新适配器（保证保存后 activeProvider/后续调用即刻生效）
+    const mod = providers[name];
+    if (!mod) {
+      throw new Error(`未知网关 provider: "${name}"（可选: ${Object.keys(providers).join(', ')}）`);
+    }
+    await mod.init(pool);
+    cachedName = name;
+    cachedAdapter = mod;
+    inited = true;
     return;
   }
   if (cachedAdapter) await cachedAdapter.reload(pool);

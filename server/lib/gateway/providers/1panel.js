@@ -254,8 +254,13 @@ async function revealKey(keyId) {
 
 // ============ 元信息 / 连接校验 ============
 
-async function verifyConnection() {
-  const res = await panel.post('/api/v2/core/enterprise/users/search', { page: 1, pageSize: 1, info: '' });
+async function verifyConnection(opts = {}) {
+  // opts: { baseUrl, apiKey, timeout } —— 「测试连接」用表单未保存值临时覆盖（1panel-api request 原生支持 options）
+  const reqOpts = {};
+  if (opts.baseUrl) reqOpts.baseUrl = opts.baseUrl;
+  if (opts.apiKey) reqOpts.apiKey = opts.apiKey;
+  if (opts.timeout) reqOpts.timeout = opts.timeout;
+  const res = await panel.post('/api/v2/core/enterprise/users/search', { page: 1, pageSize: 1, info: '' }, reqOpts);
   if (res.status < 200 || res.status >= 300) {
     throw err('1panel', `1Panel 不可达 HTTP ${res.status}`, res.status);
   }
