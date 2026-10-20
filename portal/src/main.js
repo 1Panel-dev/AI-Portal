@@ -1,4 +1,4 @@
-﻿import { createApp } from 'vue'
+import { createApp } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 import './style.css'
@@ -74,13 +74,16 @@ router.beforeEach((to, from, next) => {
   // 已登录用户访问登录/注册/管理员登录页 -> 跳模型广场
   // 企微客户端内 /login 放行：LoginView 的 maybeAutoLoginInsideWecom 需清态重登（onMounted 触发，
   // 若此处拦截跳走，组件不挂载，企微自动登录逻辑不会跑），故企微 UA 内 /login 不拦。
+  // loggedIn 必须含 login_token_type：仅 token 有效而身份标记丢失（部分清理/多 tab 竞争等）
+  // 属悬挂态，此时放行登录页让用户重登重建标记，否则死锁（进不了后台也进不了登录页）。
   const guestOnly = to.path === '/login' || to.path === '/register' || to.path === '/admin/login'
   if (guestOnly) {
     const at = localStorage.getItem('admin_token')
     const ut = localStorage.getItem('token')
     const atValid = at && !isTokenExpired(at)
     const utValid = ut && !isTokenExpired(ut)
-    const loggedIn = atValid || utValid
+    const typeKnown = !!localStorage.getItem('login_token_type')
+    const loggedIn = (atValid || utValid) && typeKnown
     const wecomLogin = to.path === '/login' && isInsideWecomUA()
     if (loggedIn && !wecomLogin) return next('/models')
   }

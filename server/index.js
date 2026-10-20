@@ -45,6 +45,17 @@ async function startServer() {
     // 1Panel API 客户端:从 DB 加载配置(覆盖 .env 中的默认值)
     await panelApi.init(global.pool);
 
+    // V2 网关适配器:启动即按 gateway_provider 加载并缓存,
+    // 保证 activeProvider 报告正确、M2+ 的同步调度与业务调用即刻可用
+    try {
+      const { getGateway } = require('./lib/gateway');
+      const gw = await getGateway(global.pool);
+      console.log(`🌐 网关适配器已加载: ${gw.name}`);
+    } catch (e) {
+      // 加载失败不阻断启动(如 provider 配置非法),业务调用时会在 getGateway 处再报
+      console.error(`⚠️ 网关适配器加载失败: ${e.message}`);
+    }
+
     // 启动下载量缓冲计数器,定时把内存累计 flush 到 DB
     downloadCounter.start(global.pool);
 

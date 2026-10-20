@@ -76,8 +76,12 @@ const login = async () => {
       throw new Error(data.error || '登录失败')
     }
 
-    // 保存 token
+    // 保存 token;对齐 LoginView 范式:清掉 portal_token + 记录 login_token_type,
+    // 否则 getLoginToken() 拿不到 token(身份标记缺失), 后台页面(如独立网关配置)会被页面级守卫弹回
+    localStorage.removeItem('token')
     localStorage.setItem('admin_token', data.token)
+    localStorage.setItem('login_token_type', 'admin')
+    sessionStorage.removeItem('login_identity')
     router.push('/admin/stats')
   } catch (err) {
     error.value = err.message
