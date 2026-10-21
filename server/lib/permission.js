@@ -8,10 +8,12 @@
 
 const pool = () => global.pool;
 
-/** 取 portal_users 行（含 is_portal_admin / panel_user_id） */
+/** 取 portal_users 行（含 is_portal_admin / panel_user_id / 网关两列）
+ *  注意: gateway_user_group_id 必须带出——getUserAllowedModels 网关分支靠它走两层 JOIN,
+ *  缺列会让 _gatewayAllowedModels 误判「无组 → null 全公开兜底」, 网关授权层失效（走查发现的 bug） */
 async function getPortalUser(userId) {
   const r = await pool().query(
-    'SELECT id, panel_user_id, username, name, role, status, is_portal_admin FROM portal_users WHERE id = $1',
+    'SELECT id, panel_user_id, gateway_user_id, gateway_user_group_id, username, name, role, status, is_portal_admin FROM portal_users WHERE id = $1',
     [userId]
   );
   return r.rowCount ? r.rows[0] : null;
