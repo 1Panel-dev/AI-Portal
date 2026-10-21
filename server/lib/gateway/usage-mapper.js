@@ -49,20 +49,26 @@ function mapDistribution(arr) {
   }));
 }
 
-/** token-trend buckets → trends[]（name=北京日期; 桶无请求数, 置 0） */
+/** token-trend buckets → trends[]（name=北京日期; 桶无请求数, requestCount=0;
+ *  totalTokens=三项之和 —— ProfileView 月度图按 requestCount+totalTokens>0 过滤空数据,
+ *  网关桶无请求数, 不补 totalTokens 会被整列过滤成「暂无数据」） */
 function mapTrends(trendRaw) {
   const dayName = (iso) => {
     try {
       return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
     } catch { return String(iso || '').slice(0, 10); }
   };
-  return ((trendRaw && trendRaw.buckets) || []).map(b => ({
-    name: dayName(b.start),
-    promptTokens: toNum(b.inputTokens),
-    completionTokens: toNum(b.outputTokens),
-    cachedTokens: toNum(b.cachedTokens),
-    requestCount: 0,
-  }));
+  return ((trendRaw && trendRaw.buckets) || []).map(b => {
+    const item = {
+      name: dayName(b.start),
+      promptTokens: toNum(b.inputTokens),
+      completionTokens: toNum(b.outputTokens),
+      cachedTokens: toNum(b.cachedTokens),
+      requestCount: 0,
+    };
+    item.totalTokens = item.promptTokens + item.completionTokens + item.cachedTokens;
+    return item;
+  });
 }
 
 module.exports = { toNum, mapSummary, mapDistribution, mapTrends };
