@@ -221,7 +221,7 @@ M5 统一改名：`panel_user_id→gateway_user_id`、`panel_key_id→gateway_ke
 |--------|------|----------|
 | **M1 配置层** | gateway-config API + 管理后台「独立网关」配置页 + 测试连接 | 保存热生效；对网关真实实例 verifyConnection 通过 |
 | **M2 模型同步** | gateway-sync.js 模型路 + modelSync provider 分支 | 网关模式下 portal_models 与 upstream-accounts 一致；is_public 不丢；空响应不清表 |
-| **M3 组同步 + 授权链** | gateway_* 表 + syncGatewayGroups（含归属回填）+ getUserAllowedModels 双分支 | 资源组 ∩ 网关模型组交集正确；1Panel 链路回归不变 |
+| **M3 组同步 + 授权链** | gateway_* 表 + syncGatewayGroups（含归属回填）+ getUserAllowedModels 双分支 | 资源组 ∩ 网关模型组交集正确；1Panel 链路回归不变。**过渡期注意（M2 后 M3 前的已知状态）**：模型数据已来自网关但授权交集仍走 1Panel 组缓存——管理员上架的模型名必须在 1Panel 模型组配置中存在，否则普通用户可见集为空；M3 上线后此约束解除 |
 | **M4 用户 / Key** | 企微注册追加网关代建 + 用户禁用/删除联动 + Key 路由切网关 | 新用户网关侧自动建档入默认组；Key 创建/重置/删除/reveal 回退全通过 |
 | **M5 改名 + 迁移** | 044 列改名 + `scripts/migrate-to-gateway.js`（存量用户批量代建，幂等） | grep 验收旧列名清零（V1 冻结文件除外）；代建可重跑 |
 | **M6 统计切换** | ai-gateway adapter 加 `getUsageStatistics()` + 统计接口按 provider 分支 + AdminStatsView 字段映射（可选：token-trend 趋势图） | 网关模式下统计页数据与 `GET /admin/usage-statistics` 一致；1Panel 模式回归不变 |
