@@ -70,7 +70,7 @@
         </div>
         <p v-if="preview.memberHint" class="text-[11px] text-text-tertiary pl-1 flex items-center gap-1">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-amber-500"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
-          1Panel 模型组交集过滤：{{ preview.memberHint }}
+          模型组交集过滤：{{ preview.memberHint }}
         </p>
       </div>
       <div v-else-if="!preview.loading" class="mb-4 text-xs text-text-tertiary">该组暂无成员，展示组内包含资源（模型未按成员模型组过滤）</div>
@@ -95,7 +95,7 @@
           <div v-else class="text-xs text-text-tertiary py-2">无可见模型</div>
           <template v-if="preview.data.model_filtered && (preview.data.model_blocked || []).length">
             <div class="mt-3 pt-2 border-t border-[rgba(0,0,0,0.04)]">
-              <p class="text-[11px] text-amber-600 font-medium mb-1.5">⚠ 被 1Panel 模型组挡住 ({{ (preview.data.model_blocked || []).length }})</p>
+              <p class="text-[11px] text-amber-600 font-medium mb-1.5">⚠ 被模型组挡住 ({{ (preview.data.model_blocked || []).length }})</p>
               <div class="flex flex-wrap gap-1.5 max-h-[100px] overflow-y-auto">
                 <span v-for="(item, i) in preview.data.model_blocked" :key="i" class="px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-700 border border-amber-200/60" :title="item.subtitle || ''">{{ item.title }}</span>
               </div>

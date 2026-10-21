@@ -3,7 +3,7 @@
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 class="text-2xl font-bold text-text">用户管理</h1>
-          <p class="text-text-secondary text-sm mt-1">查看门户用户，删除时会先清理 1Panel 远端用户与 API Key</p>
+          <p class="text-text-secondary text-sm mt-1">查看门户用户，删除时会先清理远端模型网关（1Panel 或独立网关）的用户与 API Key</p>
         </div>
         <div class="flex flex-wrap gap-2">
           <button @click="refreshUsers" :disabled="loading" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50"><RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />{{ loading ? '加载中...' : '刷新' }}</button>
@@ -134,7 +134,7 @@
       <div v-if="deletingUser" class="fixed inset-0 z-[300] flex items-center justify-center bg-black/45 px-5 backdrop-blur-[8px]" @click="deletingUser = null">
         <div class="w-full max-w-[420px] rounded-2xl bg-white p-6 shadow-modal" @click.stop>
           <h3 class="text-lg font-semibold text-text mb-2">确认删除用户</h3>
-          <p class="text-sm text-text-secondary leading-6 mb-5">确定删除用户「{{ deletingUser.username }}」吗？系统会先删除 1Panel 远端用户和 API Key，成功后再删除本地记录。</p>
+          <p class="text-sm text-text-secondary leading-6 mb-5">确定删除用户「{{ deletingUser.username }}」吗？系统会先删除远端模型网关用户和 API Key，成功后再删除本地记录。</p>
           <div class="flex justify-end gap-3">
             <button @click="deletingUser = null" :disabled="deleting" class="px-4 py-2 text-sm btn-secondary disabled:opacity-50">取消</button>
             <button @click="deleteUser" :disabled="deleting" class="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">{{ deleting ? '删除中...' : '确认删除' }}</button>

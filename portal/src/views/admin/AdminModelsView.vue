@@ -69,7 +69,7 @@
           暂无已上架模型 (<button type="button" class="text-accent hover:underline" @click="statusTab = 'private'">去上架</button>)
         </template>
         <template v-else>
-          暂无模型（点击同步从 1Panel 拉取）
+          暂无模型（点击同步从模型网关拉取）
         </template>
       </div>
       <!-- 行 -->
@@ -109,7 +109,7 @@
       <div v-if="editing" class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-text mb-1">展示名称</label>
-          <input v-model="editForm.display_name" class="model-input" placeholder="对外展示的模型名（默认同步自 1Panel）" />
+          <input v-model="editForm.display_name" class="model-input" placeholder="对外展示的模型名（默认同步自模型网关）" />
         </div>
         <div v-if="editing.api_model_name">
           <label class="block text-sm font-medium text-text mb-1">实际调用名 (API)</label>

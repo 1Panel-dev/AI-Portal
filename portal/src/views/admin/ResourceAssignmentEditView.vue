@@ -125,10 +125,10 @@
         <Info class="w-4 h-4 flex-shrink-0 mt-0.5" />
         <div class="leading-relaxed">
           <p class="font-medium mb-0.5">模型可见性规则</p>
-          <p>成员实际可见的模型 = <span class="font-medium">资源组勾选的模型</span> ∩ <span class="font-medium">该成员在 1Panel 的模型授权</span>（由其 API Key 所属用户组 → 模型组推导）。技能 / MCP 不取交集，资源组勾选即对成员可见。未被任何资源组授权的成员无法看到该组的任何资源。</p>
+          <p>成员实际可见的模型 = <span class="font-medium">资源组勾选的模型</span> ∩ <span class="font-medium">该成员的模型授权</span>（由所属用户组 → 模型组推导；1Panel 模式按 Key 所属用户组，独立网关模式按用户所属用户组）。技能 / MCP 不取交集，资源组勾选即对成员可见。未被任何资源组授权的成员无法看到该组的任何资源。</p>
         </div>
       </div>
-      <!-- 成员限制概览表（一屏看全组成员的 1Panel 模型组限制） -->
+      <!-- 成员限制概览表（一屏看全组成员的模型组限制） -->
       <div class="mb-4 border border-[rgba(0,0,0,0.06)] rounded-xl bg-white overflow-hidden">
         <div class="flex items-center gap-2 px-4 py-2.5 border-b border-[rgba(0,0,0,0.04)] bg-surface-secondary flex-wrap">
           <span class="text-sm font-medium text-text">成员限制概览</span>
@@ -151,7 +151,7 @@
               <span class="w-32 shrink-0 truncate text-[13px] text-text">{{ m.name || m.username }}</span>
               <span class="w-24 shrink-0 truncate text-[11px] text-text-tertiary">{{ m.username }}</span>
               <span class="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium" :class="m.isPortalAdmin || m.isAdminRole ? 'bg-sky-50 text-sky-600' : (m.panelGroupName ? 'bg-slate-100 text-slate-600' : 'bg-surface-secondary text-text-tertiary')">
-                {{ m.isPortalAdmin ? '超管' : (m.isAdminRole ? '后台角色' : (m.panelGroupName || '无1Panel组')) }}
+                {{ m.isPortalAdmin ? '超管' : (m.isAdminRole ? '后台角色' : (m.panelGroupName || '无用户组')) }}
               </span>
               <span class="shrink-0 text-[11px] tabular-nums" :class="m.blockedCount > 0 ? 'text-amber-600 font-medium' : 'text-emerald-600'">
                 {{ m.visibleCount }}/{{ m.total }}
@@ -202,7 +202,7 @@
           <div v-else class="text-xs text-text-tertiary py-2">无可见模型</div>
           <template v-if="preview.data.model_filtered && (preview.data.model_blocked || []).length">
             <div class="mt-3 pt-2 border-t border-[rgba(0,0,0,0.04)]">
-              <p class="text-[11px] text-amber-600 font-medium mb-1.5">⚠ 被 1Panel 模型组挡住 ({{ (preview.data.model_blocked || []).length }})</p>
+              <p class="text-[11px] text-amber-600 font-medium mb-1.5">⚠ 被模型组挡住 ({{ (preview.data.model_blocked || []).length }})</p>
               <div class="flex flex-wrap gap-1.5 max-h-[100px] overflow-y-auto">
                 <span v-for="(item, i) in preview.data.model_blocked" :key="i" class="px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-700 border border-amber-200/60" :title="item.subtitle || ''">{{ item.title }}</span>
               </div>
@@ -421,7 +421,7 @@ const selectedPreviewMember = ref(null)
 const blockedModelIds = ref(new Set())
 const memberHint = ref('')
 
-// ---- 成员限制概览（一屏看全组成员的 1Panel 模型组限制）----
+// ---- 成员限制概览（一屏看全组成员的模型组限制）----
 const membersOverview = ref({ loading: false, error: '', rows: [], total: 0, loaded: false })
 const overviewSearch = ref('')
 const overviewOnlyBlocked = ref(false)
