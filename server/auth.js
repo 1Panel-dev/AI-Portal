@@ -61,7 +61,7 @@ const verifyUser = async (req, res, next) => {
     // 兼容两种 token: portal_user 和 admin（spec 核查修正3）
     if (decoded.type === 'portal_user' || decoded.type === 'admin') {
       const result = await global.pool.query(`
-        SELECT id, panel_user_id, username, name, role, status, is_portal_admin, last_login_at, created_at
+        SELECT id, panel_user_id, gateway_user_id, gateway_user_group_id, username, name, role, status, is_portal_admin, last_login_at, created_at
         FROM portal_users
         WHERE id = $1
       `, [decoded.id]);

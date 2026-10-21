@@ -234,6 +234,7 @@ async function _syncGatewayGroups() {
 
   // ---- 3. 用户归属回填(按 username 匹配; gateway username = 门户 username) ----
   let backfilled = 0;
+  let orphanCleared = 0;
   const gwUsers = await gw.listUsers();
   if (gwUsers.length > 0) {
     const uids = gwUsers.map(u => u.userId);
@@ -247,18 +248,26 @@ async function _syncGatewayGroups() {
       WHERE lower(pu.username) = lower(u.uname)
     `, [uids, unames, gids]);
     backfilled = r.rowCount;
+
+    // 反向清理:门户记录了网关用户 id 但该用户已不在网关(网关侧被删) → 清空脏引用,
+    // 否则 Key 代操作会 404 user was not found（listUsers 为全量翻页, 清理安全）
+    const c = await pool().query(
+      'UPDATE portal_users SET gateway_user_id = NULL, gateway_user_group_id = NULL WHERE gateway_user_id IS NOT NULL AND NOT (gateway_user_id = ANY($1::int[]))',
+      [uids]
+    );
+    orphanCleared = c.rowCount;
   }
 
   await pool().query(`
     INSERT INTO portal_sync_log (sync_type, status, message, total_count, success_count, details)
     VALUES ($1, $2, $3, $4, $5, $6)
   `, ['groups', 'success',
-      `独立网关组同步完成: 用户组 ${userGroups.length} / 模型组 ${modelGroups.length}` + (backfilled ? `,归属回填 ${backfilled}` : ''),
+      `独立网关组同步完成: 用户组 ${userGroups.length} / 模型组 ${modelGroups.length}` + (backfilled ? `,归属回填 ${backfilled}` : '') + (orphanCleared ? `,清理失联归属 ${orphanCleared}` : ''),
       userGroups.length + modelGroups.length, userGroups.length + modelGroups.length,
-      { provider: 'ai-gateway', userGroups: userGroups.length, modelGroups: modelGroups.length, backfilled }]);
+      { provider: 'ai-gateway', userGroups: userGroups.length, modelGroups: modelGroups.length, backfilled, orphanCleared }]);
 
-  console.log(`[gateway-sync] 组同步完成: 用户组 ${userGroups.length} / 模型组 ${modelGroups.length} / 归属回填 ${backfilled}`);
-  return { userGroups: userGroups.length, modelGroups: modelGroups.length, backfilled };
+  console.log(`[gateway-sync] 组同步完成: 用户组 ${userGroups.length} / 模型组 ${modelGroups.length} / 归属回填 ${backfilled} / 清理失联 ${orphanCleared}`);
+  return { userGroups: userGroups.length, modelGroups: modelGroups.length, backfilled, orphanCleared };
 }
 
 module.exports = { syncModels, syncGatewayModels, syncGroups, syncGatewayGroups };

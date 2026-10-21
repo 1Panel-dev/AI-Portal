@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { verifyUser, requirePermission, requirePermissionOrAdminRole, signPortalToken } = require('../auth');
 const { panel, getPanelPayload, getPanelItems, findPanelUser, createPanelUser } = require('../panel');
 const { syncModels } = require('../lib/gateway-sync');
+const { getGateway, currentProviderName } = require('../lib/gateway');
 const { isAnyProviderEnabled } = require('../oauth');
 const { inspectPanelBiz, listPanelKeys, listPanelKeysOfUser } = require('../lib/panel-biz');
 
@@ -652,6 +653,19 @@ router.post('/api/keys', verifyUser, requirePermission('key:create'), async (req
   try {
     let panelUserId = req.portalUser.panel_user_id;
 
+    // V2: 网关模式分支（不依赖 1Panel 用户 id; Key 由网关签发）
+    if (currentProviderName() === 'ai-gateway') {
+      const existingGw = await global.pool.query(
+        'SELECT id FROM portal_api_keys WHERE user_id = $1 LIMIT 1',
+        [req.portalUser.id]
+      );
+      if (existingGw.rowCount > 0) {
+        return res.status(400).json({ error: '已有 API Key，如需更换请使用重置功能' });
+      }
+      const remarkGw = String(req.body.remark || '').slice(0, 200);
+      return await createKeyGateway(req, res, remarkGw);
+    }
+
     // OAuth 自动创建的用户可能因网络原因未同步到 1Panel，这里再试一次
     if (!panelUserId) {
       try {
@@ -819,6 +833,25 @@ router.get('/api/keys/:id', verifyUser, async (req, res) => {
 
     const row = local.rows[0];
 
+    // V2: 网关模式无远端 reveal（明文仅签发时返回一次）→ 直接走本地密文
+    if (currentProviderName() === 'ai-gateway') {
+      const gwCipher = row.api_key_cipher || '';
+      if (gwCipher && !gwCipher.includes('*') && gwCipher.length >= 20) {
+        return res.json({
+          id: row.id,
+          panel_key_id: row.panel_key_id,
+          api_key: gwCipher,
+          api_key_mask: row.api_key_mask,
+          source: 'local',
+        });
+      }
+      return res.status(409).json({
+        error: '无法获取完整 API Key，请点击「重置 Key」重新生成',
+        reason: '网关模式 Key 明文仅在签发/重置时展示一次，本地缓存缺失',
+        code: 'GATEWAY_REVEAL_NOT_SUPPORTED',
+      });
+    }
+
     // —— 策略:reveal-first ——
     // 复制场景对「拿到明文」是硬要求，必须优先去 1Panel reveal；
     // 本地 cipher 仅作为离线兜底，且 reveal 成功时顺手回填到 DB（修复历史空 cipher）
@@ -900,6 +933,175 @@ function maskApiKey(key) {
   return key.slice(0, 4) + '****' + key.slice(-4);
 }
 
+// ==================== V2 独立网关 Key 操作（M4） ====================
+// 网关模式: Key 由网关签发（明文仅返回一次, 门户落库）; 一人一 Key 业务规则维持（D-14）。
+
+/** 网关模式: 删除该用户在网关侧的所有 Key（按 gateway_key_id; 存量 1Panel Key 无网关对应, 自然跳过） */
+async function purgeGatewayKeysOfUser(portalUserId) {
+  const existing = await global.pool.query(
+    'SELECT gateway_key_id FROM portal_api_keys WHERE user_id = $1 AND gateway_key_id IS NOT NULL',
+    [portalUserId]
+  );
+  if (existing.rowCount === 0) return 0;
+  const uRow = await global.pool.query('SELECT gateway_user_id FROM portal_users WHERE id = $1', [portalUserId]);
+  const gUid = uRow.rows[0] && uRow.rows[0].gateway_user_id;
+  if (!gUid) return existing.rowCount;  // 用户未同步到网关 → 无从删, 仅计数
+  const gw = await getGateway(global.pool);
+  for (const r of existing.rows) {
+    try {
+      await gw.deleteUserKey(gUid, r.gateway_key_id);
+    } catch (e) {
+      // 404/已不存在 → 跳过; 其余抛出走调用方的 502 语义
+      if (e.status && e.status !== 404) throw e;
+      console.warn(`[gateway-keys] 网关 Key ${r.gateway_key_id} 已不存在, 跳过`);
+    }
+  }
+  return existing.rowCount;
+}
+
+/** 网关模式: 创建 Key（POST /api/keys 分支）——响应结构与 1Panel 路径完全同形 */
+async function createKeyGateway(req, res, remark) {
+  const user = req.portalUser;
+  if (!user.gateway_user_id) {
+    return res.status(409).json({
+      error: '用户尚未同步到独立网关（缺少网关用户标识）',
+      reason: '请等待下一次用户归属同步（10 分钟内自动完成）或联系管理员',
+      code: 'GATEWAY_USER_NOT_SYNCED',
+    });
+  }
+  const gw = await getGateway(global.pool);
+  let created;
+  try {
+    created = await gw.createUserKey(user.gateway_user_id, { name: `portal-${user.username}`, remark });
+  } catch (e) {
+    console.error('[create-key][gateway] 创建失败:', e.message, 'code=', e.code);
+    const code = e.code === 'api_key_limit_reached' ? 'GATEWAY_KEY_LIMIT'
+      : e.code === 'user_not_found' ? 'GATEWAY_USER_NOT_SYNCED' : 'GATEWAY_REJECTED';
+    return res.status(e.status || 502).json({ error: '独立网关拒绝创建 API Key', reason: e.message, code });
+  }
+  const fullKey = created.apiKey;
+  const keyMask = created.mask || maskApiKey(fullKey);
+
+  const result = await global.pool.query(`
+    INSERT INTO portal_api_keys (
+      user_id, panel_key_id, panel_user_id, api_key_mask, api_key_cipher,
+      group_id, status, remark, token_limit, raw_data, gateway_key_id, synced_at
+    ) VALUES ($1, NULL, $2, $3, $4, 1, 'Enable', $5, 0, $6, $7, CURRENT_TIMESTAMP)
+    RETURNING id, api_key_mask, api_key_cipher, panel_key_id, status, remark, created_at
+  `, [
+    user.id, user.panel_user_id, keyMask, fullKey, remark,
+    { provider: 'ai-gateway', gatewayUserId: user.gateway_user_id, gatewayKeyId: created.keyId },
+    created.keyId,
+  ]);
+  const saved = result.rows[0];
+  console.log(`[POST /api/keys][gateway] 创建成功: user=${user.id}(${user.username}) gwUserId=${user.gateway_user_id} gateway_key_id=${created.keyId}`);
+  return res.json({
+    key: {
+      id: saved.id,
+      api_key: saved.api_key_cipher,
+      api_key_mask: saved.api_key_mask,
+      panel_key_id: saved.panel_key_id,
+      gateway_key_id: created.keyId,
+      status: saved.status,
+      remark: saved.remark || '',
+      created_at: saved.created_at,
+    }
+  });
+}
+
+/** 网关模式: 重置 Key（POST /api/keys/reset 分支）—— 删旧建新, 响应结构与 1Panel 路径同形 */
+async function resetKeyGateway(req, res) {
+  const user = req.portalUser;
+  if (!user.gateway_user_id) {
+    return res.status(409).json({
+      error: '用户尚未同步到独立网关（缺少网关用户标识）',
+      reason: '请等待下一次用户归属同步或联系管理员',
+      code: 'GATEWAY_USER_NOT_SYNCED',
+    });
+  }
+  const existing = await global.pool.query(
+    'SELECT id, remark FROM portal_api_keys WHERE user_id = $1 LIMIT 1',
+    [user.id]
+  );
+  if (existing.rowCount === 0) {
+    return res.status(400).json({ error: '当前没有 API Key，请先申请' });
+  }
+
+  // 1. 清理网关侧旧 Key（存量 1Panel Key 无 gateway_key_id, 自动跳过）
+  try {
+    const purged = await purgeGatewayKeysOfUser(user.id);
+    if (purged > 0) console.log(`[reset][gateway] 清理网关旧 Key ${purged} 个(user=${user.id})`);
+  } catch (e) {
+    const isUnreachable = /ECONN|ETIMEDOUT|ENOTFOUND|timeout/i.test(e.message);
+    return res.status(502).json({
+      error: isUnreachable ? '独立网关不可达，重置失败' : '独立网关旧 Key 清理失败',
+      reason: e.message,
+      code: isUnreachable ? 'GATEWAY_UNREACHABLE' : 'GATEWAY_PURGE_FAILED',
+    });
+  }
+
+  // 2. 网关签发新 Key（明文仅返回一次, 必落库）
+  const gw = await getGateway(global.pool);
+  let created;
+  try {
+    created = await gw.createUserKey(user.gateway_user_id, { name: `portal-${user.username}`, remark: existing.rows[0].remark || '' });
+  } catch (e) {
+    console.error('[reset][gateway] 创建失败:', e.message, 'code=', e.code);
+    const code = e.code === 'api_key_limit_reached' ? 'GATEWAY_KEY_LIMIT' : 'GATEWAY_REJECTED';
+    return res.status(e.status || 502).json({ error: '独立网关拒绝创建 API Key', reason: e.message, code });
+  }
+
+  // 3. 更新本地（panel_key_id 置 NULL —— 当前 Key 已是网关签发）
+  const result = await global.pool.query(`
+    UPDATE portal_api_keys SET
+      panel_key_id = NULL, gateway_key_id = $1,
+      api_key_mask = $2, api_key_cipher = $3,
+      raw_data = $4, status = 'Enable', synced_at = CURRENT_TIMESTAMP
+    WHERE user_id = $5
+    RETURNING id, api_key_mask, api_key_cipher, panel_key_id, status, remark, created_at
+  `, [created.keyId, created.mask || maskApiKey(created.apiKey), created.apiKey,
+      { provider: 'ai-gateway', gatewayUserId: user.gateway_user_id, gatewayKeyId: created.keyId },
+      user.id]);
+  const saved = result.rows[0];
+  console.log(`[reset][gateway] 重置成功: user=${user.id} gateway_key_id=${created.keyId}`);
+  return res.json({
+    key: {
+      id: saved.id,
+      api_key: saved.api_key_cipher,
+      api_key_mask: saved.api_key_mask,
+      panel_key_id: saved.panel_key_id,
+      gateway_key_id: created.keyId,
+      status: saved.status,
+      remark: saved.remark || '',
+      created_at: saved.created_at,
+    }
+  });
+}
+
+/** 网关模式: 删除 Key（DELETE /api/keys 分支）——fail-closed 语义对齐 1Panel 路径 */
+async function deleteKeyGateway(req, res) {
+  const existing = await global.pool.query(
+    'SELECT id FROM portal_api_keys WHERE user_id = $1 LIMIT 1',
+    [req.portalUser.id]
+  );
+  if (existing.rowCount === 0) {
+    return res.status(400).json({ error: '当前没有 API Key' });
+  }
+  try {
+    const purged = await purgeGatewayKeysOfUser(req.portalUser.id);
+    console.log(`[delete][gateway] 清理网关 Key ${purged} 个(user=${req.portalUser.id})`);
+  } catch (e) {
+    const isUnreachable = /ECONN|ETIMEDOUT|ENOTFOUND|timeout/i.test(e.message);
+    return res.status(502).json({
+      error: isUnreachable ? '独立网关不可达，删除失败' : '独立网关拒绝删除 API Key',
+      reason: e.message,
+      code: isUnreachable ? 'GATEWAY_UNREACHABLE' : 'GATEWAY_REJECTED',
+    });
+  }
+  await global.pool.query('DELETE FROM portal_api_keys WHERE user_id = $1', [req.portalUser.id]);
+  return res.json({ success: true });
+}
+
 /**
  * 把 panel 端属于该用户的 key 全部删掉(reset 的关键前置)。
  * 删完会再 search 一次校验,确保 0 残留——否则 1Panel 的 create 会以
@@ -927,6 +1129,10 @@ async function purgePanelKeysOfUser(panelUserId) {
 
 router.post('/api/keys/reset', verifyUser, requirePermission('key:edit'), async (req, res) => {
   try {
+    // V2: 网关模式分支（删旧建新, 明文一次性落库）
+    if (currentProviderName() === 'ai-gateway') {
+      return await resetKeyGateway(req, res);
+    }
     if (!req.portalUser.panel_user_id) {
       return res.status(400).json({ error: '需要先关联 1Panel 用户' });
     }
@@ -1070,6 +1276,10 @@ router.post('/api/keys/reset', verifyUser, requirePermission('key:edit'), async 
 // panel_key_id 可能与远端漂移(历史半失败 reset 留下),应以"按 panel_user_id 翻页 search"为准。
 router.delete('/api/keys', verifyUser, requirePermission('key:delete'), async (req, res) => {
   try {
+    // V2: 网关模式分支（按 gateway_key_id 清理网关侧）
+    if (currentProviderName() === 'ai-gateway') {
+      return await deleteKeyGateway(req, res);
+    }
     if (!req.portalUser.panel_user_id) {
       return res.status(400).json({ error: '需要先关联 1Panel 用户' });
     }

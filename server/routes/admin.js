@@ -7,6 +7,7 @@ const panelApi = require('../lib/1panel-api');
 const { verifyUser, requirePermission } = require('../auth');
 const { panel, getPanelPayload, getPanelItems, getPanelRoles, syncSkillsFromPanel, syncMcpsFromPanel, syncPanelGroups, findPanelUser, createPanelUser } = require('../panel');
 const { syncModels, syncGroups } = require('../lib/gateway-sync');
+const { getGateway, currentProviderName } = require('../lib/gateway');
 const { inspectPanelBiz } = require('../lib/panel-biz');
 const bcrypt = require('bcrypt');
 const oauthRegistry = require('../oauth');
@@ -1639,37 +1640,75 @@ router.delete('/api/admin/portal-users/:id', verifyUser, requirePermission('user
 
     // 2. 删除远端 API Key —— 并发删除,各 key 互不依赖
     // 单 key 失败不阻塞其他 key 和后续流程(语义与旧版串行 try/catch 一致)
-    const keyRes = await global.pool.query('SELECT panel_key_id FROM portal_api_keys WHERE user_id = $1', [userId]);
-    const deleteKeyTasks = keyRes.rows
-      .filter(row => row.panel_key_id)
-      .map(async row => {
-        try {
-          const response = await panel.post('/api/v2/core/enterprise/ai-proxy/api-keys/delete', { id: row.panel_key_id });
-          const biz = inspectPanelBiz(response);
-          if (response.status >= 200 && response.status < 300 && biz.ok) return;
-          if (isRemoteRecordNotFound(biz.message)) {
-            console.warn(`远端 API Key ${row.panel_key_id} 已不存在，跳过`);
-            return;
+    // V2: 网关模式按 gateway_key_id 删网关 Key; 1Panel 模式按 panel_key_id 删（原链路）
+    if (currentProviderName() === 'ai-gateway') {
+      const gKeyRes = await global.pool.query(
+        'SELECT gateway_key_id FROM portal_api_keys WHERE user_id = $1 AND gateway_key_id IS NOT NULL',
+        [userId]
+      );
+      const gUid = localUser.gateway_user_id;
+      if (gUid && gKeyRes.rowCount > 0) {
+        const gw = await getGateway(global.pool);
+        for (const row of gKeyRes.rows) {
+          try {
+            await gw.deleteUserKey(gUid, row.gateway_key_id);
+          } catch (e) {
+            // 404/网络异常跳过（对齐 1Panel 语义）; 其余失败阻断
+            if (e.status === 404 || isNetworkError(e.message)) {
+              console.warn(`网关 API Key ${row.gateway_key_id} 删除跳过: ${e.message}`);
+              continue;
+            }
+            return res.status(502).json({ error: '网关 API Key 删除失败', reason: e.message, code: 'GATEWAY_USER_KEY_DELETE_FAILED' });
           }
-          throw new Error(biz.message || `API Key ${row.panel_key_id} 删除失败 HTTP=${response.status}`);
-        } catch (e) {
-          // 网络异常也算跳过，不给本地删除增加负担
-          if (isNetworkError(e.message)) {
-            console.warn(`远端 API Key ${row.panel_key_id} 不可达，跳过`);
-            return;
-          }
-          throw e;
         }
-      });
-    try {
-      await Promise.all(deleteKeyTasks);
-    } catch (e) {
-      console.error('远端 API Key 删除失败:', e.message);
-      return res.status(502).json({ error: '远端 API Key 删除失败', reason: e.message, code: 'PANEL_USER_KEY_DELETE_FAILED' });
+      }
+    } else {
+      const keyRes = await global.pool.query('SELECT panel_key_id FROM portal_api_keys WHERE user_id = $1', [userId]);
+      const deleteKeyTasks = keyRes.rows
+        .filter(row => row.panel_key_id)
+        .map(async row => {
+          try {
+            const response = await panel.post('/api/v2/core/enterprise/ai-proxy/api-keys/delete', { id: row.panel_key_id });
+            const biz = inspectPanelBiz(response);
+            if (response.status >= 200 && response.status < 300 && biz.ok) return;
+            if (isRemoteRecordNotFound(biz.message)) {
+              console.warn(`远端 API Key ${row.panel_key_id} 已不存在，跳过`);
+              return;
+            }
+            throw new Error(biz.message || `API Key ${row.panel_key_id} 删除失败 HTTP=${response.status}`);
+          } catch (e) {
+            // 网络异常也算跳过，不给本地删除增加负担
+            if (isNetworkError(e.message)) {
+              console.warn(`远端 API Key ${row.panel_key_id} 不可达，跳过`);
+              return;
+            }
+            throw e;
+          }
+        });
+      try {
+        await Promise.all(deleteKeyTasks);
+      } catch (e) {
+        console.error('远端 API Key 删除失败:', e.message);
+        return res.status(502).json({ error: '远端 API Key 删除失败', reason: e.message, code: 'PANEL_USER_KEY_DELETE_FAILED' });
+      }
     }
 
     // 3. 删除远端用户（远端已不存在时跳过，不阻断本地删除）
-    if (localUser.panel_user_id) {
+    // V2: 网关模式删网关用户; 1Panel 模式删 1Panel 用户（两套 id 并存, 各删各的）
+    if (currentProviderName() === 'ai-gateway') {
+      if (localUser.gateway_user_id) {
+        try {
+          const gw = await getGateway(global.pool);
+          await gw.deleteUser(localUser.gateway_user_id);
+        } catch (e) {
+          if (e.status === 404 || isNetworkError(e.message)) {
+            console.warn(`网关用户 ${localUser.gateway_user_id} 删除跳过: ${e.message}`);
+          } else {
+            return res.status(502).json({ error: '网关用户删除失败', reason: e.message, code: 'GATEWAY_USER_DELETE_FAILED' });
+          }
+        }
+      }
+    } else if (localUser.panel_user_id) {
       try {
         const response = await panel.post('/api/v2/core/enterprise/users/del', { ids: [localUser.panel_user_id] });
         const biz = inspectPanelBiz(response);

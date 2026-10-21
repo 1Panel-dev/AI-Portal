@@ -406,6 +406,27 @@ router.post('/api/auth/oauth/bind/skip', express.json(), async (req, res) => {
       [panelUserId, username, displayName, passwordHash, sessionTimeout, decoded.provider]
     );
     const user = ins.rows[0];
+
+    // V2: 同步代建独立网关用户（失败不阻断, 对齐 1Panel 容错语义）
+    try {
+      const { currentProviderName } = require('../lib/gateway');
+      if (currentProviderName() === 'ai-gateway') {
+        const { getGateway } = require('../lib/gateway');
+        const gw = await getGateway(global.pool);
+        const gwUser = await gw.createUser({
+          username,
+          password: randomPassword,
+          note: `AI-Portal 企微注册: ${displayName}`,
+        });
+        await global.pool.query(
+          'UPDATE portal_users SET gateway_user_id = $1, gateway_user_group_id = $2 WHERE id = $3',
+          [gwUser.userId, gwUser.groupId ?? null, user.id]
+        );
+        console.log(`[oauth/bind/skip] 已代建独立网关用户: ${username} → gwUserId=${gwUser.userId}, gwGroupId=${gwUser.groupId}`);
+      }
+    } catch (e) {
+      console.error('[oauth/bind/skip] 独立网关代建用户失败（不阻断注册）:', e.message);
+    }
     // 默认分配内置 user 角色
     await global.pool.query(`
       INSERT INTO user_roles (user_id, role_id)
