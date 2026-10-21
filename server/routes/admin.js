@@ -5,7 +5,8 @@ const multer = require('multer');
 const storage = require('../lib/storage');
 const panelApi = require('../lib/1panel-api');
 const { verifyUser, requirePermission } = require('../auth');
-const { panel, getPanelPayload, getPanelItems, getPanelRoles, syncModelsFromPanel, syncSkillsFromPanel, syncMcpsFromPanel, syncPanelGroups, findPanelUser, createPanelUser } = require('../panel');
+const { panel, getPanelPayload, getPanelItems, getPanelRoles, syncSkillsFromPanel, syncMcpsFromPanel, syncPanelGroups, findPanelUser, createPanelUser } = require('../panel');
+const { syncModels } = require('../lib/gateway-sync');
 const { inspectPanelBiz } = require('../lib/panel-biz');
 const bcrypt = require('bcrypt');
 const oauthRegistry = require('../oauth');
@@ -1352,7 +1353,7 @@ router.post('/api/admin/panel-config/sync-now', verifyUser, requirePermission('s
     // syncPanelGroups(用户组/模型组/key组ID回填)也纳入: 授权过滤(getUserAllowedModels 三层 JOIN)
     // 依赖这三张缓存表,不刷会导致「模型数据新、授权数据旧」的不一致
     const [modelsResult, skillsResult, mcpsResult, groupsResult, rolesResult] = await Promise.allSettled([
-      syncModelsFromPanel(),
+      syncModels(),   // V2: 按 gateway_provider 分支(1panel → 1Panel 链路; ai-gateway → 独立网关)
       syncSkillsFromPanel(),
       syncMcpsFromPanel(),
       syncPanelGroups(),

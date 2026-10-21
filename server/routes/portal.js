@@ -2,7 +2,8 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const { verifyUser, requirePermission, requirePermissionOrAdminRole, signPortalToken } = require('../auth');
-const { panel, getPanelPayload, getPanelItems, findPanelUser, createPanelUser, syncModelsFromPanel } = require('../panel');
+const { panel, getPanelPayload, getPanelItems, findPanelUser, createPanelUser } = require('../panel');
+const { syncModels } = require('../lib/gateway-sync');
 const { isAnyProviderEnabled } = require('../oauth');
 const { inspectPanelBiz, listPanelKeys, listPanelKeysOfUser } = require('../lib/panel-biz');
 
@@ -287,7 +288,7 @@ router.get('/api/models', verifyUser, requirePermissionOrAdminRole('model:view')
       const anyActive = await global.pool.query('SELECT 1 FROM portal_models WHERE is_active = TRUE LIMIT 1');
       if (anyActive.rowCount === 0) {
         try {
-          await syncModelsFromPanel();
+          await syncModels();
           const result = await global.pool.query(`
             SELECT id, group_name, model_name, provider, base_url, model_type, is_active,
                    api_model_name, display_name, description, context_window, max_output_tokens,
@@ -385,7 +386,7 @@ router.get('/api/models', verifyUser, requirePermissionOrAdminRole('model:view')
 
 router.post('/api/models/sync', verifyUser, requirePermission('model:sync'), async (req, res) => {
   try {
-    const result = await syncModelsFromPanel();
+    const result = await syncModels();
     res.json({ success: true, ...result });
   } catch (err) {
     console.error('模型同步失败:', err);

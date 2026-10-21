@@ -10,7 +10,7 @@
  *   - 进程退出时 stop() 清掉 timer
  */
 
-const { syncModelsFromPanel } = require('../panel');
+const { syncModels } = require('./gateway-sync');
 
 const DEFAULT_INTERVAL_MS = 10 * 60 * 1000; // 10 分钟
 
@@ -25,7 +25,7 @@ async function tick() {
   }
   running = true;
   try {
-    const result = await syncModelsFromPanel();
+    const result = await syncModels();
     console.log(`📡 [modelSync] 同步完成: ${result.modelCount} 个模型 / ${result.backendCount} 个 backend`);
   } catch (err) {
     // 远端临时挂掉不应该让调度器死掉,记日志继续等下一轮
