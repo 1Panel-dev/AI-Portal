@@ -244,7 +244,7 @@ async function _syncGatewayGroups() {
         gateway_user_id = u.uid,
         gateway_user_group_id = u.gid
       FROM (SELECT * FROM unnest($1::int[], $2::text[], $3::int[]) AS t(uid, uname, gid)) u
-      WHERE pu.username = u.uname
+      WHERE lower(pu.username) = lower(u.uname)
     `, [uids, unames, gids]);
     backfilled = r.rowCount;
   }
