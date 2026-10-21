@@ -200,7 +200,7 @@ ALTER TABLE portal_users ADD COLUMN IF NOT EXISTS gateway_user_group_id INT;
 INSERT INTO system_config (key, value) VALUES ('gateway_provider', '1panel');  -- 默认安全
 ```
 
-M5 改名（仅 Key/模型域；用户域因 1Panel 链路保留而保持双列并存）：`panel_key_id→gateway_key_id`、`panel_backend_id→gateway_account_id`（`portal_users.panel_user_id` 与 `portal_api_keys.group_id` 保留给 1Panel 链路）。
+M5 收敛（实施修正）：**列改名取消**——M3/M4 实施后 `gateway_user_id`、`gateway_key_id` 已作为独立新列与 `panel_user_id`、`panel_key_id` 并存（1Panel 链路保留，两套 id 各归各链路），改名反而破坏语义；`portal_models.panel_backend_id` 为双链共表列（双语义），保持原名并以注释说明。M5 剩余 = 存量迁移脚本。
 
 ---
 
@@ -224,7 +224,7 @@ M5 改名（仅 Key/模型域；用户域因 1Panel 链路保留而保持双列�
 | **M2 模型同步** | gateway-sync.js 模型路 + modelSync provider 分支 | 网关模式下 portal_models 与 upstream-accounts 一致；is_public 不丢；空响应不清表 |
 | **M3 组同步 + 授权链** | gateway_* 表 + syncGatewayGroups（含归属回填）+ getUserAllowedModels 双分支 | 资源组 ∩ 网关模型组交集正确；1Panel 链路回归不变。**过渡期注意（M2 后 M3 前的已知状态）**：模型数据已来自网关但授权交集仍走 1Panel 组缓存——管理员上架的模型名必须在 1Panel 模型组配置中存在，否则普通用户可见集为空；M3 上线后此约束解除 |
 | **M4 用户 / Key** | 企微注册追加网关代建 + 用户禁用/删除联动 + Key 路由切网关 | 新用户网关侧自动建档入默认组；Key 创建/重置/删除/reveal 回退全通过 |
-| **M5 改名 + 迁移** | 044 列改名 + `scripts/migrate-to-gateway.js`（存量用户批量代建，幂等） | grep 验收旧列名清零（V1 冻结文件除外）；代建可重跑 |
+| **M5 存量迁移** | `scripts/migrate-to-gateway.js`（存量用户批量代建，幂等，支持 --dry-run） | 全量活跃用户在网关有对应记录并回填 id；可重跑；网关管理员同名校验告警 |
 | **M6 统计切换** | ai-gateway adapter 加 `getUsageStatistics()` + 统计接口按 provider 分支 + AdminStatsView 字段映射（可选：token-trend 趋势图） | 网关模式下统计页数据与 `GET /admin/usage-statistics` 一致；1Panel 模式回归不变 |
 
 ---
