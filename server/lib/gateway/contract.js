@@ -149,6 +149,20 @@
  * @property {(keyId:number) => Promise<{apiKey:string}>} revealKey
  *   可选：1Panel 支持反查明文；AI-Gateway 不支持（明文只在 createUserKey 返回一次），
  *   实现 throw err.code='not_supported'，调用方回退读本地 api_key_cipher。
+ *
+ * // ---- 统计域（V2: 数据统计页数据源，按 provider 分支）----
+ * @property {({from?:string, to?:string, userId?:number}) => Promise<Object>} getUsageStatistics
+ *   1Panel: POST ai-proxy/usage/statistics（由调用方透传，不走本方法也可）；
+ *   AI-Gateway: GET /admin/usage-statistics，返回 { range, summary, users[], userGroups[],
+ *   models[], modelGroups[], upstreamAccounts[], providers[] }——所有计数为十进制字符串，
+ *   summary 形如 { requestCount, inputTokens, outputTokens, totalTokens, cachedTokens,
+ *   knownTokenRequestCount, missingTokenRequestCount }，分布项额外含 { id, key, name, deleted }，
+ *   每个分布最多 top 20 条。注意：网关无失败请求维度、无按天 trends 分桶。
+ * @property {({range?:'24h'|'7d'|'30d', timezoneOffsetMinutes?:number}) => Promise<Object>} getTokenTrend
+ *   可选（仅 AI-Gateway）：GET /admin/overview/token-trend，滚动窗口趋势（不能指定 from/to），
+ *   返回 { range, granularity, from, to, buckets:[{start, inputTokens, outputTokens,
+ *   totalTokens, cachedTokens}] }，最长仅最近 30 天 —— 门户趋势图的数据源，调用方需向
+ *   前端说明「趋势不随月份筛选变化」。
  */
 
 module.exports = {};

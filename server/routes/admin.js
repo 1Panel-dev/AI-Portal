@@ -8,6 +8,7 @@ const { verifyUser, requirePermission } = require('../auth');
 const { panel, getPanelPayload, getPanelItems, getPanelRoles, syncSkillsFromPanel, syncMcpsFromPanel, syncPanelGroups, findPanelUser, createPanelUser } = require('../panel');
 const { syncModels, syncGroups } = require('../lib/gateway-sync');
 const { getGateway, currentProviderName } = require('../lib/gateway');
+const { toNum, mapSummary, mapDistribution, mapTrends } = require('../lib/gateway/usage-mapper');
 const { inspectPanelBiz } = require('../lib/panel-biz');
 const bcrypt = require('bcrypt');
 const oauthRegistry = require('../oauth');
@@ -1522,8 +1523,134 @@ router.get('/api/admin/portal-users/map', verifyUser, requirePermission('user:vi
   }
 });
 
+// ============ V2 网关模式：数据统计 ============
+
+/**
+ * 网关模式统计：GET /admin/usage-statistics（汇总+分布）+ /admin/overview/token-trend（趋势）
+ * 映射为门户统计页（1Panel 口径）结构。差异处理：
+ *   - 计数为十进制字符串 → 数值；inputTokens/outputTokens → promptTokens/completionTokens
+ *   - 网关无失败请求维度 → failedRequests=0（失败率卡片恒 0.0）
+ *   - 分布映射：accounts←upstreamAccounts、groups←userGroups（对齐 1Panel 维度语义）
+ *   - 无 rankUsers 端点 → 用 users[] 分布组装排行，回填门户用户 id（红榜 tooltip 显示中文名）
+ *   - 趋势只能取最近 30 天滚动窗口 → 附 trendsMeta.note 由前端提示「不随月份筛选变化」
+ */
+async function gatewayUsageStatisticsHandler(req, res) {
+  try {
+    const { userId, startTime, endTime, rankPage, rankPageSize, rankOrderBy, rankOrder } = req.query;
+    const gw = await getGateway(global.pool);
+
+    // 门户 id（panel_user_id 优先, portal_users.id 兜底, 与前端 usersMap 优先级一致）→ gateway_user_id
+    let gwUserId = null;
+    const uid = parseInt(userId, 10);
+    if (Number.isFinite(uid)) {
+      const r = await global.pool.query(
+        `SELECT gateway_user_id FROM portal_users
+         WHERE (panel_user_id = $1 OR id = $1) AND gateway_user_id IS NOT NULL
+         ORDER BY (panel_user_id = $1) DESC LIMIT 1`,
+        [uid]
+      );
+      gwUserId = r.rows[0]?.gateway_user_id ?? null;
+    }
+
+    const mapDist = mapDistribution;
+
+    // 网关统计仅保留最近 30 天（retentionDays=30）: from/to 超出窗口直接 400 invalid_request,
+    // 因此钳制到保留窗口内; 钳制后区间为空（所选月份完全在窗口外）则不查网关, 返回空数据
+    const now = new Date();
+    const retentionFloor = new Date(now.getTime() - 30 * 24 * 3600 * 1000);
+    const parseTs = (v) => {
+      if (!v) return null;
+      const d = new Date(v);
+      return Number.isNaN(d.getTime()) ? null : d;
+    };
+    let from = parseTs(startTime);
+    let to = parseTs(endTime);
+    if (from && from < retentionFloor) from = retentionFloor;
+    if (to && to > now) to = now;
+    const rangeEmpty = !!(from && to && from.getTime() >= to.getTime());
+
+    // 汇总+分布（钻取用户未同步到网关时不调网关, 返回空数据）；趋势并行拉取, 失败不阻断
+    const [statsRes, trendRes] = await Promise.all([
+      (gwUserId || !Number.isFinite(uid)) && !rangeEmpty
+        ? gw.getUsageStatistics({
+            ...(from ? { from: from.toISOString() } : {}),
+            ...(to ? { to: to.toISOString() } : {}),
+            ...(gwUserId ? { userId: gwUserId } : {}),
+          })
+        : Promise.resolve(null),
+      (typeof gw.getTokenTrend === 'function'
+        ? gw.getTokenTrend({ range: '30d', timezoneOffsetMinutes: 480 })
+        : Promise.resolve(null)
+      ).catch(e => { console.warn('网关趋势拉取失败（不阻断统计）:', e.message); return null; }),
+    ]);
+
+    const raw = statsRes || {};
+
+    // users[] 分布 → 排行（回填门户用户 id, 对齐 1Panel rankUsers 的 userId 语义）
+    const gwUsers = Array.isArray(raw.users) ? raw.users : [];
+    const gwIds = gwUsers.map(u => u.id).filter(Number.isFinite);
+    const portalMap = new Map(); // gateway_user_id -> { panel_user_id, id, username }
+    if (gwIds.length) {
+      const r = await global.pool.query(
+        'SELECT gateway_user_id, panel_user_id, id, username FROM portal_users WHERE gateway_user_id = ANY($1)',
+        [gwIds]
+      );
+      for (const row of r.rows) portalMap.set(row.gateway_user_id, row);
+    }
+    let rankUsers = gwUsers.map(u => {
+      const p = portalMap.get(u.id) || {};
+      return {
+        userId: (p.panel_user_id ?? p.id) ?? null,
+        name: p.username || u.name || '',
+        requestCount: toNum(u.requestCount),
+        promptTokens: toNum(u.inputTokens),
+        completionTokens: toNum(u.outputTokens),
+        totalTokens: toNum(u.totalTokens),
+        cachedTokens: toNum(u.cachedTokens),
+      };
+    });
+    // 排行分页: Top10 = rankOrder=descending, Bottom10 = ascending（与 1Panel 口径一致）
+    const sortKey = rankOrderBy === 'requestCount' ? 'requestCount' : 'totalTokens';
+    const dir = rankOrder === 'ascending' ? 1 : -1;
+    rankUsers.sort((a, b) => ((a[sortKey] || 0) - (b[sortKey] || 0)) * dir);
+    const page = Math.max(1, parseInt(rankPage || '1', 10) || 1);
+    const size = Math.max(1, parseInt(rankPageSize || '10', 10) || 10);
+    const rankTotal = rankUsers.length;
+    rankUsers = rankUsers.slice((page - 1) * size, page * size);
+
+    res.json({
+      summary: mapSummary(raw.summary),
+      trends: mapTrends(trendRes),
+      providers: mapDist(raw.providers),
+      models: mapDist(raw.models),
+      accounts: mapDist(raw.upstreamAccounts),
+      groups: mapDist(raw.userGroups),
+      rankUsers,
+      rankTotal,
+      trendsMeta: {
+        source: 'gateway',
+        range: '30d',
+        note: '网关数据仅保留最近 30 天：趋势为滚动窗口，汇总/分布按所选月份与 30 天窗口的交集统计',
+      },
+    });
+  } catch (err) {
+    console.error('网关统计获取失败:', err);
+    if (err.code === 'unreachable' || err.code === 'timeout') {
+      return res.status(502).json({ error: '独立网关不可达', reason: err.message, code: 'GATEWAY_UNREACHABLE' });
+    }
+    if (err.code === 'config_missing' || err.code === 'config_invalid') {
+      return res.status(502).json({ error: '独立网关配置缺失', reason: err.message, code: 'GATEWAY_CONFIG_MISSING' });
+    }
+    res.status(502).json({ error: '获取统计数据失败', reason: err.message, code: 'GATEWAY_STATS_FAILED' });
+  }
+}
+
 // 获取 1Panel AI 使用统计数据（代理透传）
 router.get('/api/admin/usage-statistics', verifyUser, requirePermission('user:view'), async (req, res) => {
+  // V2: 网关模式走独立网关统计接口并映射为门户统计页结构
+  if (currentProviderName() === 'ai-gateway') {
+    return gatewayUsageStatisticsHandler(req, res);
+  }
   try {
     const { userId, startTime, endTime, rankPage, rankPageSize, rankOrderBy, rankOrder } = req.query;
     // 1Panel usage/statistics 支持的 body 参数:

@@ -146,14 +146,22 @@ provider = 'ai-gateway':
 
 完全不动，继续同步 1Panel（`skillsSync.js` / `mcpSync.js` / `panel.js` 相关函数原样）。
 
-### 3.7 数据统计（D-13 已拍板，M6）
+### 3.7 数据统计（D-13 已拍板，M6 ✅ 已完成）
 
 - 现状：[admin.js](../../../server/routes/admin.js) 数据统计接口 `POST /ai-proxy/usage/statistics`（1Panel），前端 AdminStatsView 消费。
 - 切换：跟随 `gateway_provider` 开关——`ai-gateway` 模式下改调网关 `GET /admin/usage-statistics`。
-- **参数形态差异**：1Panel 是 POST body，网关是 GET query（`from/to/userId/userGroupId/apiKeyId/upstreamAccountId/provider/clientProtocol/requestModel`）。
+- **参数形态差异**：1Panel 是 POST body，网关是 GET query（`from/to/userId/...`）。
 - **返回结构差异**：网关返回 `{range, summary, providers[], models[], modelGroups[], upstreamAccounts[], userGroups[], users[]}`（UsageDistributionItem = id/key/name/deleted + 聚合计数，计数为**十进制字符串**），需做字段映射适配 AdminStatsView 的现有消费结构。
-- **适配器扩展**：ai-gateway provider 新增 `getUsageStatistics(params)` 域方法（M6 实现，同步补 contract.js）。
-- **增强可选**：网关的 `GET /admin/overview/token-trend`（24h/7d/30d 趋势）与 `GET /admin/call-logs`（调用日志明细）是 1Panel 没有的能力，M6 可顺带给统计页加趋势图（可选，不阻塞）。
+- **适配器扩展**：ai-gateway provider 新增 `getUsageStatistics(params)` / `getTokenTrend(params)` 域方法（contract.js 已同步）。
+
+**M6 实施结果（2026-10-21）**：
+
+- **共享映射器** [usage-mapper.js](../../../server/lib/gateway/usage-mapper.js)：`toNum`（十进制字符串→数值）/ `mapSummary` / `mapDistribution` / `mapTrends`；命名对齐 1Panel 口径（`inputTokens→promptTokens`、`outputTokens→completionTokens`），分布维度 `accounts←upstreamAccounts`、`groups←userGroups`；网关无失败请求维度 → `failedRequests=0`。
+- **管理端**（admin.js `gatewayUsageStatisticsHandler`）：排行无专用端点 → 用 `users[]` 分布组装 `rankUsers`，JOIN portal_users 回填门户用户 id（`panel_user_id ?? id`，红榜 tooltip 显示中文名）；desc/asc 双请求与 1Panel 口径一致；`userId` 钻取先翻译门户 id → `gateway_user_id`（panel 优先，未同步用户返回空数据不报错）。
+- **个人中心**（portal.js `GET /api/usage/statistics`）：同步切网关（按 `gateway_user_id` 查询，30s 内存缓存保留），ProfileView 前端零改动。
+- **趋势图**：网关无按天分桶 → 用 `token-trend?range=30d`（按天、北京时区分桶），响应附 `trendsMeta.note`，AdminStatsView 趋势标题旁展示提示；趋势桶无请求数 → `requestCount=0`（请求数线为 0）。
+- **30 天保留窗口（实测发现）**：网关 usage-statistics 的 `from/to` 超出 `retentionDays=30` 直接 400 invalid_request → 后端钳制到保留窗口内；所选月份完全在窗口外时返回空数据（趋势仍展示）。前端提示文案统一为「网关数据仅保留最近 30 天」。
+- **验证**：真实调用（m4test Key 调 /v1/chat/completions）后逐字段比对网关原始响应——summary/providers/models/accounts/groups/rankUsers/trends 全部一致；ascending/钻取/窗口外月份/当月四个场景通过；1Panel 模式分支未动（回归面为零）。
 - **数据连续性**：跟随开关切换，切换点之前的历史明细留在 1Panel（见 D-13）。
 
 ### 3.8 配置项（system_config）
@@ -225,7 +233,7 @@ M5 收敛（实施修正）：**列改名取消**——M3/M4 实施后 `gateway_
 | **M3 组同步 + 授权链** | gateway_* 表 + syncGatewayGroups（含归属回填）+ getUserAllowedModels 双分支 | 资源组 ∩ 网关模型组交集正确；1Panel 链路回归不变。**过渡期注意（M2 后 M3 前的已知状态）**：模型数据已来自网关但授权交集仍走 1Panel 组缓存——管理员上架的模型名必须在 1Panel 模型组配置中存在，否则普通用户可见集为空；M3 上线后此约束解除 |
 | **M4 用户 / Key** | 企微注册追加网关代建 + 用户禁用/删除联动 + Key 路由切网关 | 新用户网关侧自动建档入默认组；Key 创建/重置/删除/reveal 回退全通过 |
 | **M5 存量迁移** | `scripts/migrate-to-gateway.js`（存量用户批量代建，幂等，支持 --dry-run） | 全量活跃用户在网关有对应记录并回填 id；可重跑；网关管理员同名校验告警 |
-| **M6 统计切换** | ai-gateway adapter 加 `getUsageStatistics()` + 统计接口按 provider 分支 + AdminStatsView 字段映射（可选：token-trend 趋势图） | 网关模式下统计页数据与 `GET /admin/usage-statistics` 一致；1Panel 模式回归不变 |
+| **M6 统计切换** ✅ | ai-gateway adapter 加 `getUsageStatistics()`/`getTokenTrend()` + 统计接口按 provider 分支 + usage-mapper 字段映射 + token-trend 趋势图 | 网关模式下统计页/个人用量数据与 `GET /admin/usage-statistics` 一致（已真实验证）；1Panel 模式回归不变 |
 
 ---
 
@@ -294,3 +302,4 @@ M5 收敛（实施修正）：**列改名取消**——M3/M4 实施后 `gateway_
 | 2026-10-10 | 初稿：方案 B（网关为授权真相源）+ 适配器骨架 + M1-M5 + D-06~D-12 | D-01~D-05 |
 | 2026-10-14 | **方向调整（门户为主）**：网关仅替换模型同步/组同步数据源/Key 签发/用户同步四个点；资源组与组织架构不动；skill/MCP 不动；接口评估结论满足度全绿；D-09 作废；新增 D-13~D-16 | D-13（门户为主，覆盖 D-01 的「网关真相源」与 D-02 的资源组降级） |
 | 2026-10-14 | D-13 拍板：数据统计切网关 `GET /admin/usage-statistics`，新增 §3.7 统计域设计与里程碑 M6；M1 配置层开发完成（adde7d3 + 09b3201） | D-13 ✅ |
+| 2026-10-21 | **V2 里程碑 M2-M6 全部完成**：M2 模型同步、M3 组同步+授权链（两列并存方案）、M4 用户/Key 切网关、M5 存量迁移脚本、M6 统计切换（usage-mapper + 30 天窗口钳制 + token-trend 趋势 + 个人用量同步切换）。真实环境逐项验证通过 | M2 ✅ M3 ✅ M4 ✅ M5 ✅ M6 ✅ |

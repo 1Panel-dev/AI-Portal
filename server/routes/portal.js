@@ -5,6 +5,7 @@ const { verifyUser, requirePermission, requirePermissionOrAdminRole, signPortalT
 const { panel, getPanelPayload, getPanelItems, findPanelUser, createPanelUser } = require('../panel');
 const { syncModels } = require('../lib/gateway-sync');
 const { getGateway, currentProviderName } = require('../lib/gateway');
+const { mapSummary, mapDistribution, mapTrends } = require('../lib/gateway/usage-mapper');
 const { isAnyProviderEnabled } = require('../oauth');
 const { inspectPanelBiz, listPanelKeys, listPanelKeysOfUser } = require('../lib/panel-biz');
 
@@ -1577,6 +1578,33 @@ const USAGE_CACHE_TTL = 30 * 1000;
 
 router.get('/api/usage/statistics', verifyUser, async (req, res) => {
   try {
+    // V2: 网关模式按 gateway_user_id 查网关统计并映射为门户结构（summary/trends/models/providers）
+    if (currentProviderName() === 'ai-gateway') {
+      if (!req.portalUser.gateway_user_id) {
+        return res.json({ data: null, hint: '尚未同步到独立网关' });
+      }
+      const cached = usageCache.get(req.portalUser.id);
+      if (cached && cached.expireAt > Date.now()) {
+        return res.json({ data: cached.data });
+      }
+      const gw = await getGateway(global.pool);
+      const [raw, trendRaw] = await Promise.all([
+        gw.getUsageStatistics({ userId: req.portalUser.gateway_user_id }),
+        (typeof gw.getTokenTrend === 'function'
+          ? gw.getTokenTrend({ range: '30d', timezoneOffsetMinutes: 480 })
+          : Promise.resolve(null)
+        ).catch(() => null),
+      ]);
+      const data = {
+        summary: mapSummary(raw.summary),
+        trends: mapTrends(trendRaw),
+        models: mapDistribution(raw.models),
+        providers: mapDistribution(raw.providers),
+      };
+      usageCache.set(req.portalUser.id, { data, expireAt: Date.now() + USAGE_CACHE_TTL });
+      return res.json({ data });
+    }
+
     if (!req.portalUser.panel_user_id) {
       return res.json({ data: null, hint: '尚未关联 1Panel 用户' });
     }

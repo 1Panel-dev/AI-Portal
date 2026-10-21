@@ -10,11 +10,11 @@
       <!-- Loading -->
       <div v-if="loading" class="text-center py-20 text-text-secondary">加载中...</div>
 
-      <!-- Error / No 1Panel Config -->
+      <!-- Error / No Gateway Config -->
       <div v-else-if="!panelConfigured" class="text-center py-20">
         <div class="text-4xl mb-4">⚙️</div>
-        <p class="text-text-secondary mb-2">尚未配置 1Panel 网关</p>
-        <p class="text-sm text-text-tertiary mb-4">请先在「系统配置」中填写 1Panel Base URL 和 API Key</p>
+        <p class="text-text-secondary mb-2">尚未配置模型网关</p>
+        <p class="text-sm text-text-tertiary mb-4">请先在「系统配置」中完成网关配置</p>
         <button v-if="can('system:config')" @click="$router.push('/admin/config')" class="px-4 py-2 text-sm btn-primary transition-all">前往配置</button>
       </div>
 
@@ -100,7 +100,7 @@
 
           <!-- 趋势图 ECharts -->
           <div v-if="data" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4 col-span-2">
-            <div class="text-sm font-semibold text-text mb-3">📈 用量趋势</div>
+            <div class="text-sm font-semibold text-text mb-3">📈 用量趋势<span v-if="data?.trendsMeta?.note" class="ml-2 text-xs font-normal text-text-tertiary">{{ data.trendsMeta.note }}</span></div>
             <div v-if="trends.length" ref="trendChartRef" class="w-full" style="height:220px"></div>
             <div v-else class="h-[220px] flex items-center justify-center text-sm text-text-tertiary">暂无数据</div>
           </div>

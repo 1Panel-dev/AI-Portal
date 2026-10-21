@@ -353,6 +353,30 @@ async function revealKey() {
   throw err('AI-Gateway 不支持反查 Key 明文（仅在创建时返回一次）', undefined, 'not_supported');
 }
 
+// ============ 统计域 ============
+
+/**
+ * GET /admin/usage-statistics —— 汇总 + 六维分布（每维最多 top 20）。
+ * 所有计数为十进制字符串；from/to 为 RFC3339，不传 = 网关默认范围（受 retentionDays 限制）。
+ */
+async function getUsageStatistics({ from, to, userId } = {}) {
+  const query = {};
+  if (from) query.from = from;
+  if (to) query.to = to;
+  if (userId) query.userId = userId;
+  return request('GET', '/admin/usage-statistics', { query });
+}
+
+/**
+ * GET /admin/overview/token-trend —— 滚动窗口趋势（24h|7d|30d，不能指定 from/to）。
+ * timezoneOffsetMinutes 决定按天分桶的边界；北京时区传 480。
+ */
+async function getTokenTrend({ range = '30d', timezoneOffsetMinutes = 480 } = {}) {
+  return request('GET', '/admin/overview/token-trend', {
+    query: { range, timezoneOffsetMinutes },
+  });
+}
+
 // ============ 元信息 / 连接校验 ============
 
 async function verifyConnection(opts = {}) {
@@ -384,4 +408,6 @@ module.exports = {
   deleteUserKey,
   revealKey,
   verifyConnection,
+  getUsageStatistics,
+  getTokenTrend,
 };
