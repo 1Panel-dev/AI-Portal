@@ -48,13 +48,46 @@ async function hasPermission(userId, permissionKey) {
 }
 
 /**
- * 取某用户可见模型（本地三层 JOIN: key.group_id -> user_group.model_group_ids -> model_group.models）。
- * @param panelUserId - portal_users.panel_user_id（1Panel 用户 id）, 非主键 id
- * @returns string[] | null - null 表示全公开兜底（任一层空, 存量兼容关键）
- *
- * 三层 JOIN 任一层空返 null: 现有 155 个 key group_id=1(Default 组无模型组) -> 第二层空 -> null -> 全公开。
+ * 取某用户可见模型（按 gateway_provider 双分支）:
+ *   - '1panel'(默认): 三层 JOIN key.group_id → panel_user_groups.model_group_ids → panel_model_groups.models
+ *   - 'ai-gateway':   两层 JOIN user.gateway_user_group_id → gateway_user_groups.model_group_ids → gateway_model_groups.models
+ *     （组被网关停用 → 返回空集; 任一层空 → null = 全公开兜底, 与 1Panel 链路语义一致）
+ * @param user - portal_users 行（需含 id / panel_user_id / gateway_user_group_id）
+ * @returns string[] | null - null 表示全公开兜底（存量兼容关键）
  */
-async function getUserAllowedModels(panelUserId) {
+async function getUserAllowedModels(user) {
+  const { currentProviderName } = require('./gateway');
+  if (currentProviderName() === 'ai-gateway') {
+    return _gatewayAllowedModels(user);
+  }
+  return _panelAllowedModels(user);
+}
+
+/** AI-Gateway 两层授权链（数据源: gateway_user_groups / gateway_model_groups 只读缓存） */
+async function _gatewayAllowedModels(user) {
+  if (!user || !user.gateway_user_group_id) return null;  // 无组 → 全公开兜底（对齐 1Panel 链路语义）
+  const ug = await pool().query(
+    'SELECT enabled, model_group_ids FROM gateway_user_groups WHERE gateway_group_id = $1',
+    [user.gateway_user_group_id]
+  );
+  if (!ug.rowCount) return null;          // 组缓存缺失(未同步) → 兜底
+  if (!ug.rows[0].enabled) return [];     // 组在网关侧被停用 → 严格空集
+  const mgIds = ug.rows[0].model_group_ids || [];
+  if (!mgIds.length) return null;         // 组未配模型组 → 全公开兜底
+  const mgs = await pool().query(
+    'SELECT models FROM gateway_model_groups WHERE gateway_group_id = ANY($1)',
+    [mgIds]
+  );
+  const models = new Set();
+  for (const mg of mgs.rows) {
+    for (const m of (mg.models || [])) models.add(m);
+  }
+  return models.size ? Array.from(models) : null;
+}
+
+/** 1Panel 三层授权链（V1 原逻辑, 冻结不动） */
+async function _panelAllowedModels(user) {
+  const panelUserId = user?.panel_user_id;
   // 1. 该用户所有 key 的 group_id
   const keys = await pool().query(
     'SELECT DISTINCT group_id FROM portal_api_keys WHERE panel_user_id = $1 AND group_id IS NOT NULL',

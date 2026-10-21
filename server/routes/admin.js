@@ -6,7 +6,7 @@ const storage = require('../lib/storage');
 const panelApi = require('../lib/1panel-api');
 const { verifyUser, requirePermission } = require('../auth');
 const { panel, getPanelPayload, getPanelItems, getPanelRoles, syncSkillsFromPanel, syncMcpsFromPanel, syncPanelGroups, findPanelUser, createPanelUser } = require('../panel');
-const { syncModels } = require('../lib/gateway-sync');
+const { syncModels, syncGroups } = require('../lib/gateway-sync');
 const { inspectPanelBiz } = require('../lib/panel-biz');
 const bcrypt = require('bcrypt');
 const oauthRegistry = require('../oauth');
@@ -1356,7 +1356,7 @@ router.post('/api/admin/panel-config/sync-now', verifyUser, requirePermission('s
       syncModels(),   // V2: 按 gateway_provider 分支(1panel → 1Panel 链路; ai-gateway → 独立网关)
       syncSkillsFromPanel(),
       syncMcpsFromPanel(),
-      syncPanelGroups(),
+      syncGroups(),   // V2: 组域同步同样按 provider 分支(1panel → syncPanelGroups; ai-gateway → 网关组缓存+归属回填)
       // 同步角色列表并缓存到本地（方便管理后台加载最新数据）
       (async () => {
         const roles = await getPanelRoles();

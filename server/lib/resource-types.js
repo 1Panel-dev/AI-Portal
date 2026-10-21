@@ -39,7 +39,8 @@ registerResourceType('model', {
     const selectedNames = idRows.rows.map(r => r.model_name);
     if (!selectedNames.length) return [];
 
-    const allowed = await getUserAllowedModels(portalUser.panel_user_id);
+    // V2: 传 portal_users 行（getUserAllowedModels 内部按 provider 分支取 panel/gateway 链路）
+    const allowed = await getUserAllowedModels(portalUser);
     // allowed 为 null = 无 1Panel 模型组限制 -> 以资源组勾选为准, 返回勾选的 model_name
     if (!allowed) return [...new Set(selectedNames)];
     const allowedSet = new Set(allowed);

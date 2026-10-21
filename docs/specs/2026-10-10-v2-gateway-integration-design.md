@@ -191,15 +191,16 @@ CREATE TABLE gateway_model_groups (
   synced_at        TIMESTAMPTZ
 );
 
--- 042_gateway_user_columns.sql
-ALTER TABLE portal_users ADD COLUMN gateway_user_group_id INT;
--- （gateway_user_id 沿用现有 panel_user_id 列，M5 统一改名）
+-- 042_gateway_user_columns.sql（M3 实施修正: 1Panel 用户链路保留, panel_user_id 不复用不改名——
+--     网关身份用独立新列, 两套 id 并存互不干扰）
+ALTER TABLE portal_users ADD COLUMN IF NOT EXISTS gateway_user_id INT;
+ALTER TABLE portal_users ADD COLUMN IF NOT EXISTS gateway_user_group_id INT;
 
 -- 043_gateway_config.sql
 INSERT INTO system_config (key, value) VALUES ('gateway_provider', '1panel');  -- 默认安全
 ```
 
-M5 统一改名：`panel_user_id→gateway_user_id`、`panel_key_id→gateway_key_id`、`panel_backend_id→gateway_account_id`（`portal_api_keys.group_id` 保留给 1Panel 链路）。
+M5 改名（仅 Key/模型域；用户域因 1Panel 链路保留而保持双列并存）：`panel_key_id→gateway_key_id`、`panel_backend_id→gateway_account_id`（`portal_users.panel_user_id` 与 `portal_api_keys.group_id` 保留给 1Panel 链路）。
 
 ---
 

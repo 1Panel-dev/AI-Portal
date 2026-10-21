@@ -712,7 +712,8 @@ router.get('/api/admin/groups/:id/resources-preview', verifyUser, requirePermiss
       portalUser = await getPortalUser(memberUserId);
       // 后台角色成员看全量(与广场 isAdminRoleUser bypass 一致), 不做模型组交集
       if (portalUser && !portalUser.is_portal_admin && !(await isAdminRoleUser(memberUserId))) {
-        const allowed = await getUserAllowedModels(portalUser.panel_user_id);
+        // V2: 传 portal_users 行（getUserAllowedModels 内部按 provider 分支）
+        const allowed = await getUserAllowedModels(portalUser);
         if (allowed) memberModelFilter = new Set(allowed);
       }
     }
@@ -795,7 +796,7 @@ router.get('/api/admin/groups/:id/members-preview', verifyUser, requirePermissio
 
     // 全体成员（带 portal_user 信息）
     const members = await pool().query(`
-      SELECT u.id, u.username, u.name, u.is_portal_admin, u.panel_user_id
+      SELECT u.id, u.username, u.name, u.is_portal_admin, u.panel_user_id, u.gateway_user_group_id
       FROM resource_group_members m
       JOIN portal_users u ON u.id = m.user_id
       WHERE m.group_id = $1 AND u.status = 'active'
@@ -826,17 +827,62 @@ router.get('/api/admin/groups/:id/members-preview', verifyUser, requirePermissio
       adminRoleIds = new Set(arQ.rows.map(r => r.user_id));
     }
 
-    // 2. 需要算授权的普通成员（非超管、非后台角色、有 panel_user_id）
+    // 2. 需要算授权的普通成员（非超管、非后台角色; 1panel 模式需有 panel_user_id, 网关模式看 gateway_user_group_id）
     const normalMembers = filteredMembers.filter(m =>
-      !m.is_portal_admin && !adminRoleIds.has(m.id) && m.panel_user_id
+      !m.is_portal_admin && !adminRoleIds.has(m.id) && (m.panel_user_id || m.gateway_user_group_id != null)
     );
     const normalPanelUserIds = normalMembers.map(m => m.panel_user_id);
 
-    // 3. 这些 panel_user 的 key group_id -> panel_user_groups -> model_group_ids -> panel_model_groups.models
-    //    复刻 getUserAllowedModels 的三层 JOIN，但批量查一次
-    const userAllowedMap = new Map();  // panel_user_id -> Set<modelName> | null(null=无限制)
-    const userGroupNameMap = new Map(); // panel_user_id -> 1Panel 用户组名
-    if (normalPanelUserIds.length) {
+    // 3. 授权链批量计算（按 gateway_provider 双分支; userAllowedMap 键统一为成员 id）
+    const { currentProviderName } = require('../lib/gateway');
+    const isGatewayMode = currentProviderName() === 'ai-gateway';
+    const userAllowedMap = new Map();  // 成员 id -> Set<modelName> | null(null=无限制)
+    const userGroupNameMap = new Map(); // 成员 id -> 用户组名
+    if (isGatewayMode) {
+      // 网关两层批量: gateway_user_group_id → gateway_user_groups.model_group_ids → gateway_model_groups.models
+      const memberGroupIds = [...new Set(normalMembers.map(m => m.gateway_user_group_id).filter(v => v != null))];
+      const ugInfo = new Map();   // gateway_group_id -> { name, enabled, modelGroupIds }
+      if (memberGroupIds.length) {
+        const ugQ = await pool().query(`
+          SELECT gateway_group_id, name, enabled, model_group_ids
+          FROM gateway_user_groups
+          WHERE gateway_group_id = ANY($1::int[])
+        `, [memberGroupIds]);
+        for (const row of ugQ.rows) {
+          ugInfo.set(row.gateway_group_id, { name: row.name, enabled: row.enabled, modelGroupIds: row.model_group_ids || [] });
+        }
+      }
+      const allMgIds = new Set();
+      for (const info of ugInfo.values()) {
+        if (!info.enabled) continue;
+        for (const mgId of info.modelGroupIds) allMgIds.add(mgId);
+      }
+      const mgModels = new Map();  // gateway_group_id -> models[]
+      if (allMgIds.size) {
+        const mgQ = await pool().query(`
+          SELECT gateway_group_id, models FROM gateway_model_groups
+          WHERE gateway_group_id = ANY($1::int[])
+        `, [Array.from(allMgIds)]);
+        for (const row of mgQ.rows) {
+          mgModels.set(row.gateway_group_id, row.models || []);
+        }
+      }
+      for (const m of normalMembers) {
+        const gid = m.gateway_user_group_id;
+        if (gid == null) { userAllowedMap.set(m.id, null); continue; }
+        const info = ugInfo.get(gid);
+        if (!info) { userAllowedMap.set(m.id, null); continue; }   // 缓存缺失 → 兜底
+        userGroupNameMap.set(m.id, info.name);
+        if (!info.enabled) { userAllowedMap.set(m.id, new Set()); continue; }  // 组停用 → 严格空
+        if (!info.modelGroupIds.length) { userAllowedMap.set(m.id, null); continue; }
+        const allowed = new Set();
+        for (const mgId of info.modelGroupIds) {
+          for (const modelName of (mgModels.get(mgId) || [])) allowed.add(modelName);
+        }
+        userAllowedMap.set(m.id, allowed.size ? allowed : null);
+      }
+    } else if (normalPanelUserIds.length) {
+      // 1Panel 三层 JOIN 批量版（V1 原逻辑, 冻结不动; 键 = 成员 id）
       // 3a. keys -> group_id（按 panel_user_id 聚合）
       const keysQ = await pool().query(`
         SELECT panel_user_id, array_agg(DISTINCT group_id) AS group_ids
@@ -891,7 +937,7 @@ router.get('/api/admin/groups/:id/members-preview', verifyUser, requirePermissio
         const groupIds = userToGroupIds.get(m.panel_user_id);
         if (!groupIds || !groupIds.length) {
           // 无 key -> null(全公开兜底)
-          userAllowedMap.set(m.panel_user_id, null);
+          userAllowedMap.set(m.id, null);
           continue;
         }
         const groupNames = [];
@@ -902,18 +948,18 @@ router.get('/api/admin/groups/:id/members-preview', verifyUser, requirePermissio
           groupNames.push(info.name);
           for (const mgId of info.modelGroupIds) mgIds.add(mgId);
         }
-        userGroupNameMap.set(m.panel_user_id, groupNames.join(', '));
+        userGroupNameMap.set(m.id, groupNames.join(', '));
 
         if (!mgIds.size) {
           // 用户组没配模型组 -> null(无限制)
-          userAllowedMap.set(m.panel_user_id, null);
+          userAllowedMap.set(m.id, null);
           continue;
         }
         const allowedModels = new Set();
         for (const mgId of mgIds) {
           for (const modelName of (mgIdToModels.get(mgId) || [])) allowedModels.add(modelName);
         }
-        userAllowedMap.set(m.panel_user_id, allowedModels.size ? allowedModels : null);
+        userAllowedMap.set(m.id, allowedModels.size ? allowedModels : null);
       }
     }
 
@@ -927,9 +973,9 @@ router.get('/api/admin/groups/:id/members-preview', verifyUser, requirePermissio
         isAdminRole = true;
       } else if (adminRoleIds.has(m.id)) {
         isAdminRole = true;
-      } else if (m.panel_user_id && userAllowedMap.has(m.panel_user_id)) {
-        const allowed = userAllowedMap.get(m.panel_user_id);
-        panelGroupName = userGroupNameMap.get(m.panel_user_id) || '';
+      } else if (userAllowedMap.has(m.id)) {
+        const allowed = userAllowedMap.get(m.id);
+        panelGroupName = userGroupNameMap.get(m.id) || '';
         if (allowed === null) {
           // 无限制 -> 全可见
         } else {

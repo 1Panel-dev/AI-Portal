@@ -124,15 +124,141 @@ async function _syncGatewayModels() {
 /**
  * 统一入口:按 gateway_provider 分支(所有模型同步触发点统一改调此函数)
  *  - '1panel'(默认) → V1 链路 syncModelsFromPanel
- *  - 'ai-gateway'    → 独立网关 syncGatewayModels
+ *  - 'ai-gateway'    → 独立网关 syncGatewayModels + syncGatewayGroups(模型+组同一 tick)
  */
 async function syncModels() {
   const provider = currentProviderName();
   if (provider === 'ai-gateway') {
-    return syncGatewayModels();
+    const modelsResult = await syncGatewayModels();
+    // 组缓存与归属回填跟随同一 tick(授权 JOIN 数据源),失败不阻断模型同步但记日志
+    try {
+      await syncGatewayGroups();
+    } catch (e) {
+      console.error('[gateway-sync] 组同步失败(模型同步不受影响):', e.message);
+    }
+    return modelsResult;
   }
   const { syncModelsFromPanel } = require('../panel');
   return syncModelsFromPanel();
 }
 
-module.exports = { syncModels, syncGatewayModels };
+/**
+ * 统一入口(组域):按 gateway_provider 分支
+ *  - '1panel'     → panel.js syncPanelGroups()(用户组/模型组/key组ID回填, V1 链路)
+ *  - 'ai-gateway' → syncGatewayGroups()(网关组缓存 + 用户归属回填)
+ */
+async function syncGroups() {
+  const provider = currentProviderName();
+  if (provider === 'ai-gateway') {
+    return syncGatewayGroups();
+  }
+  const { syncPanelGroups } = require('../panel');
+  return syncPanelGroups();
+}
+
+/**
+ * 独立网关组同步(M3 授权域):
+ *   1. adapter.listUserGroups() → gateway_user_groups(UPSERT + 软删 + 空响应不清表)
+ *   2. adapter.listModelGroups() → gateway_model_groups(同上)
+ *   3. adapter.listUsers() → 归属回填:按 username 匹配 portal_users,
+ *      回填 gateway_user_id + gateway_user_group_id(授权 JOIN 第一层)
+ * 返回 { userGroups, modelGroups, backfilled, skipped? }
+ */
+async function syncGatewayGroups() {
+  try {
+    return await _syncGatewayGroups();
+  } catch (err) {
+    console.error('[gateway-sync] 组同步未捕获异常:', err.message, '\n', err.stack);
+    try {
+      await pool().query(`
+        INSERT INTO portal_sync_log (sync_type, status, message, total_count, success_count, details)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, ['groups', 'error', `独立网关组同步异常: ${err.message}`, 0, 0, { provider: 'ai-gateway', error: err.message }]);
+    } catch (_) { /* 日志写入失败不中断 */ }
+    throw err;
+  }
+}
+
+async function _syncGatewayGroups() {
+  const gw = await getGateway(pool());
+
+  // ---- 1. 用户组 ----
+  const userGroups = await gw.listUserGroups();
+  if (userGroups.length > 0) {
+    for (const g of userGroups) {
+      await pool().query(`
+        INSERT INTO gateway_user_groups (
+          gateway_group_id, name, enabled, is_default, model_group_ids,
+          max_concurrency, api_key_max_concurrency, token_plan_id, synced_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,CURRENT_TIMESTAMP)
+        ON CONFLICT (gateway_group_id) DO UPDATE SET
+          name=EXCLUDED.name, enabled=EXCLUDED.enabled, is_default=EXCLUDED.is_default,
+          model_group_ids=EXCLUDED.model_group_ids, max_concurrency=EXCLUDED.max_concurrency,
+          api_key_max_concurrency=EXCLUDED.api_key_max_concurrency,
+          token_plan_id=EXCLUDED.token_plan_id, synced_at=CURRENT_TIMESTAMP
+      `, [
+        g.groupId, g.name, g.enabled, g.isDefault,
+        JSON.stringify(g.modelGroupIds || []),
+        g.maxConcurrency || 0, g.apiKeyMaxConcurrency || 0, g.tokenPlanId ?? null,
+      ]);
+    }
+    // 软删:本轮未出现的组置 enabled=false(防空响应误删由上方空列表防护覆盖;
+    // 这里 userGroups 非空,软删安全)
+    const ids = userGroups.map(g => g.groupId);
+    await pool().query(
+      'UPDATE gateway_user_groups SET enabled = FALSE, synced_at = CURRENT_TIMESTAMP WHERE NOT (gateway_group_id = ANY($1)) AND enabled = TRUE',
+      [ids]
+    );
+  }
+
+  // ---- 2. 模型组 ----
+  const modelGroups = await gw.listModelGroups();
+  if (modelGroups.length > 0) {
+    for (const g of modelGroups) {
+      await pool().query(`
+        INSERT INTO gateway_model_groups (gateway_group_id, name, protocol_type, models, synced_at)
+        VALUES ($1,$2,$3,$4,CURRENT_TIMESTAMP)
+        ON CONFLICT (gateway_group_id) DO UPDATE SET
+          name=EXCLUDED.name, protocol_type=EXCLUDED.protocol_type,
+          models=EXCLUDED.models, synced_at=CURRENT_TIMESTAMP
+      `, [g.groupId, g.name, g.protocolType, JSON.stringify(g.models || [])]);
+    }
+    const ids = modelGroups.map(g => g.groupId);
+    await pool().query(
+      'UPDATE gateway_model_groups SET synced_at = CURRENT_TIMESTAMP WHERE NOT (gateway_group_id = ANY($1))',
+      [ids]
+    );
+    // 模型组无启用语义,不引用即无效——物理删除未引用组? 保守起见保留(组删除由网关侧软删通过
+    // user_groups 的 model_group_ids 收敛; 此处仅做插入/更新, 不删除历史组缓存)
+  }
+
+  // ---- 3. 用户归属回填(按 username 匹配; gateway username = 门户 username) ----
+  let backfilled = 0;
+  const gwUsers = await gw.listUsers();
+  if (gwUsers.length > 0) {
+    const uids = gwUsers.map(u => u.userId);
+    const unames = gwUsers.map(u => u.username);
+    const gids = gwUsers.map(u => u.groupId ?? null);
+    const r = await pool().query(`
+      UPDATE portal_users pu SET
+        gateway_user_id = u.uid,
+        gateway_user_group_id = u.gid
+      FROM (SELECT * FROM unnest($1::int[], $2::text[], $3::int[]) AS t(uid, uname, gid)) u
+      WHERE pu.username = u.uname
+    `, [uids, unames, gids]);
+    backfilled = r.rowCount;
+  }
+
+  await pool().query(`
+    INSERT INTO portal_sync_log (sync_type, status, message, total_count, success_count, details)
+    VALUES ($1, $2, $3, $4, $5, $6)
+  `, ['groups', 'success',
+      `独立网关组同步完成: 用户组 ${userGroups.length} / 模型组 ${modelGroups.length}` + (backfilled ? `,归属回填 ${backfilled}` : ''),
+      userGroups.length + modelGroups.length, userGroups.length + modelGroups.length,
+      { provider: 'ai-gateway', userGroups: userGroups.length, modelGroups: modelGroups.length, backfilled }]);
+
+  console.log(`[gateway-sync] 组同步完成: 用户组 ${userGroups.length} / 模型组 ${modelGroups.length} / 归属回填 ${backfilled}`);
+  return { userGroups: userGroups.length, modelGroups: modelGroups.length, backfilled };
+}
+
+module.exports = { syncModels, syncGatewayModels, syncGroups, syncGatewayGroups };
