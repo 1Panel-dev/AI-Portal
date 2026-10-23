@@ -2579,39 +2579,58 @@ router.post('/api/admin/portal-users', verifyUser, requirePermission('user:creat
       return res.status(409).json({ error: '用户名已存在' });
     }
 
-    // 同步到 1Panel(失败不阻断,沿用 /register 的容错语义)
+    // 外部用户代建:按 provider 分支
+    const { currentProviderName, getGateway } = require('../lib/gateway/index');
+    const provider = await currentProviderName();
     let panelUserId = null;
+    let gatewayUserId = null;
+    let gatewayUserGroupId = null;
     let sessionTimeout = 86400;
     let syncWarning = null;
-    try {
-      const panelUser = await findPanelUser(rawUsername);
-      if (panelUser) {
-        panelUserId = panelUser.id;
-        sessionTimeout = panelUser.sessionTimeout || 86400;
-      } else {
-        try {
-          await createPanelUser({ username: rawUsername, password: rawPassword, name: rawName });
-          const created = await findPanelUser(rawUsername);
-          if (created) {
-            panelUserId = created.id;
-            sessionTimeout = created.sessionTimeout || 86400;
-          }
-        } catch (createErr) {
-          console.error('[admin/portal-users] 1Panel 创建用户失败,仍创建本地用户:', createErr.message);
-          syncWarning = '1Panel 用户创建失败,本地用户已创建,请检查 1Panel 网络连接后重试';
-        }
+
+    if (provider === 'ai-gateway') {
+      try {
+        const gw = await getGateway(global.pool);
+        const created = await gw.createUser({ username: rawUsername, password: rawPassword, name: rawName });
+        gatewayUserId = created.userId;
+        gatewayUserGroupId = created.groupId ?? null;
+        console.log(`[admin/portal-users] 网关创建用户成功: ${rawUsername} (gwId=${gatewayUserId}, groupId=${gatewayUserGroupId})`);
+      } catch (gatewayErr) {
+        console.error('[admin/portal-users] 网关创建用户失败:', gatewayErr.message);
+        syncWarning = `网关创建用户失败: ${gatewayErr.message}，本地用户已创建但网关侧无此用户`;
       }
-    } catch (panelErr) {
-      console.error('[admin/portal-users] 1Panel 查询用户失败,仍创建本地用户:', panelErr.message);
-      syncWarning = '1Panel 用户查询失败,本地用户已创建,请检查 1Panel 网络连接后重试';
+    } else {
+      // 1Panel 模式: V1 链路代建（保持冻结不动）
+      try {
+        const panelUser = await findPanelUser(rawUsername);
+        if (panelUser) {
+          panelUserId = panelUser.id;
+          sessionTimeout = panelUser.sessionTimeout || 86400;
+        } else {
+          try {
+            await createPanelUser({ username: rawUsername, password: rawPassword, name: rawName });
+            const created = await findPanelUser(rawUsername);
+            if (created) {
+              panelUserId = created.id;
+              sessionTimeout = created.sessionTimeout || 86400;
+            }
+          } catch (createErr) {
+            console.error('[admin/portal-users] 1Panel 创建用户失败,仍创建本地用户:', createErr.message);
+            syncWarning = '1Panel 用户创建失败,本地用户已创建,请检查 1Panel 网络连接后重试';
+          }
+        }
+      } catch (panelErr) {
+        console.error('[admin/portal-users] 1Panel 查询用户失败,仍创建本地用户:', panelErr.message);
+        syncWarning = '1Panel 用户查询失败,本地用户已创建,请检查 1Panel 网络连接后重试';
+      }
     }
 
     const passwordHash = await bcrypt.hash(rawPassword, 12);
     const result = await global.pool.query(`
-      INSERT INTO portal_users (panel_user_id, username, name, display_name, password_hash, session_timeout, status, role)
-      VALUES ($1, $2, $3, $4, $5, $6, 'active', 'user')
-      RETURNING id, panel_user_id, username, name, role, status, last_login_at, created_at
-    `, [panelUserId, rawUsername, rawName, rawName, passwordHash, sessionTimeout]);
+      INSERT INTO portal_users (panel_user_id, gateway_user_id, gateway_user_group_id, username, name, display_name, password_hash, session_timeout, status, role)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', 'user')
+      RETURNING id, panel_user_id, gateway_user_id, username, name, role, status, last_login_at, created_at
+    `, [panelUserId, gatewayUserId, gatewayUserGroupId, rawUsername, rawName, rawName, passwordHash, sessionTimeout]);
 
     const user = result.rows[0];
     // 新建用户默认分配内置 user 角色
@@ -2624,6 +2643,8 @@ router.post('/api/admin/portal-users', verifyUser, requirePermission('user:creat
       user: {
         id: user.id,
         panel_user_id: user.panel_user_id,
+        gateway_user_id: user.gateway_user_id,
+        gateway_user_group_id: user.gateway_user_group_id,
         username: user.username,
         name: user.name,
         role: 'user',

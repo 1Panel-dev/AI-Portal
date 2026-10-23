@@ -59,35 +59,53 @@ router.post('/api/auth/register', async (req, res) => {
     }
 
     let panelUserId = null;
+    let gatewayUserId = null;
+    let gatewayUserGroupId = null;
     let sessionTimeout = 86400;
-    try {
-      const panelUser = await findPanelUser(rawUsername);
-      if (panelUser) {
-        panelUserId = panelUser.id;
-        sessionTimeout = panelUser.sessionTimeout || 86400;
-      } else {
-        try {
-          await createPanelUser({ username: rawUsername, password: rawPassword, name: rawName });
-          // 1Panel 创建用户返回 data:null，需要再查一次拿 id
-          const created = await findPanelUser(rawUsername);
-          if (created) {
-            panelUserId = created.id;
-            sessionTimeout = created.sessionTimeout || 86400;
-          }
-        } catch (createErr) {
-          console.error('1Panel 用户创建失败，仍允许本地注册:', createErr.message);
-        }
+
+    const { currentProviderName, getGateway } = require('../lib/gateway/index');
+    const provider = await currentProviderName();
+
+    if (provider === 'ai-gateway') {
+      try {
+        const gw = await getGateway(global.pool);
+        const created = await gw.createUser({ username: rawUsername, password: rawPassword, name: rawName });
+        gatewayUserId = created.userId;
+        gatewayUserGroupId = created.groupId ?? null;
+        console.log(`[register] 网关创建用户成功: ${rawUsername} (gwId=${gatewayUserId}, groupId=${gatewayUserGroupId})`);
+      } catch (gatewayErr) {
+        console.error('[register] 网关创建用户失败,仍允许本地注册:', gatewayErr.message);
       }
-    } catch (panelErr) {
-      console.error('1Panel 用户查询失败，仍允许本地注册:', panelErr.message);
+    } else {
+      // 1Panel 模式: V1 链路代建（保持冻结不动）
+      try {
+        const panelUser = await findPanelUser(rawUsername);
+        if (panelUser) {
+          panelUserId = panelUser.id;
+          sessionTimeout = panelUser.sessionTimeout || 86400;
+        } else {
+          try {
+            await createPanelUser({ username: rawUsername, password: rawPassword, name: rawName });
+            const created = await findPanelUser(rawUsername);
+            if (created) {
+              panelUserId = created.id;
+              sessionTimeout = created.sessionTimeout || 86400;
+            }
+          } catch (createErr) {
+            console.error('1Panel 用户创建失败，仍允许本地注册:', createErr.message);
+          }
+        }
+      } catch (panelErr) {
+        console.error('1Panel 用户查询失败，仍允许本地注册:', panelErr.message);
+      }
     }
 
     const passwordHash = await bcrypt.hash(rawPassword, 12);
     const result = await global.pool.query(`
-      INSERT INTO portal_users (panel_user_id, username, name, password_hash, session_timeout, status, role)
-      VALUES ($1, $2, $3, $4, $5, 'active', 'user')
-      RETURNING id, panel_user_id, username, name, role, status, last_login_at, created_at, session_timeout
-    `, [panelUserId, rawUsername, rawName, passwordHash, sessionTimeout]);
+      INSERT INTO portal_users (panel_user_id, gateway_user_id, gateway_user_group_id, username, name, password_hash, session_timeout, status, role)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', 'user')
+      RETURNING id, panel_user_id, gateway_user_id, username, name, role, status, last_login_at, created_at, session_timeout
+    `, [panelUserId, gatewayUserId, gatewayUserGroupId, rawUsername, rawName, passwordHash, sessionTimeout]);
 
     const user = result.rows[0];
     // 新注册用户默认分配内置 user 角色

@@ -299,7 +299,7 @@ async function createUser({ username, password, name }) {
     },
   });
   // 201 → UserView。极端情况下响应缺 id 时由调用方 findUser 兜底。
-  return { userId: data?.id ?? null };
+  return { userId: data?.id ?? null, groupId: currentConfig.defaultUserGroupId ?? null };
 }
 
 async function setUserEnabled(userId, enabled) {
