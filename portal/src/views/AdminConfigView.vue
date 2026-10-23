@@ -331,9 +331,9 @@
             >
               {{ panelSaving ? '保存中...' : '保存配置' }}
             </button>
-            <span v-if="panelMsg" class="text-sm whitespace-pre-wrap max-w-xl" :class="panelMsgOk ? 'text-green-600' : 'text-red-500'">
-              {{ panelMsg }}
-            </span>
+          </div>
+          <div v-if="panelMsg" class="text-sm mt-2" :class="panelMsgOk ? 'text-green-600' : 'text-red-500'">
+            {{ panelMsg }}
           </div>
         </div>
 
@@ -513,9 +513,9 @@
               >
                 {{ gatewaySaving ? '保存中...' : '保存配置' }}
               </button>
-              <span v-if="gatewayMsg" class="text-sm whitespace-pre-wrap max-w-xl" :class="gatewayMsgOk ? 'text-green-600' : 'text-red-500'">
-                {{ gatewayMsg }}
-              </span>
+            </div>
+            <div v-if="gatewayMsg" class="text-sm mt-2" :class="gatewayMsgOk ? 'text-green-600' : 'text-red-500'">
+              {{ gatewayMsg }}
             </div>
           </div>
         </div><!-- /Tab: 独立网关 -->
@@ -1601,28 +1601,19 @@ const syncNow = async () => {
     })
     const data = await res.json()
     if (data.success) {
-      const isGateway = gatewayForm.value.activeProvider === 'ai-gateway'
       const cnt = (v, k) => v?.[k] ?? 0
-      // 网关模式下 1Panel tab 只关心 技能/MCP/角色(模型/组归独立网关 tab)
-      const sections = isGateway
-        ? [
-            { label: '技能', v: data.skills, okKey: 'ok', count: v => `${cnt(v, 'upsertCount')}（活跃 ${v.activeCount ?? '?'}）` },
-            { label: 'MCP', v: data.mcps, okKey: 'ok', count: v => `${cnt(v, 'mcpCount')}（活跃 ${v.activeCount ?? '?'}）` },
-            { label: '角色', v: data.roles, okKey: 'ok', count: v => cnt(v, 'count') },
-          ]
-        : [
-            { label: '模型', v: data.models, okKey: 'ok', count: v => `${cnt(v, 'modelCount')}（活跃 ${v.activeCount ?? '?'}）` },
-            { label: '技能', v: data.skills, okKey: 'ok', count: v => `${cnt(v, 'upsertCount')}（活跃 ${v.activeCount ?? '?'}）` },
-            { label: 'MCP', v: data.mcps, okKey: 'ok', count: v => `${cnt(v, 'mcpCount')}（活跃 ${v.activeCount ?? '?'}）` },
-            { label: '组授权', v: data.groups, okKey: 'ok', count: v => `用户组 ${cnt(v, 'userGroups')} / 模型组 ${cnt(v, 'modelGroups')}` },
-          ]
+      // 1Panel tab 永远只管 技能+MCP(模型/组归独立网关 tab 同步)
+      const sections = [
+        { label: '技能', v: data.skills, okKey: 'ok', count: v => `${cnt(v, 'upsertCount')}（活跃 ${v.activeCount ?? '?'}）` },
+        { label: 'MCP', v: data.mcps, okKey: 'ok', count: v => `${cnt(v, 'mcpCount')}（活跃 ${v.activeCount ?? '?'}）` },
+      ]
       const parts = sections.map(s => {
         const v = s.v
         if (!v) return `${s.label}未返回`
         return v[s.okKey] ? `${s.label}已同步 ${s.count(v)}` : `${s.label}失败: ${v.error || ''}`
       })
       const failed = sections.filter(s => s.v && s.v[s.okKey] === false)
-      panelMsg.value = (failed.length ? `同步完成(部分失败)\n` : `同步完成\n`) + parts.join('\n')
+      panelMsg.value = `同步完成: ${parts.join(' · ')}`
       panelMsgOk.value = !failed.length
       lastSyncElapsed.value = data.elapsedMs || 0
       await fetchPanelConfig()
@@ -1670,7 +1661,7 @@ const gatewaySyncNow = async () => {
         return v[s.okKey] ? `${s.label}已同步 ${s.count(v)}` : `${s.label}失败: ${v.error || ''}`
       })
       const failed = sections.filter(s => s.v && s.v[s.okKey] === false)
-      gatewayMsg.value = (failed.length ? `同步完成(部分失败)\n` : `同步完成\n`) + parts.join('\n')
+      gatewayMsg.value = `同步完成: ${parts.join(' · ')}`
       gatewayMsgOk.value = !failed.length
       gatewayLastSyncElapsed.value = data.elapsedMs || 0
       await fetchPanelConfig()
