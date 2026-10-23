@@ -23,6 +23,14 @@ async function tick() {
   try {
     const result = await syncSkillsFromPanel();
     console.log(`📡 [skillsSync] 同步完成: upsert=${result.upsertCount} deactivated=${result.deactivatedCount}`);
+    // 默认资源组: 新增技能自动追加到默认组 items(只增不删,幂等;失败不阻断)
+    try {
+      const { syncDefaultGroupItems } = require('./default-group');
+      const dg = await syncDefaultGroupItems(global.pool);
+      if (dg.added > 0) console.log(`📡 [skillsSync] 默认资源组追加 ${dg.added} 项(当前共 ${dg.total})`);
+    } catch (e) {
+      console.error('[skillsSync] 默认资源组追加失败(不阻断):', e.message);
+    }
   } catch (err) {
     console.error('[skillsSync] 同步失败,等待下一轮:', err.message);
   } finally {

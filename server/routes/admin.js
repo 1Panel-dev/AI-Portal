@@ -1408,6 +1408,15 @@ router.post('/api/admin/panel-config/sync-now', verifyUser, requirePermission('s
     // 打印汇总日志，方便运维一眼看出哪个子任务失败
     console.log('[admin] sync-now 结果:', JSON.stringify(summary), `| 耗时 ${Date.now() - startTime}ms`);
 
+    // 默认资源组: 同步后把新增资源(model/skill/mcp)自动追加到默认组 items(只增不删,幂等)
+    try {
+      const { syncDefaultGroupItems } = require('../lib/default-group');
+      const dg = await syncDefaultGroupItems(global.pool);
+      summary.defaultGroup = { ok: true, added: dg.added, total: dg.total };
+    } catch (e) {
+      summary.defaultGroup = { ok: false, error: e.message };
+    }
+
     res.json({
       success: true,
       elapsedMs: Date.now() - startTime,

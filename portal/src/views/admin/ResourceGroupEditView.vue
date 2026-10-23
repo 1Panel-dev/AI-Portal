@@ -17,21 +17,39 @@
     </div>
 
     <!-- 默认组设置 -->
-    <div v-if="group && can('group:edit')" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4 mb-4 flex items-center justify-between">
-      <div>
-        <div class="text-sm font-medium text-text">默认资源组</div>
-        <div class="text-xs text-text-secondary mt-0.5">新用户注册时自动加入；模型同步后自动追加新上架模型</div>
+    <div v-if="group && can('group:edit')" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4 mb-4 space-y-3">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-sm font-medium text-text">默认资源组</div>
+          <div class="text-xs text-text-secondary mt-0.5">新用户注册时自动加入；勾选状态可直接编辑收敛授权范围</div>
+        </div>
+        <label class="inline-flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            :checked="group.is_default"
+            class="w-4 h-4 accent-accent"
+            :disabled="togglingDefault"
+            @change="toggleDefault"
+          />
+          <span class="text-sm text-text">{{ group.is_default ? '已设为默认' : '设为默认' }}</span>
+        </label>
       </div>
-      <label class="inline-flex items-center gap-2 cursor-pointer">
-        <input
-          type="checkbox"
-          :checked="group.is_default"
-          class="w-4 h-4 accent-accent"
-          :disabled="togglingDefault"
-          @change="toggleDefault"
-        />
-        <span class="text-sm text-text">{{ group.is_default ? '已设为默认' : '设为默认' }}</span>
-      </label>
+      <div v-if="group.is_default" class="flex items-center justify-between pt-3 border-t border-[rgba(0,0,0,0.05)]">
+        <div>
+          <div class="text-sm font-medium text-text">自动跟随资源同步</div>
+          <div class="text-xs text-text-secondary mt-0.5">开启后新上架的模型/技能/MCP 会自动加入本组；手工收敛授权前请先关闭</div>
+        </div>
+        <label class="inline-flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            :checked="group.auto_sync_items"
+            class="w-4 h-4 accent-accent"
+            :disabled="togglingAutoSync"
+            @change="toggleAutoSync"
+          />
+          <span class="text-sm text-text">{{ group.auto_sync_items ? '自动追加' : '已接管' }}</span>
+        </label>
+      </div>
     </div>
 
     <!-- ===== 包含资源 ===== -->
@@ -112,6 +130,7 @@ const activeTab = ref('resources')
 
 const group = ref(null)
 const togglingDefault = ref(false)
+const togglingAutoSync = ref(false)
 
 // ---- 资源类型 + 包含资源 ----
 const resourceTypes = ref([])          // [{key:'model',name:'模型'},...]
@@ -245,11 +264,32 @@ async function toggleDefault() {
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(errMsg(data, '设置失败'))
     group.value = data.data
-    showToast(target ? '已设为默认资源组，当前活跃模型已自动加入' : '已取消默认资源组', 'success')
+    showToast(target ? '已设为默认资源组，当前活跃资源已自动加入' : '已取消默认资源组', 'success')
   } catch (err) {
     showToast(err.message || '设置失败', 'error')
   } finally {
     togglingDefault.value = false
+  }
+}
+
+async function toggleAutoSync() {
+  if (!group.value) return
+  togglingAutoSync.value = true
+  const target = !group.value.auto_sync_items
+  try {
+    const res = await fetch(`${API_BASE}/admin/groups/${groupId}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ auto_sync_items: target }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(errMsg(data, '设置失败'))
+    group.value = data.data
+    showToast(target ? '已开启自动追加：新上架资源将自动加入本组' : '已切换为手动接管：同步不再改动本组勾选', 'success')
+  } catch (err) {
+    showToast(err.message || '设置失败', 'error')
+  } finally {
+    togglingAutoSync.value = false
   }
 }
 

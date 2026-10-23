@@ -182,14 +182,9 @@ router.post('/api/admin/groups', verifyUser, requirePermission('group:create'), 
       [name.trim(), description || null, is_default === true]
     );
     const newGroup = r.rows[0];
-    // 默认组创建时自动把当前所有活跃模型加入 items(保持"默认全量"语义)
+    // 默认组创建时自动把当前所有活跃资源加入 items(保持"默认全量"语义;事务内复用 client)
     if (newGroup.is_default) {
-      await client.query(
-        `INSERT INTO resource_group_items (group_id, resource_type, resource_id)
-         SELECT $1, 'model', model_name FROM portal_models WHERE is_active = TRUE
-         ON CONFLICT DO NOTHING`,
-        [newGroup.id]
-      );
+      await syncDefaultGroupItems(client, newGroup.id);
     }
     await client.query('COMMIT');
     res.json({ data: newGroup });
@@ -221,7 +216,7 @@ router.get('/api/admin/groups/:id', verifyUser, requirePermission('group:view'),
 
 router.put('/api/admin/groups/:id', verifyUser, requirePermission('group:edit'), async (req, res) => {
   const id = Number(req.params.id);
-  const { name, description, is_default } = req.body;
+  const { name, description, is_default, auto_sync_items } = req.body;
   const client = await pool().connect();
   try {
     await client.query('BEGIN');
@@ -234,23 +229,25 @@ router.put('/api/admin/groups/:id', verifyUser, requirePermission('group:edit'),
        SET name = COALESCE($1, name),
            description = COALESCE($2, description),
            is_default = COALESCE($3, is_default),
+           auto_sync_items = COALESCE($4, auto_sync_items),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $4 RETURNING *`,
-      [name?.trim() ?? null, description ?? null, typeof is_default === 'boolean' ? is_default : null, id]
+       WHERE id = $5 RETURNING *`,
+      [
+        name?.trim() ?? null,
+        description ?? null,
+        typeof is_default === 'boolean' ? is_default : null,
+        typeof auto_sync_items === 'boolean' ? auto_sync_items : null,
+        id,
+      ]
     );
     if (!r.rowCount) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: '资源组不存在' });
     }
     const group = r.rows[0];
-    // 若本组被设为默认且 items 为空: 自动同步当前活跃模型(保持"默认全量"语义)
+    // 若本组被设为默认且 items 不全: 自动同步当前活跃资源(保持"默认全量"语义;事务内复用 client)
     if (group.is_default) {
-      await client.query(
-        `INSERT INTO resource_group_items (group_id, resource_type, resource_id)
-         SELECT $1, 'model', model_name FROM portal_models WHERE is_active = TRUE
-         ON CONFLICT DO NOTHING`,
-        [group.id]
-      );
+      await syncDefaultGroupItems(client, group.id);
     }
     await client.query('COMMIT');
     res.json({ data: group });
@@ -265,6 +262,12 @@ router.put('/api/admin/groups/:id', verifyUser, requirePermission('group:edit'),
 router.delete('/api/admin/groups/:id', verifyUser, requirePermission('group:delete'), async (req, res) => {
   const id = Number(req.params.id);
   try {
+    // 默认组是授权兜底(不在任何组的用户各类型可见性为空),禁止删除;需先取消默认标记
+    const g = await pool().query('SELECT is_default FROM resource_groups WHERE id = $1', [id]);
+    if (!g.rowCount) return res.status(404).json({ error: '资源组不存在' });
+    if (g.rows[0].is_default) {
+      return res.status(409).json({ error: '默认资源组不可删除，请先在编辑页取消「设为默认」' });
+    }
     await pool().query('DELETE FROM resource_groups WHERE id = $1', [id]);
     res.json({ ok: true });
   } catch (e) {
