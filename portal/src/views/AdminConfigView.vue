@@ -301,7 +301,7 @@
               </div>
             </div>
             <div v-if="lastSyncElapsed" class="text-[11px] text-text-tertiary mt-2 pt-2 border-t border-blue-100/80">
-              上次手动同步耗时 {{ lastSyncElapsed }}ms（调度器每 {{ panelForm.syncIntervalMinutes }} 分钟自动同步模型/技能/MCP）
+              上次手动同步耗时 {{ lastSyncElapsed }}ms（调度器每 {{ panelForm.syncIntervalMinutes }} 分钟自动同步{{ gatewayForm.activeProvider === 'ai-gateway' ? '技能/MCP' : '模型/技能/MCP' }}）
             </div>
           </div>
 
@@ -441,6 +441,26 @@
               </div>
             </div>
 
+            <!-- 最近同步（网关域：模型/组授权） -->
+            <div v-if="gatewayForm.activeProvider === 'ai-gateway' && gatewayLastSyncRows.length" class="mt-4 p-3 bg-blue-50/50 rounded-lg border border-blue-100">
+              <div class="text-xs font-semibold text-text-secondary mb-2">最近同步（网关域）</div>
+              <div class="space-y-1">
+                <div v-for="row in gatewayLastSyncRows" :key="row.type" class="text-xs flex items-center gap-2">
+                  <span class="w-14 shrink-0 font-medium">{{ row.label }}</span>
+                  <span class="text-text-tertiary shrink-0">{{ formatDate(row.item.created_at) }}</span>
+                  <span class="inline-flex items-center gap-1 shrink-0" :class="row.ok ? 'text-emerald-600' : 'text-amber-600'">
+                    <Check v-if="row.ok" class="w-3 h-3" />
+                    <AlertCircle v-else class="w-3 h-3" />
+                    {{ row.item.message }}
+                  </span>
+                  <span v-if="row.item.total_count" class="text-text-tertiary ml-auto shrink-0">{{ row.item.success_count }}/{{ row.item.total_count }}</span>
+                </div>
+              </div>
+              <div v-if="gatewayLastSyncElapsed" class="text-[11px] text-text-tertiary mt-2 pt-2 border-t border-blue-100/80">
+                上次手动同步耗时 {{ gatewayLastSyncElapsed }}ms
+              </div>
+            </div>
+
             <!-- 凭证有效期提醒 -->
             <div
               v-if="gatewayForm.apiKeyConfigured && gatewayForm.neverExpires"
@@ -475,6 +495,15 @@
                 class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50"
               >
                 <PlugZap class="w-4 h-4" />{{ gatewayTesting ? '测试中...' : '测试连接' }}
+              </button>
+              <button
+                v-if="can('system:config') && gatewayForm.activeProvider === 'ai-gateway'"
+                @click="gatewaySyncNow"
+                :disabled="gatewaySyncing"
+                class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50"
+                title="从网关拉取最新模型和用户组/模型组"
+              >
+                <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': gatewaySyncing }" />{{ gatewaySyncing ? '同步中...' : '立即同步' }}
               </button>
               <button
                 v-if="can('system:config')"
@@ -882,16 +911,8 @@ const panelRoles = ref([])
 const lastSyncElapsed = ref(0)
 
 // 「最近同步」5 路展示: 模型/技能/MCP/用户组+模型组。后端按 sync_type 取最近一条
-const lastSyncRows = computed(() => {
-  const ls = panelForm.value.lastSync || {}
-  const defs = [
-    { type: 'models', label: '模型' },
-    { type: 'skills', label: '技能' },
-    { type: 'mcps', label: 'MCP' },
-    { type: 'groups', label: '组授权' },
-  ]
-  return defs.filter(d => ls[d.type]).map(d => ({ ...d, item: ls[d.type], ok: ls[d.type].status === 'success' }))
-})
+// 按 provider 拆分：1Panel tab 只显示 1Panel 域（技能/MCP/角色）；模型/组授权在网关模式下归到独立网关 tab
+// 注意：定义顺序须在 gatewayForm 之后（见 line 1004 附近）
 
 // 调用示例配置
 const modelExampleForm = ref({ endpoint: '', template: '' })
@@ -960,6 +981,40 @@ const gatewayMsgOk = ref(false)
 const gatewayGroupOptions = ref([])
 const gatewayGroupsLoading = ref(false)
 const gatewayGroupsError = ref('')
+
+// ============ 最近同步拆分（按 provider 归属展示到对应 tab） ============
+// 1Panel tab: 网关模式下只显示 1Panel 域（技能/MCP/角色）；1Panel 模式下全量
+const lastSyncRows = computed(() => {
+  const ls = panelForm.value.lastSync || {}
+  const isGateway = gatewayForm.value.activeProvider === 'ai-gateway'
+  const defs = isGateway
+    ? [
+        { type: 'skills', label: '技能' },
+        { type: 'mcps', label: 'MCP' },
+        { type: 'roles', label: '角色' },
+      ]
+    : [
+        { type: 'models', label: '模型' },
+        { type: 'skills', label: '技能' },
+        { type: 'mcps', label: 'MCP' },
+        { type: 'groups', label: '组授权' },
+      ]
+  return defs.filter(d => ls[d.type]).map(d => ({ ...d, item: ls[d.type], ok: ls[d.type].status === 'success' }))
+})
+
+// 独立网关 tab: 网关域（模型/组授权）
+const gatewayLastSyncRows = computed(() => {
+  const ls = panelForm.value.lastSync || {}
+  const defs = [
+    { type: 'models', label: '模型' },
+    { type: 'groups', label: '组授权' },
+  ]
+  return defs.filter(d => ls[d.type]).map(d => ({ ...d, item: ls[d.type], ok: ls[d.type].status === 'success' }))
+})
+
+// 独立网关 tab 的「立即同步」按钮状态
+const gatewaySyncing = ref(false)
+const gatewayLastSyncElapsed = ref(0)
 
 const fetchGatewayGroups = async () => {
   if (gatewayForm.value.provider !== 'ai-gateway') return
@@ -1570,6 +1625,43 @@ const syncNow = async () => {
   } finally {
     panelSyncing.value = false
     setTimeout(() => { panelMsg.value = '' }, 6000)
+  }
+}
+
+// 独立网关 tab 的「立即同步」：只关心模型/组授权（网关域），结果展示在网关 tab
+const gatewaySyncNow = async () => {
+  if (gatewaySyncing.value) return
+  gatewaySyncing.value = true
+  gatewayMsg.value = ''
+  try {
+    const res = await fetch(`${API_BASE}/admin/panel-config/sync-now`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${getToken()}` },
+    })
+    const data = await res.json()
+    if (data.success) {
+      const m = data.models, g = data.groups
+      const cnt = (v, k) => v?.[k] ?? 0
+      const parts = []
+      parts.push(m?.ok ? `模型已同步 ${cnt(m, 'modelCount')}（活跃 ${m.activeCount ?? '?'}）` : `模型失败: ${m?.error || ''}`)
+      parts.push(g?.ok ? `组已同步 用户组 ${cnt(g, 'userGroups')} / 模型组 ${cnt(g, 'modelGroups')}${g?.backfilled != null ? ` / 归属回填 ${g.backfilled}` : ''}` : `组失败: ${g?.error || ''}`)
+      const failed = [m, g].filter(x => x && !x.ok)
+      gatewayMsg.value = failed.length
+        ? `同步完成(部分失败): ${parts.join(' · ')}`
+        : `同步完成: ${parts.join(' · ')}`
+      gatewayMsgOk.value = !failed.length
+      gatewayLastSyncElapsed.value = data.elapsedMs || 0
+      await fetchPanelConfig()
+    } else {
+      gatewayMsg.value = data.error || '同步失败'
+      gatewayMsgOk.value = false
+    }
+  } catch {
+    gatewayMsg.value = '网络错误'
+    gatewayMsgOk.value = false
+  } finally {
+    gatewaySyncing.value = false
+    setTimeout(() => { gatewayMsg.value = '' }, 6000)
   }
 }
 

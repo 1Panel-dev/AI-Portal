@@ -5,6 +5,7 @@ const express = require('express');
 const { verifyUser, requirePermission } = require('../auth');
 const { syncPanelGroups } = require('../panel');
 const { getResourceType, getAllResourceTypes } = require('../lib/resource-types');
+const { getDefaultGroupId, autoJoinDefaultGroup, syncDefaultGroupItems } = require('../lib/default-group');
 
 const router = express.Router();
 const pool = () => global.pool;
@@ -158,7 +159,7 @@ router.get('/api/admin/groups', verifyUser, requirePermission('group:view'), asy
         (SELECT json_agg(json_build_object(rt.key, cnt.cnt))
          FROM (SELECT resource_type, count(*) cnt FROM resource_group_items WHERE group_id = g.id GROUP BY resource_type) cnt
          LEFT JOIN resource_types rt ON rt.key = cnt.resource_type) AS resource_counts
-      FROM resource_groups g ORDER BY g.created_at DESC
+      FROM resource_groups g ORDER BY g.is_default DESC, g.created_at DESC
     `);
     res.json({ data: r.rows });
   } catch (e) {
@@ -167,16 +168,36 @@ router.get('/api/admin/groups', verifyUser, requirePermission('group:view'), asy
 });
 
 router.post('/api/admin/groups', verifyUser, requirePermission('group:create'), async (req, res) => {
-  const { name, description } = req.body;
+  const { name, description, is_default } = req.body;
   if (!name || !name.trim()) return res.status(400).json({ error: '资源组名称不能为空' });
+  const client = await pool().connect();
   try {
-    const r = await pool().query(
-      'INSERT INTO resource_groups (name, description) VALUES ($1, $2) RETURNING *',
-      [name.trim(), description || null]
+    await client.query('BEGIN');
+    // 若设为默认组: 先清掉旧默认组（全表唯一）
+    if (is_default === true) {
+      await client.query('UPDATE resource_groups SET is_default = FALSE WHERE is_default = TRUE');
+    }
+    const r = await client.query(
+      'INSERT INTO resource_groups (name, description, is_default) VALUES ($1, $2, $3) RETURNING *',
+      [name.trim(), description || null, is_default === true]
     );
-    res.json({ data: r.rows[0] });
+    const newGroup = r.rows[0];
+    // 默认组创建时自动把当前所有活跃模型加入 items(保持"默认全量"语义)
+    if (newGroup.is_default) {
+      await client.query(
+        `INSERT INTO resource_group_items (group_id, resource_type, resource_id)
+         SELECT $1, 'model', model_name FROM portal_models WHERE is_active = TRUE
+         ON CONFLICT DO NOTHING`,
+        [newGroup.id]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ data: newGroup });
   } catch (e) {
+    await client.query('ROLLBACK');
     res.status(500).json({ error: '创建失败', reason: e.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -200,19 +221,44 @@ router.get('/api/admin/groups/:id', verifyUser, requirePermission('group:view'),
 
 router.put('/api/admin/groups/:id', verifyUser, requirePermission('group:edit'), async (req, res) => {
   const id = Number(req.params.id);
-  const { name, description } = req.body;
-  // partial update: COALESCE 保留原值, 前端可只改 name 或 description 单字段。
-  // 注: description 清空语义不被支持——传 null 时 COALESCE(null, description) 会保留原值而非清空。
-  // Phase1 不需要清空 description, 如需清空得走显式 patch 路径。
+  const { name, description, is_default } = req.body;
+  const client = await pool().connect();
   try {
-    const r = await pool().query(
-      'UPDATE resource_groups SET name = COALESCE($1, name), description = COALESCE($2, description), updated_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *',
-      [name?.trim() ?? null, description ?? null, id]
+    await client.query('BEGIN');
+    // 若把当前组设为默认: 先清掉旧默认组
+    if (is_default === true) {
+      await client.query('UPDATE resource_groups SET is_default = FALSE WHERE is_default = TRUE AND id != $1', [id]);
+    }
+    const r = await client.query(
+      `UPDATE resource_groups
+       SET name = COALESCE($1, name),
+           description = COALESCE($2, description),
+           is_default = COALESCE($3, is_default),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4 RETURNING *`,
+      [name?.trim() ?? null, description ?? null, typeof is_default === 'boolean' ? is_default : null, id]
     );
-    if (!r.rowCount) return res.status(404).json({ error: '资源组不存在' });
-    res.json({ data: r.rows[0] });
+    if (!r.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: '资源组不存在' });
+    }
+    const group = r.rows[0];
+    // 若本组被设为默认且 items 为空: 自动同步当前活跃模型(保持"默认全量"语义)
+    if (group.is_default) {
+      await client.query(
+        `INSERT INTO resource_group_items (group_id, resource_type, resource_id)
+         SELECT $1, 'model', model_name FROM portal_models WHERE is_active = TRUE
+         ON CONFLICT DO NOTHING`,
+        [group.id]
+      );
+    }
+    await client.query('COMMIT');
+    res.json({ data: group });
   } catch (e) {
+    await client.query('ROLLBACK');
     res.status(500).json({ error: '更新资源组失败', reason: e.message });
+  } finally {
+    client.release();
   }
 });
 

@@ -6,6 +6,7 @@ const { panel, getPanelPayload, getPanelItems, findPanelUser, createPanelUser } 
 const { syncModels } = require('../lib/gateway-sync');
 const { getGateway, currentProviderName } = require('../lib/gateway');
 const { mapSummary, mapDistribution, mapTrends } = require('../lib/gateway/usage-mapper');
+const { autoJoinDefaultGroup } = require('../lib/default-group');
 const { isAnyProviderEnabled } = require('../oauth');
 const { inspectPanelBiz, listPanelKeys, listPanelKeysOfUser } = require('../lib/panel-biz');
 
@@ -95,6 +96,12 @@ router.post('/api/auth/register', async (req, res) => {
       SELECT $1, id FROM roles WHERE name = 'user' AND is_system = TRUE
       ON CONFLICT DO NOTHING
     `, [user.id]);
+    // 自动加入默认资源组(若存在);失败不阻断注册
+    try {
+      await autoJoinDefaultGroup(global.pool, user.id);
+    } catch (e) {
+      console.error('[register] 自动加入默认资源组失败(不阻断):', e.message);
+    }
     const token = signPortalToken(user);
     res.json({ token, user: formatPortalUser(user) });
   } catch (err) {

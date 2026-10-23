@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const router = express.Router();
 const oauthRegistry = require('../oauth');
 const { createStateStore } = require('../lib/state-store');
+const { autoJoinDefaultGroup } = require('../lib/default-group');
 
 // 与 app.js 同款的 BASE_PATH 归一化:确保以 / 开头并以 / 结尾。
 // app.js 内置这个逻辑但 BASE_PATH 是局部变量不导出,这里复用 process.env 自己做一次
@@ -433,6 +434,12 @@ router.post('/api/auth/oauth/bind/skip', express.json(), async (req, res) => {
       SELECT $1, id FROM roles WHERE name = 'user' AND is_system = TRUE
       ON CONFLICT DO NOTHING
     `, [user.id]);
+    // 自动加入默认资源组(若存在);失败不阻断注册
+    try {
+      await autoJoinDefaultGroup(global.pool, user.id);
+    } catch (e) {
+      console.error('[oauth/bind/skip] 自动加入默认资源组失败(不阻断):', e.message);
+    }
     await global.pool.query(
       `INSERT INTO user_identities (user_id, provider, external_id, profile)
        VALUES ($1, $2, $3, $4)`,

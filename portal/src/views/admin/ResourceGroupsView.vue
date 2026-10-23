@@ -30,7 +30,10 @@
         @click="can('group:edit') && $router.push(`/admin/groups/${g.id}`)"
       >
         <div>
-          <div class="font-medium text-text">{{ g.name }}</div>
+          <div class="font-medium text-text flex items-center gap-1.5">
+            {{ g.name }}
+            <span v-if="g.is_default" class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-600 border border-blue-200">默认组</span>
+          </div>
           <div class="text-xs text-text-tertiary">{{ Number(g.member_count) }} 名成员</div>
         </div>
         <div class="text-text-secondary">{{ Number(g.member_count) }}</div>
@@ -73,6 +76,10 @@
             placeholder="资源组用途说明"
           />
         </div>
+        <label class="inline-flex items-center gap-2 cursor-pointer">
+          <input v-model="newIsDefault" type="checkbox" class="w-4 h-4 accent-accent" />
+          <span class="text-sm text-text">设为默认资源组（新用户自动加入，初始包含全部活跃模型）</span>
+        </label>
       </div>
       <template #footer>
         <button class="px-4 py-2 text-sm btn-secondary" @click="showNew = false">取消</button>
@@ -111,6 +118,7 @@ const loading = ref(false)
 const showNew = ref(false)
 const newName = ref('')
 const newDesc = ref('')
+const newIsDefault = ref(false)
 const creating = ref(false)
 const deletingGroup = ref(null)
 const deleting = ref(false)
@@ -156,6 +164,7 @@ async function fetchGroups() {
 function openNew() {
   newName.value = ''
   newDesc.value = ''
+  newIsDefault.value = false
   showNew.value = true
 }
 
@@ -166,12 +175,12 @@ async function create() {
     const res = await fetch(`${API_BASE}/admin/groups`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName.value, description: newDesc.value }),
+      body: JSON.stringify({ name: newName.value, description: newDesc.value, is_default: newIsDefault.value }),
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(errMsg(data, '创建失败'))
     showNew.value = false
-    showToast('资源组已创建', 'success')
+    showToast(newIsDefault.value ? '默认资源组已创建，新用户将自动加入' : '资源组已创建', 'success')
     // 创建后直接跳编辑页配置资源/成员; 仅拿不到 id 停留本页时才刷新列表(避免跳转前白打一次)
     if (data.data && data.data.id) router.push(`/admin/groups/${data.data.id}`)
     else await fetchGroups()

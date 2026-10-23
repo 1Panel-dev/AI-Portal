@@ -2,12 +2,36 @@
   <div>
     <div class="flex items-center justify-between mb-6">
       <div>
-        <h1 class="text-2xl font-bold text-text">编辑资源组{{ group?.name ? ' · ' + group.name : '' }}</h1>
-        <p class="text-text-secondary text-sm mt-1">配置资源组包含的资源；用户授权请在「资源授权」页管理</p>
+        <h1 class="text-2xl font-bold text-text flex items-center gap-2">
+          编辑资源组{{ group?.name ? ' · ' + group.name : '' }}
+          <span v-if="group?.is_default" class="px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-600 border border-blue-200">默认组</span>
+        </h1>
+        <p class="text-text-secondary text-sm mt-1">
+          配置资源组包含的资源；用户授权请在「资源授权」页管理
+          <template v-if="group?.is_default">；默认组会在新用户注册时自动加入，模型同步后自动追加新上架模型</template>
+        </p>
       </div>
       <div class="flex items-center gap-3">
         <button @click="$router.push('/admin/groups')" class="px-4 py-2 text-sm btn-secondary transition-all">返回</button>
       </div>
+    </div>
+
+    <!-- 默认组设置 -->
+    <div v-if="group && can('group:edit')" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4 mb-4 flex items-center justify-between">
+      <div>
+        <div class="text-sm font-medium text-text">默认资源组</div>
+        <div class="text-xs text-text-secondary mt-0.5">新用户注册时自动加入；模型同步后自动追加新上架模型</div>
+      </div>
+      <label class="inline-flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          :checked="group.is_default"
+          class="w-4 h-4 accent-accent"
+          :disabled="togglingDefault"
+          @change="toggleDefault"
+        />
+        <span class="text-sm text-text">{{ group.is_default ? '已设为默认' : '设为默认' }}</span>
+      </label>
     </div>
 
     <!-- ===== 包含资源 ===== -->
@@ -87,6 +111,7 @@ const tabs = [
 const activeTab = ref('resources')
 
 const group = ref(null)
+const togglingDefault = ref(false)
 
 // ---- 资源类型 + 包含资源 ----
 const resourceTypes = ref([])          // [{key:'model',name:'模型'},...]
@@ -204,6 +229,27 @@ async function saveItems() {
     showToast(err.message || '保存失败', 'error')
   } finally {
     savingItems.value = false
+  }
+}
+
+async function toggleDefault() {
+  if (!group.value) return
+  togglingDefault.value = true
+  const target = !group.value.is_default
+  try {
+    const res = await fetch(`${API_BASE}/admin/groups/${groupId}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_default: target }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(errMsg(data, '设置失败'))
+    group.value = data.data
+    showToast(target ? '已设为默认资源组，当前活跃模型已自动加入' : '已取消默认资源组', 'success')
+  } catch (err) {
+    showToast(err.message || '设置失败', 'error')
+  } finally {
+    togglingDefault.value = false
   }
 }
 

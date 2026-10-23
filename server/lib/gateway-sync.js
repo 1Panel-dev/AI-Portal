@@ -136,10 +136,25 @@ async function syncModels() {
     } catch (e) {
       console.error('[gateway-sync] 组同步失败(模型同步不受影响):', e.message);
     }
+    // 若存在默认资源组,把新上架模型自动追加到默认组 items(保持"默认全量"语义)
+    try {
+      const { syncDefaultGroupItems } = require('./default-group');
+      await syncDefaultGroupItems(global.pool);
+    } catch (e) {
+      console.error('[gateway-sync] 默认资源组自动追加失败(不阻断):', e.message);
+    }
     return modelsResult;
   }
   const { syncModelsFromPanel } = require('../panel');
-  return syncModelsFromPanel();
+  const r = await syncModelsFromPanel();
+  // 1Panel 模式同样保持默认组"全量"语义
+  try {
+    const { syncDefaultGroupItems } = require('./default-group');
+    await syncDefaultGroupItems(global.pool);
+  } catch (e) {
+    console.error('[gateway-sync] 默认资源组自动追加失败(不阻断):', e.message);
+  }
+  return r;
 }
 
 /**
