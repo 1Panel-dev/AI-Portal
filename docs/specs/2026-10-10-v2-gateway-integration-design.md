@@ -264,6 +264,9 @@ M5 收敛（实施修正）：**列改名取消**——M3/M4 实施后 `gateway_
 | R5 | License 用户数上限（`user_limit_reached` 409） | 注册路径差异化提示；代建脚本断点续跑 |
 | R6 | 503 busy 拖垮同步/注册 | 调度器已有容错；注册路径退避提示 |
 | R7 | 网关用户组未配置默认组 → 代建失败 | M1 配置页强校验 `gateway_default_user_group_id` 必填（切 ai-gateway 时） |
+| R8 | `getPortalUser` SELECT 缺网关列 → 网关授权层恒全公开（两层 JOIN 断链，`_gatewayAllowedModels` 收到 null 误判兜底） | **已修复（620d07c）**：auth.js SELECT 补 `gateway_user_id` / `gateway_user_group_id` |
+
+> R8 是 V2 最严重隐忧：M3 授权链改造时，portal.js / admin.js 调 `getPortalUser` 只查了 1Panel 相关列，网关新增两列隐没，导致资源组成员访问模型广场时 `userAllowedMap` 恒 null，所有上架模型对所有资源组「无条件可见」。修复方式简单（补 SELECT 两列），但必须作为回归检查项固化：**任何依赖 `req.portalUser` 的端点必须确认 auth.js SELECT 包含 provider 相关列**。
 
 ---
 
@@ -303,3 +306,4 @@ M5 收敛（实施修正）：**列改名取消**——M3/M4 实施后 `gateway_
 | 2026-10-14 | **方向调整（门户为主）**：网关仅替换模型同步/组同步数据源/Key 签发/用户同步四个点；资源组与组织架构不动；skill/MCP 不动；接口评估结论满足度全绿；D-09 作废；新增 D-13~D-16 | D-13（门户为主，覆盖 D-01 的「网关真相源」与 D-02 的资源组降级） |
 | 2026-10-14 | D-13 拍板：数据统计切网关 `GET /admin/usage-statistics`，新增 §3.7 统计域设计与里程碑 M6；M1 配置层开发完成（adde7d3 + 09b3201） | D-13 ✅ |
 | 2026-10-21 | **V2 里程碑 M2-M6 全部完成**：M2 模型同步、M3 组同步+授权链（两列并存方案）、M4 用户/Key 切网关、M5 存量迁移脚本、M6 统计切换（usage-mapper + 30 天窗口钳制 + token-trend 趋势 + 个人用量同步切换）。真实环境逐项验证通过 | M2 ✅ M3 ✅ M4 ✅ M5 ✅ M6 ✅ |
+| 2026-10-23 | **M7 收官走查 + 两个 bug 修复**（均在 v2 分支）：① getPortalUser 缺网关列导致网关授权层失效（两层 JOIN 恒全公开兜底，620d07c 修复）；② 个人中心月度 Token 趋势图恒空（usage-mapper.mapTrends 未补 totalTokens，a80a757 修复）。1Panel 模式回归验证 provider 分支正确（syncModels/syncGroups 正确路由到 V1 链路）；Skill/MCP 广场路由零波及；前端 vite build 无错误；后端 node --check 通过。已知限制：网关统计 30 天窗口、趋势无请求数列、PanelGroupsView 网关模式空表（预期，低优先级 UX） | R8 ✅ / M7 走查收官 ✅ |
