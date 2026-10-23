@@ -3,7 +3,7 @@
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 class="text-2xl font-bold text-text">用户管理</h1>
-          <p class="text-text-secondary text-sm mt-1">查看门户用户，删除时会先清理远端模型网关（1Panel 或独立网关）的用户与 API Key</p>
+          <p class="text-text-secondary text-sm mt-1">{{ gatewayProvider === 'ai-gateway' ? '查看门户用户，删除时会先清理独立网关的用户与 API Key' : '查看门户用户，删除时会先清理远端模型网关（1Panel 或独立网关）的用户与 API Key' }}</p>
         </div>
         <div class="flex flex-wrap gap-2">
           <button @click="refreshUsers" :disabled="loading" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50"><RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />{{ loading ? '加载中...' : '刷新' }}</button>
@@ -39,7 +39,7 @@
           </div>
           <div class="min-w-0">
             <div class="font-medium text-text truncate">{{ user.name || user.username }}</div>
-            <div class="text-xs text-text-tertiary truncate">{{ user.username }} · Panel ID: {{ user.panel_user_id || '-' }}</div>
+            <div class="text-xs text-text-tertiary truncate">{{ user.username }} · {{ gatewayProvider === 'ai-gateway' ? 'Gateway ID: ' + (user.gateway_user_id || '-') : 'Panel ID: ' + (user.panel_user_id || '-') }}</div>
           </div>
           <div class="flex items-center gap-2 flex-wrap">
             <template v-if="user.role === 'admin' || user.is_portal_admin">
@@ -81,7 +81,7 @@
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0">
                     <div class="font-medium text-text truncate">{{ user.name || user.username }}</div>
-                    <div class="text-xs text-text-tertiary truncate mt-0.5">{{ user.username }} · Panel ID: {{ user.panel_user_id || '-' }}</div>
+                    <div class="text-xs text-text-tertiary truncate mt-0.5">{{ user.username }} · {{ gatewayProvider === 'ai-gateway' ? 'Gateway ID: ' + (user.gateway_user_id || '-') : 'Panel ID: ' + (user.panel_user_id || '-') }}</div>
                   </div>
                   <span class="shrink-0 text-xs px-2 py-0.5 rounded-full" :class="user.status === 'active' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'">{{ user.status }}</span>
                 </div>
@@ -147,7 +147,7 @@
       <div v-if="passwordUser" class="fixed inset-0 z-[300] flex items-center justify-center bg-black/45 px-5 backdrop-blur-[8px]" @click="passwordUser = null">
         <div class="w-full max-w-[420px] rounded-2xl bg-white p-6 shadow-modal" @click.stop>
           <h3 class="text-lg font-semibold text-text mb-2">修改密码</h3>
-          <p class="text-sm text-text-secondary mb-5">为「{{ passwordUser.username }}」设置新密码，会同步更新到 1Panel 远端。</p>
+          <p class="text-sm text-text-secondary mb-5">为「{{ passwordUser.username }}」设置新密码，会同步更新到{{ gatewayProvider === 'ai-gateway' ? '独立网关' : '1Panel' }}远端。</p>
           <div class="space-y-4 mb-5">
             <div>
               <label class="block text-sm font-medium text-text mb-1.5">新密码</label>
@@ -230,6 +230,7 @@ const passwordUser = ref(null)
 const passwordForm = ref({ newPassword: '', confirmPassword: '', showNew: false, showConfirm: false })
 const changingPassword = ref(false)
 const syncing = ref(false)
+const gatewayProvider = ref('1panel')
 const showNewUserDialog = ref(false)
 const onUserCreated = () => { fetchUsers(1) }
 const selectedUsers = ref(new Set())
@@ -293,6 +294,7 @@ const fetchUsers = async (nextPage = page.value) => {
     total.value = data.total || 0
     page.value = data.page || page.value
     pageSize.value = data.pageSize || pageSize.value
+    if (data.gateway_provider) gatewayProvider.value = data.gateway_provider
     selectedUsers.value = new Set()
   } catch (err) {
     showToast(err.message || '获取用户失败', 'error')

@@ -1351,14 +1351,14 @@ router.post('/api/admin/panel-config/sync-now', verifyUser, requirePermission('s
   const startTime = Date.now();
   console.log('[admin] 管理员触发手动同步,userId=', req.user?.id, '|', new Date().toISOString());
   try {
-    // 并发跑模型 + 技能 + MCP + 用户组/模型组 + 角色同步,失败不互相影响
-    // syncPanelGroups(用户组/模型组/key组ID回填)也纳入: 授权过滤(getUserAllowedModels 三层 JOIN)
-    // 依赖这三张缓存表,不刷会导致「模型数据新、授权数据旧」的不一致
-    const [modelsResult, skillsResult, mcpsResult, groupsResult, rolesResult] = await Promise.allSettled([
+    // 并发跑模型 + 技能 + MCP + 用户组/模型组 + 用户 + 角色同步,失败不互相影响
+    // 用户同步也纳入:gateway 模式下从独立网关拉用户+Key;1Panel 模式下从 1Panel 拉
+    const [modelsResult, skillsResult, mcpsResult, groupsResult, usersResult, rolesResult] = await Promise.allSettled([
       syncModels(),   // V2: 按 gateway_provider 分支(1panel → 1Panel 链路; ai-gateway → 独立网关)
       syncSkillsFromPanel(),
       syncMcpsFromPanel(),
       syncGroups(),   // V2: 组域同步同样按 provider 分支(1panel → syncPanelGroups; ai-gateway → 网关组缓存+归属回填)
+      doSyncUsers(),  // V2: 按 gateway_provider 分支(1panel → 原 V1 链路; ai-gateway → syncGatewayUsers)
       // 同步角色列表并缓存到本地（方便管理后台加载最新数据）
       (async () => {
         const roles = await getPanelRoles();
@@ -1388,6 +1388,9 @@ router.post('/api/admin/panel-config/sync-now', verifyUser, requirePermission('s
       groups: groupsResult.status === 'fulfilled'
         ? { ...groupsResult.value, ok: true }
         : { ok: false, error: groupsResult.reason?.message },
+      users: usersResult.status === 'fulfilled'
+        ? { ...usersResult.value, ok: true }
+        : { ok: false, error: usersResult.reason?.message },
       roles: rolesResult.status === 'fulfilled'
         ? rolesResult.value
         : { ok: false, error: rolesResult.reason?.message },
@@ -1728,7 +1731,8 @@ router.get('/api/admin/portal-users', verifyUser, requirePermission('user:view')
     params.push(pageSize, offset);
     const result = await global.pool.query(`
       SELECT
-        u.id, u.panel_user_id, u.username, u.name, u.role, u.status, u.is_portal_admin,
+        u.id, u.panel_user_id, u.gateway_user_id, u.gateway_user_group_id,
+        u.username, u.name, u.role, u.status, u.is_portal_admin,
         u.last_login_at, u.created_at,
         COUNT(DISTINCT k.id)::int AS api_key_count,
         COUNT(DISTINCT s.id)::int AS submission_count,
@@ -1747,7 +1751,10 @@ router.get('/api/admin/portal-users', verifyUser, requirePermission('user:view')
       LIMIT $${params.length - 1} OFFSET $${params.length}
     `, params);
 
-    res.json({ items: result.rows, total: totalRes.rows[0].total, page, pageSize });
+    const { currentProviderName } = require('../lib/gateway');
+    const provider = currentProviderName();
+
+    res.json({ items: result.rows, total: totalRes.rows[0].total, page, pageSize, gateway_provider: provider });
   } catch (err) {
     console.error('获取用户列表失败:', err);
     res.status(500).json({ error: '获取用户列表失败' });
@@ -1910,6 +1917,15 @@ async function runUserSyncTask(taskId) {
 
 // 核心同步逻辑（提取为独立函数，前后台共用）
 async function doSyncUsers() {
+  // V2 分流:gateway_provider = 'ai-gateway' 时走网关链路,否则原 1Panel 链路(冻结)
+  const { currentProviderName } = require('../lib/gateway');
+  const provider = currentProviderName();
+  if (provider === 'ai-gateway') {
+    const { syncUsers: syncGatewayUsers } = require('../lib/gateway-sync');
+    return await syncGatewayUsers();
+  }
+
+  // ============ 以下为 V1 1Panel 链路,冻结不动 ============
   const currentHost = (panel.getRawConfig() && panel.getRawConfig().baseUrl) || '';
 
   if (currentHost) {
