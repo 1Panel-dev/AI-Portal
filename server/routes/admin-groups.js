@@ -339,20 +339,57 @@ router.put('/api/admin/groups/:id/members', verifyUser, requirePermission('group
 // ---- 1Panel 组同步 ----
 router.get('/api/admin/panel-groups', verifyUser, requirePermission('group:view'), async (req, res) => {
   try {
-    const userGroups = await pool().query('SELECT * FROM panel_user_groups ORDER BY name');
-    const modelGroups = await pool().query('SELECT * FROM panel_model_groups ORDER BY name');
-    res.json({ data: { userGroups: userGroups.rows, modelGroups: modelGroups.rows } });
+    const { currentProviderName } = require('../lib/gateway/index');
+    const provider = await currentProviderName();
+    if (provider === 'ai-gateway') {
+      // 网关模式: 读 gateway_* 缓存表 + 字段对齐(前端期望 panel_* 命名)
+      const u = await pool().query('SELECT * FROM gateway_user_groups ORDER BY name');
+      const m = await pool().query('SELECT * FROM gateway_model_groups ORDER BY name');
+      // model_group_ids → model_group_names(需要 join gateway_model_groups 拿 name)
+      const mgMap = new Map(m.rows.map(r => [r.gateway_group_id, r.name]));
+      const userGroups = u.rows.map(g => ({
+        panel_group_id: g.gateway_group_id,
+        name: g.name,
+        qps_limit: g.max_concurrency || 0,
+        token_limit: g.token_plan_id || 0,
+        model_group_ids: g.model_group_ids || [],
+        model_group_names: (g.model_group_ids || []).map(id => mgMap.get(id) || `组#${id}`),
+        api_key_count: 0,
+        synced_at: g.synced_at,
+      }));
+      const modelGroups = m.rows.map(g => ({
+        panel_group_id: g.gateway_group_id,
+        name: g.name,
+        models: g.models || [],
+        selection_strategy: g.protocol_type || '',
+        synced_at: g.synced_at,
+      }));
+      res.json({ data: { userGroups, modelGroups } });
+    } else {
+      // 1Panel 模式: 读 panel_* 表
+      const userGroups = await pool().query('SELECT * FROM panel_user_groups ORDER BY name');
+      const modelGroups = await pool().query('SELECT * FROM panel_model_groups ORDER BY name');
+      res.json({ data: { userGroups: userGroups.rows, modelGroups: modelGroups.rows } });
+    }
   } catch (e) {
-    res.status(500).json({ error: '获取 1Panel 组失败', reason: e.message });
+    res.status(500).json({ error: '获取组同步信息失败', reason: e.message });
   }
 });
 
 router.post('/api/admin/panel-groups/sync', verifyUser, requirePermission('group:panel-sync'), async (req, res) => {
   try {
-    const result = await syncPanelGroups();
-    res.json({ data: result });
+    const { currentProviderName } = require('../lib/gateway/index');
+    const provider = await currentProviderName();
+    if (provider === 'ai-gateway') {
+      const { syncGatewayGroups } = require('../lib/gateway-sync');
+      const result = await syncGatewayGroups();
+      res.json({ data: result });
+    } else {
+      const result = await syncPanelGroups();
+      res.json({ data: result });
+    }
   } catch (e) {
-    res.status(502).json({ error: 'PANEL_REJECTED', reason: e.message });
+    res.status(502).json({ error: 'SYNC_FAILED', reason: e.message });
   }
 });
 
