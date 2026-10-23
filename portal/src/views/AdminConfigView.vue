@@ -316,7 +316,7 @@
               <PlugZap class="w-4 h-4" />{{ panelTesting ? '测试中...' : '测试连接' }}
             </button>
             <button
-              v-if="can('system:config') && gatewayForm.activeProvider !== 'ai-gateway'"
+              v-if="can('system:config')"
               @click="syncNow"
               :disabled="panelSyncing"
               class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50"
