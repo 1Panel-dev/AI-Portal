@@ -125,7 +125,7 @@
         <Info class="w-4 h-4 flex-shrink-0 mt-0.5" />
         <div class="leading-relaxed">
           <p class="font-medium mb-0.5">模型可见性规则</p>
-          <p>成员实际可见的模型 = <span class="font-medium">资源组勾选的模型</span> ∩ <span class="font-medium">该成员的模型授权</span>（由所属用户组 → 模型组推导；1Panel 模式按 Key 所属用户组，独立网关模式按用户所属用户组）。技能 / MCP 不取交集，资源组勾选即对成员可见。未被任何资源组授权的成员无法看到该组的任何资源。</p>
+          <p v-html="visibilityRule"></p>
         </div>
       </div>
       <!-- 成员限制概览表（一屏看全组成员的模型组限制） -->
@@ -252,6 +252,24 @@ const groupId = Number(route.params.id)
 
 const group = ref(null)
 const userLoading = ref(true)
+const provider = ref('1panel')
+
+async function loadProvider() {
+  try {
+    const res = await fetch(`${API_BASE}/admin/gateway-config`, { headers: { Authorization: `Bearer ${getToken()}` } })
+    if (res.ok) {
+      const j = await res.json()
+      provider.value = j.data?.activeProvider || j.data?.provider || '1panel'
+    }
+  } catch (_) { /* 失败不阻断 */ }
+}
+
+const visibilityRule = computed(() => {
+  if (provider.value === 'ai-gateway') {
+    return '成员实际可见的模型 = <span class="font-medium">资源组勾选的模型</span> ∩ <span class="font-medium">该成员网关归属用户组下的模型组所包含的模型</span>。技能 / MCP 不取交集，资源组勾选即对成员可见。未被任何资源组授权的成员无法看到该组的任何资源。'
+  }
+  return '成员实际可见的模型 = <span class="font-medium">资源组勾选的模型</span> ∩ <span class="font-medium">该成员的模型授权</span>（1Panel 模式下由 Key 所属用户组 → 模型组推导）。技能 / MCP 不取交集，资源组勾选即对成员可见。未被任何资源组授权的成员无法看到该组的任何资源。'
+})
 
 // 穿梭框状态：leftList = 未授权候选，rightList = 已授权。初始 rightList 来自组详情，leftList = 全量 - rightList
 const allUsers = ref([])
@@ -502,8 +520,9 @@ async function onPreviewMemberChange() {
   else await fetchPreview()
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadPermissions()
+  await loadProvider()
   fetchGroupDetail()
   fetchAllUsers()
 })
