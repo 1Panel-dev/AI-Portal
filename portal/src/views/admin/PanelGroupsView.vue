@@ -2,8 +2,12 @@
   <div>
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
       <div>
-        <h1 class="text-2xl font-bold text-text">AI 网关同步信息</h1>
-        <p class="text-text-secondary text-sm mt-1">同步 1Panel 用户组 / 模型组作只读参考；交集数据从成员 key 的 allowedModels 实时取</p>
+        <h1 class="text-2xl font-bold text-text">{{ provider === 'ai-gateway' ? 'AI 网关组授权信息' : '1Panel 组授权信息' }}</h1>
+        <p class="text-text-secondary text-sm mt-1">
+          {{ provider === 'ai-gateway'
+            ? 'AI 网关用户组/模型组作只读参考；实际授权以门户资源组配置为准'
+            : '1Panel 用户组/模型组作只读参考；交集数据从成员 key 的 allowedModels 实时取' }}
+        </p>
       </div>
       <button v-if="can('group:panel-sync')" @click="syncPanelGroups" :disabled="syncing" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm btn-secondary transition-all disabled:opacity-50">
         <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': syncing }" />{{ syncing ? '同步中...' : '手动同步' }}
@@ -82,6 +86,17 @@ const activeTab = ref('userGroups')
 const userGroups = ref([])
 const modelGroups = ref([])
 const syncing = ref(false)
+const provider = ref('1panel')
+
+async function loadProvider() {
+  try {
+    const res = await fetch(`${API_BASE}/admin/gateway-config`, { headers: { Authorization: `Bearer ${getToken()}` } })
+    if (res.ok) {
+      const j = await res.json()
+      provider.value = j.data?.activeProvider || j.data?.provider || '1panel'
+    }
+  } catch (_) { /* 失败不阻断, 默认 1panel */ }
+}
 
 const lastSyncedAt = computed(() => {
   const times = [...userGroups.value, ...modelGroups.value].map(g => g.synced_at).filter(Boolean)
@@ -94,11 +109,11 @@ async function fetchPanelGroups() {
     const res = await fetch(`${API_BASE}/admin/panel-groups`, { headers: { Authorization: `Bearer ${getToken()}` } })
     if (res.status === 401) return router.push('/admin/login')
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(errMsg(data, '获取 1Panel 授权信息失败'))
+    if (!res.ok) throw new Error(errMsg(data, `获取${provider.value === 'ai-gateway' ? 'AI 网关' : '1Panel'}组信息失败`))
     userGroups.value = data.data?.userGroups || []
     modelGroups.value = data.data?.modelGroups || []
   } catch (err) {
-    showToast(err.message || '获取 1Panel 授权信息失败', 'error')
+    showToast(err.message || `获取${provider.value === 'ai-gateway' ? 'AI 网关' : '1Panel'}组信息失败`, 'error')
   }
 }
 
@@ -122,5 +137,5 @@ async function syncPanelGroups() {
   }
 }
 
-onMounted(() => { loadPermissions(); fetchPanelGroups() })
+onMounted(async () => { loadPermissions(); await loadProvider(); fetchPanelGroups() })
 </script>
