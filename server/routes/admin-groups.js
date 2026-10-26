@@ -351,7 +351,8 @@ router.get('/api/admin/panel-groups', verifyUser, requirePermission('group:view'
         panel_group_id: g.gateway_group_id,
         name: g.name,
         qps_limit: g.max_concurrency || 0,
-        token_limit: g.token_plan_id || 0,
+        // 设计文档 §1.2: 网关模式 token_limit 语义对应 apiKeyMaxConcurrency(单 Key 并发上限),不是 token_plan_id
+        token_limit: g.api_key_max_concurrency || 0,
         model_group_ids: g.model_group_ids || [],
         model_group_names: (g.model_group_ids || []).map(id => mgMap.get(id) || `组#${id}`),
         api_key_count: 0,

@@ -116,7 +116,7 @@
             <SideItem v-if="can('menu:admin-oauth')" to="/admin/oauth" :active="isActive('/admin/oauth')" :collapsed="collapsed" title="第三方登录">
               <KeyRound class="w-5 h-5" /><template #label>第三方登录</template>
             </SideItem>
-            <SideItem v-if="can('menu:admin-panel')" to="/admin/panel-groups" :active="isActive('/admin/panel-groups')" :collapsed="collapsed" title="1Panel AI 网关同步信息">
+            <SideItem v-if="can('menu:admin-panel')" to="/admin/panel-groups" :active="isActive('/admin/panel-groups')" :collapsed="collapsed" :title="gatewayProvider === 'ai-gateway' ? 'AI 网关同步信息' : '1Panel AI 网关同步信息'">
               <Boxes class="w-5 h-5" /><template #label>AI 网关同步</template>
             </SideItem>
           </div>
@@ -166,7 +166,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AdminTopBar from './admin/AdminTopBar.vue'
 import SideItem from './admin/SideItem.vue'
 import { siteName, siteLogo, siteLogoIsDefault } from '../composables/useSiteBranding.js'
-import { API_BASE } from '../lib/apiBase.js'
+import { API_BASE, getLoginToken } from '../lib/apiBase.js'
 import { bannerVisible } from '../composables/useAnnouncement.js'
 import { loadPermissions, permissions, isPortalAdmin, can } from '../composables/usePermissions.js'
 import { BarChart3, ClipboardCheck, Puzzle, UserCog, Sliders, KeyRound, PanelLeftClose, PanelLeftOpen, FolderKanban, LayoutGrid, Sun, ShieldCheck, Boxes, UserCheck, Tags } from 'lucide-vue-next'
@@ -178,8 +178,17 @@ const mobileMenuOpen = ref(false)
 const permsReady = ref(false)
 // 版本号:动态拉取 /api/version(后端读 APP_VERSION 环境变量,由 CI 按 tag 注入),拉不到则隐藏
 const appVersion = ref('')
+// 网关 provider:动态拉取,决定菜单 title 文案
+const gatewayProvider = ref('1panel')
 
 onMounted(async () => {
+  try {
+    const res = await fetch(`${API_BASE}/admin/gateway-config`, { headers: { Authorization: `Bearer ${getLoginToken()}` } })
+    if (res.ok) {
+      const j = await res.json()
+      gatewayProvider.value = j.data?.activeProvider || j.data?.provider || '1panel'
+    }
+  } catch { /* 失败不阻断, 默认 1panel */ }
   try {
     const res = await fetch(`${API_BASE}/version`)
     if (res.ok) appVersion.value = (await res.json()).version || ''

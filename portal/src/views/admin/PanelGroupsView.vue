@@ -32,7 +32,7 @@
     <div v-if="activeTab === 'userGroups'" class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl overflow-x-auto shadow-card">
       <div class="min-w-[700px]">
       <div class="grid grid-cols-[1.2fr_0.8fr_0.8fr_1.5fr_0.8fr] gap-3 px-4 py-3 text-xs font-semibold text-text-secondary bg-surface-secondary border-b border-[rgba(0,0,0,0.06)]">
-        <div>用户组名</div><div>QPS 限制</div><div>Token 限制</div><div>关联模型组</div><div>API Key 数</div>
+        <div>用户组名</div><div>{{ isGateway ? '组并发上限' : 'QPS 限制' }}</div><div>{{ isGateway ? 'Key 并发上限' : 'Token 限制' }}</div><div>关联模型组</div><div>API Key 数</div>
       </div>
       <div v-if="!userGroups.length" class="py-14 text-center text-sm text-text-secondary">暂无用户组数据，点击右上角「手动同步」</div>
       <div v-for="g in userGroups" :key="g.panel_group_id" class="grid grid-cols-[1.2fr_0.8fr_0.8fr_1.5fr_0.8fr] gap-3 px-4 py-3 items-center border-b border-[rgba(0,0,0,0.04)] last:border-b-0 text-sm">
@@ -43,7 +43,7 @@
           <span v-for="(n, i) in (g.model_group_names || [])" :key="i" class="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-600">{{ n }}</span>
           <span v-if="!(g.model_group_names || []).length" class="text-xs text-text-tertiary">-</span>
         </div>
-        <div class="text-text-secondary">{{ g.api_key_count ?? 0 }}</div>
+        <div class="text-text-secondary">{{ isGateway ? '-' : (g.api_key_count ?? 0) }}</div>
       </div>
       </div>
     </div>
@@ -66,7 +66,7 @@
       </div>
     </div>
 
-    <p class="text-xs text-text-tertiary mt-3">最近同步：{{ lastSyncedAt }} · 同步语义沿用保守策略（空响应不清表）</p>
+    <p class="text-xs text-text-tertiary mt-3">最近同步：{{ lastSyncedAt }} · {{ isGateway ? '网关模式同步沿用保守策略（空响应不清表）' : '同步语义沿用保守策略（空响应不清表）' }}</p>
 
   </div>
 </template>
@@ -87,6 +87,7 @@ const userGroups = ref([])
 const modelGroups = ref([])
 const syncing = ref(false)
 const provider = ref('1panel')
+const isGateway = computed(() => provider.value === 'ai-gateway')
 
 async function loadProvider() {
   try {
