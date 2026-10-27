@@ -46,8 +46,9 @@ jobs:
             WITH_LATEST="${{ github.event.inputs.dockerImageTagWithLatest }}"
           fi
           IMAGE=1panel/ai-portal
-          TAGS="--tag ${IMAGE}:${TAG}"
-          [ "$WITH_LATEST" = "true" ] && TAGS="${TAGS} --tag ${IMAGE}:${TAG%%.*} --tag ${IMAGE}:latest"
+          SWR_IMAGE=swr.cn-north-4.myhuaweicloud.com/maxkb/ai-portal
+          TAGS="--tag ${IMAGE}:${TAG} --tag ${SWR_IMAGE}:${TAG}"
+          [ "$WITH_LATEST" = "true" ] && TAGS="${TAGS} --tag ${IMAGE}:${TAG%%.*} --tag ${IMAGE}:latest --tag ${SWR_IMAGE}:${TAG%%.*} --tag ${SWR_IMAGE}:latest"
           echo "buildx_args=--platform $ARCH \
             --cache-from type=gha --cache-to type=gha,mode=max \
             --build-arg DOCKER_IMAGE_TAG=${TAG} \
@@ -62,6 +63,12 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Login Huawei Cloud SWR
+        uses: docker/login-action@v4
+        with:
+          registry: swr.cn-north-4.myhuaweicloud.com
+          username: ${{ secrets.SWR_USERNAME }}
+          password: ${{ secrets.SWR_TOKEN }}
       - run: docker buildx build --output "type=image,push=true" ${{ steps.prepare.outputs.buildx_args }}
       - name: Create git tag
         if: github.event_name == 'workflow_dispatch'
