@@ -51,21 +51,38 @@
         </button>
       </div>
 
-      <!-- 有 token:显示 + 复制 + 刷新 -->
-      <div v-else class="flex items-center gap-3">
-        <code class="font-mono text-sm text-text-secondary select-all break-all">{{ token }}</code>
-        <button type="button" @click="copyToken"
-          class="px-3 py-1.5 text-xs rounded-lg border border-[rgba(0,0,0,0.08)] hover:bg-white transition-colors"
-          :class="copied ? 'text-green-600 border-green-200 bg-green-50' : 'text-text-secondary'">
-          {{ copied ? '已复制' : '复制' }}
-        </button>
-        <button type="button" @click="refreshToken" :disabled="generating"
-          class="px-3 py-1.5 text-xs rounded-lg border border-[rgba(0,0,0,0.08)] text-text-secondary hover:bg-white transition-colors disabled:opacity-50">
-          {{ generating ? '刷新中...' : '刷新' }}
-        </button>
+      <!-- 有 token:显示 + 复制 + 启停 + 撤销 + 重新生成 -->
+      <div v-else class="flex flex-col gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
+          <code class="font-mono text-sm text-text-secondary select-all break-all flex-1 min-w-0">{{ token }}</code>
+          <span v-if="tokenStatus"
+            class="px-2 py-0.5 text-[11px] rounded-full shrink-0"
+            :class="tokenStatus === 'Enable' ? 'bg-green-50 text-green-600' : 'bg-orange-50 text-orange-600'">
+            {{ tokenStatus === 'Enable' ? '已启用' : '已停用' }}
+          </span>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <button type="button" @click="copyToken"
+            class="px-3 py-1.5 text-xs rounded-lg border border-[rgba(0,0,0,0.08)] hover:bg-white transition-colors"
+            :class="copied ? 'text-green-600 border-green-200 bg-green-50' : 'text-text-secondary'">
+            {{ copied ? '已复制' : '复制' }}
+          </button>
+          <button type="button" @click="toggleStatus" :disabled="statusLoading"
+            class="px-3 py-1.5 text-xs rounded-lg border border-[rgba(0,0,0,0.08)] text-text-secondary hover:bg-white transition-colors disabled:opacity-50">
+            {{ statusLoading ? '处理中...' : (tokenStatus === 'Enable' ? '停用' : '启用') }}
+          </button>
+          <button type="button" @click="showRevokeDialog = true" :disabled="revoking"
+            class="px-3 py-1.5 text-xs rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50">
+            {{ revoking ? '撤销中...' : '撤销' }}
+          </button>
+          <button type="button" @click="refreshToken" :disabled="generating"
+            class="px-3 py-1.5 text-xs rounded-lg border border-[rgba(0,0,0,0.08)] text-text-secondary hover:bg-white transition-colors disabled:opacity-50">
+            {{ generating ? '生成中...' : '重新生成' }}
+          </button>
+        </div>
       </div>
 
-      <p class="text-[11px] text-text-tertiary mt-1.5">使用此 Token 通过 skillctl 登录 1Panel Skills Hub;刷新会使旧 Token 立即失效。</p>
+      <p class="text-[11px] text-text-tertiary mt-1.5">使用此 Token 通过 skillctl 登录 1Panel Skills Hub；停用后立即不可用，可再次启用；撤销后需重新生成。</p>
     </div>
 
     <!-- 6 条主命令 -->
@@ -90,13 +107,25 @@
     <!-- 刷新确认弹框:用项目统一 AppDialog,不用浏览器原生 confirm -->
     <AppDialog
       :open="showRefreshDialog"
-      title="刷新 Token"
-      message="刷新后旧 Token 立即失效，确认刷新？"
+      title="重新生成 Token"
+      message="重新生成会撤销当前 Token 并创建新的一把，旧 Token 立即失效，确认继续？"
       type="confirm"
       cancelText="取消"
-      confirmText="确认刷新"
+      confirmText="确认生成"
       @close="showRefreshDialog = false"
       @confirm="confirmRefresh"
+    />
+
+    <!-- 撤销确认弹框 -->
+    <AppDialog
+      :open="showRevokeDialog"
+      title="撤销 Token"
+      message="撤销后该 Token 立即永久失效，需要重新生成才能继续使用，确认撤销？"
+      type="confirm"
+      cancelText="取消"
+      confirmText="确认撤销"
+      @close="showRevokeDialog = false"
+      @confirm="revokeToken"
     />
   </section>
 </template>
@@ -115,6 +144,10 @@ const generating = ref(false)
 const copied = ref(false)
 const copiedPlatform = ref(null)
 const showRefreshDialog = ref(false)
+const showRevokeDialog = ref(false)
+const tokenStatus = ref('')
+const statusLoading = ref(false)
+const revoking = ref(false)
 const featureFlags = ref({ panelEndpoint: '' })
 
 const isWeCom = (() => {
@@ -135,6 +168,7 @@ const fetchToken = async () => {
       tokenError.value = data?.reason || data?.error || '获取 Token 失败'
     } else {
       token.value = data?.token || ''
+      tokenStatus.value = data?.status || ''
     }
   } catch (e) {
     tokenError.value = '获取 Token 失败'
@@ -159,6 +193,7 @@ const generateToken = async () => {
       tokenError.value = data?.reason || data?.error || '生成 Token 失败'
     } else {
       token.value = data?.token || ''
+      tokenStatus.value = data?.status || 'Enable'
     }
   } catch (e) {
     tokenError.value = '生成 Token 失败'
@@ -175,6 +210,58 @@ const refreshToken = () => {
 const confirmRefresh = async () => {
   showRefreshDialog.value = false
   await generateToken()
+}
+
+const toggleStatus = async () => {
+  if (statusLoading.value || !token.value) return
+  statusLoading.value = true
+  tokenError.value = ''
+  const next = tokenStatus.value === 'Enable' ? 'Disable' : 'Enable'
+  try {
+    const t = localStorage.getItem('token')
+    const res = await fetch(`${API_BASE}/skillctl-token/status`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: next }),
+    })
+    let data = null
+    try { data = await res.json() } catch { /* non-JSON body */ }
+    if (!res.ok) {
+      tokenError.value = data?.reason || data?.error || '切换状态失败'
+    } else {
+      tokenStatus.value = data?.status || next
+    }
+  } catch (e) {
+    tokenError.value = '切换状态失败'
+  } finally {
+    statusLoading.value = false
+  }
+}
+
+const revokeToken = async () => {
+  showRevokeDialog.value = false
+  if (revoking.value) return
+  revoking.value = true
+  tokenError.value = ''
+  try {
+    const t = localStorage.getItem('token')
+    const res = await fetch(`${API_BASE}/skillctl-token`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${t}` },
+    })
+    let data = null
+    try { data = await res.json() } catch { /* non-JSON body */ }
+    if (!res.ok) {
+      tokenError.value = data?.reason || data?.error || '撤销失败'
+    } else {
+      token.value = ''
+      tokenStatus.value = ''
+    }
+  } catch (e) {
+    tokenError.value = '撤销失败'
+  } finally {
+    revoking.value = false
+  }
 }
 
 const copyToken = async () => {

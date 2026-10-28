@@ -1555,38 +1555,64 @@ router.post('/api/auth/password/set', verifyUser, async (req, res) => {
   }
 });
 
-// GET /api/skillctl-token — 读库返回当前 skillctl 登录 token,不调 1Panel
-// 库里为空(未生成过)就返回空字符串,前端据此显示「生成」按钮。
+// GET /api/skillctl-token — 读库返回当前 skillctl Key(token/状态),不调 1Panel
 router.get('/api/skillctl-token', verifyUser, async (req, res) => {
   try {
     const result = await global.pool.query(
-      'SELECT skillctl_token FROM portal_users WHERE id = $1',
+      `SELECT skillctl_token, skillctl_key_id, skillctl_key_revision, skillctl_key_status
+       FROM portal_users WHERE id = $1`,
       [req.portalUser.id]
     );
-    const token = result.rowCount > 0 ? (result.rows[0].skillctl_token || '') : '';
-    res.json({ token });
+    const row = result.rows[0] || {};
+    res.json({
+      token: row.skillctl_token || '',
+      keyId: row.skillctl_key_id || '',
+      revision: row.skillctl_key_revision || 0,
+      status: row.skillctl_key_status || '',
+    });
   } catch (err) {
     console.error('获取 skillctl token 失败:', err);
     res.status(500).json({ error: '获取 skillctl token 失败' });
   }
 });
 
-// POST /api/skillctl-token — 生成或刷新 skillctl 登录 token
-// 调 1Panel users/api/update,每调一次轮换 token(旧的失效),返回新 token 并落库。
-// update 入参固定全开:接口 Enable / IP 0.0.0.0/0 / 有效期 0(永不过期)。
+// POST /api/skillctl-token — 新建 skillctl 登录 Key
+// 1Panel 已废弃 enterprise/users/api/update,改用 auth 域的独立 Key 管理接口:
+//   POST /api/v2/core/auth/api/keys/create
+// 注意:create 语义是「新建一把 Key」而不是「轮换旧 Key」,若直接重复调用会堆积多把有效 Key,
+// 因此生成前先 revoke 库里记录的旧 Key(失败仅告警,不阻断)。
 router.post('/api/skillctl-token', verifyUser, async (req, res) => {
   try {
     if (!req.portalUser.panel_user_id) {
       return res.status(400).json({ error: '需要先关联 1Panel 用户' });
     }
 
-    let updateRes;
+    // 先撤销旧 Key,避免一人多把有效 Key
+    const prev = await global.pool.query(
+      'SELECT skillctl_key_id, skillctl_key_revision FROM portal_users WHERE id = $1',
+      [req.portalUser.id]
+    );
+    const prevKeyId = prev.rows[0]?.skillctl_key_id || '';
+    const prevRev = prev.rows[0]?.skillctl_key_revision || 0;
+    if (prevKeyId) {
+      try {
+        await panel.post('/api/v2/core/auth/api/keys/revoke', { id: prevKeyId, revision: prevRev });
+      } catch (e) {
+        console.warn(`[skillctl-token] 撤销旧 Key 失败(继续新建) key_id=${prevKeyId}:`, e.message);
+      }
+    }
+
+    let createRes;
     try {
-      updateRes = await panel.post('/api/v2/core/enterprise/users/api/update', {
-        id: req.portalUser.panel_user_id,
-        apiInterfaceStatus: 'Enable',
-        ipWhiteList: '0.0.0.0/0',
+      createRes = await panel.post('/api/v2/core/auth/api/keys/create', {
+        name: `Portal 申请 ${req.portalUser.username}`,
+        description: `通过 Portal 申请 (user=${req.portalUser.username})`,
+        ipWhiteList: '0.0.0.0/0\n::/0',
+        apiTrustedProxies: '',
         apiKeyValidityTime: 0,
+        expiresAt: null,
+        allowAppBinding: false,
+        requestID: crypto.randomUUID(),
       });
     } catch (e) {
       console.error('[skillctl-token] 1Panel 网络异常:', e.message);
@@ -1597,18 +1623,18 @@ router.post('/api/skillctl-token', verifyUser, async (req, res) => {
       });
     }
 
-    if (updateRes.status < 200 || updateRes.status >= 300) {
-      console.error(`[skillctl-token] 1Panel HTTP ${updateRes.status}, body=${JSON.stringify(updateRes.data).slice(0, 300)}`);
+    if (createRes.status < 200 || createRes.status >= 300) {
+      console.error(`[skillctl-token] 1Panel HTTP ${createRes.status}, body=${JSON.stringify(createRes.data).slice(0, 300)}`);
       return res.status(502).json({
-        error: `1Panel 拒绝生成 Token (HTTP ${updateRes.status})`,
-        reason: typeof updateRes.data === 'object' ? (updateRes.data?.message || updateRes.data?.msg || JSON.stringify(updateRes.data).slice(0, 200)) : String(updateRes.data).slice(0, 200),
+        error: `1Panel 拒绝生成 Token (HTTP ${createRes.status})`,
+        reason: typeof createRes.data === 'object' ? (createRes.data?.message || createRes.data?.msg || JSON.stringify(createRes.data).slice(0, 200)) : String(createRes.data).slice(0, 200),
         code: 'PANEL_REJECTED',
       });
     }
 
-    const biz = inspectPanelBiz(updateRes);
+    const biz = inspectPanelBiz(createRes);
     if (!biz.ok) {
-      console.error(`[skillctl-token] 1Panel 业务失败 code=${biz.code} "${biz.message}"`);
+      console.error(`[skillctl-token] 1Panel 业务失败 code=${biz.code} "${biz.message}", data=${JSON.stringify(createRes.data).slice(0, 300)}`);
       return res.status(502).json({
         error: '1Panel 拒绝生成 Token',
         reason: biz.message || `code=${biz.code}`,
@@ -1616,30 +1642,127 @@ router.post('/api/skillctl-token', verifyUser, async (req, res) => {
       });
     }
 
-    const payload = getPanelPayload(updateRes.data);
-    // users/api/update 文档约定 data 是裸字符串(新 API Key);但防御性兼容对象包壳(如 {apiKey})
+    const payload = getPanelPayload(createRes.data);
+    // 文档未明确 create 的 data 结构(可能是裸字符串,也可能是 {id, revision, apiKey} 对象),两种都兼容
     const token = typeof payload === 'string'
       ? payload
       : (payload && (payload.apiKey || payload.key || payload.token)) || '';
+    const keyId = payload && typeof payload === 'object'
+      ? (payload.id || payload.keyId || payload.uuid || '')
+      : '';
+    const revision = payload && typeof payload === 'object' && Number.isInteger(payload.revision)
+      ? payload.revision
+      : 0;
+
     if (!token || typeof token !== 'string') {
-      console.error(`[skillctl-token] update 未返回 token, user=${req.portalUser.id}, data=${JSON.stringify(updateRes.data).slice(0, 200)}`);
+      console.error(`[skillctl-token] create 未返回 token, user=${req.portalUser.id}, data=${JSON.stringify(createRes.data).slice(0, 400)}`);
       return res.status(502).json({
         error: '1Panel 未返回 Token',
-        reason: 'update 响应 data 为空',
+        reason: 'create 响应 data 中无 apiKey',
         code: 'PANEL_SKILLCTL_TOKEN_FAILED',
       });
     }
 
     await global.pool.query(
-      'UPDATE portal_users SET skillctl_token = $1 WHERE id = $2',
-      [token, req.portalUser.id]
+      `UPDATE portal_users
+       SET skillctl_token = $1, skillctl_key_id = $2, skillctl_key_revision = $3, skillctl_key_status = 'Enable'
+       WHERE id = $4`,
+      [token, keyId, revision, req.portalUser.id]
     );
 
-    console.log(`[skillctl-token] 生成成功 user=${req.portalUser.id}(username=${req.portalUser.username}) panel_user_id=${req.portalUser.panel_user_id}`);
-    res.json({ token });
+    console.log(`[skillctl-token] 生成成功 user=${req.portalUser.id}(username=${req.portalUser.username}) panel_user_id=${req.portalUser.panel_user_id} key_id=${keyId || '(未返回)'} revision=${revision}`);
+    res.json({ token, keyId, revision, status: 'Enable' });
   } catch (err) {
     console.error('生成 skillctl token 失败:', err);
     res.status(500).json({ error: '生成 skillctl token 失败: ' + err.message });
+  }
+});
+
+// POST /api/skillctl-token/status — 启用/停用当前 Key
+router.post('/api/skillctl-token/status', verifyUser, async (req, res) => {
+  try {
+    const targetStatus = req.body?.status === 'Disable' ? 'Disable' : 'Enable';
+    const cur = await global.pool.query(
+      'SELECT skillctl_key_id, skillctl_key_revision, skillctl_key_status FROM portal_users WHERE id = $1',
+      [req.portalUser.id]
+    );
+    const keyId = cur.rows[0]?.skillctl_key_id || '';
+    const rev = cur.rows[0]?.skillctl_key_revision || 0;
+    if (!keyId) return res.status(400).json({ error: '尚未生成 Token,无法切换状态' });
+
+    let r;
+    try {
+      r = await panel.post('/api/v2/core/auth/api/keys/status', { id: keyId, revision: rev, status: targetStatus });
+    } catch (e) {
+      console.error('[skillctl-token/status] 1Panel 网络异常:', e.message);
+      return res.status(502).json({ error: '1Panel 不可达', reason: e.message, code: 'PANEL_UNREACHABLE' });
+    }
+    if (r.status < 200 || r.status >= 300) {
+      console.error(`[skillctl-token/status] 1Panel HTTP ${r.status}, body=${JSON.stringify(r.data).slice(0, 300)}`);
+      return res.status(502).json({ error: `1Panel 拒绝操作 (HTTP ${r.status})`, reason: String(JSON.stringify(r.data)).slice(0, 200), code: 'PANEL_REJECTED' });
+    }
+    const biz = inspectPanelBiz(r);
+    if (!biz.ok) {
+      console.error(`[skillctl-token/status] 1Panel 业务失败 code=${biz.code} "${biz.message}"`);
+      return res.status(502).json({ error: '1Panel 拒绝操作', reason: biz.message || `code=${biz.code}`, code: 'PANEL_REJECTED' });
+    }
+
+    const payload = getPanelPayload(r.data);
+    const newRev = payload && typeof payload === 'object' && Number.isInteger(payload.revision)
+      ? payload.revision
+      : rev + 1;
+    await global.pool.query(
+      'UPDATE portal_users SET skillctl_key_revision = $1, skillctl_key_status = $2 WHERE id = $3',
+      [newRev, targetStatus, req.portalUser.id]
+    );
+    console.log(`[skillctl-token/status] user=${req.portalUser.id} key_id=${keyId} → ${targetStatus} revision=${newRev}`);
+    res.json({ status: targetStatus, revision: newRev });
+  } catch (err) {
+    console.error('切换 skillctl token 状态失败:', err);
+    res.status(500).json({ error: '切换状态失败: ' + err.message });
+  }
+});
+
+// DELETE /api/skillctl-token — 撤销当前 Key 并清库
+router.delete('/api/skillctl-token', verifyUser, async (req, res) => {
+  try {
+    const cur = await global.pool.query(
+      'SELECT skillctl_key_id, skillctl_key_revision FROM portal_users WHERE id = $1',
+      [req.portalUser.id]
+    );
+    const keyId = cur.rows[0]?.skillctl_key_id || '';
+    const rev = cur.rows[0]?.skillctl_key_revision || 0;
+
+    if (keyId) {
+      let r;
+      try {
+        r = await panel.post('/api/v2/core/auth/api/keys/revoke', { id: keyId, revision: rev });
+      } catch (e) {
+        console.error('[skillctl-token/revoke] 1Panel 网络异常:', e.message);
+        return res.status(502).json({ error: '1Panel 不可达', reason: e.message, code: 'PANEL_UNREACHABLE' });
+      }
+      if (r.status < 200 || r.status >= 300) {
+        console.error(`[skillctl-token/revoke] 1Panel HTTP ${r.status}, body=${JSON.stringify(r.data).slice(0, 300)}`);
+        return res.status(502).json({ error: `1Panel 拒绝撤销 (HTTP ${r.status})`, reason: String(JSON.stringify(r.data)).slice(0, 200), code: 'PANEL_REJECTED' });
+      }
+      const biz = inspectPanelBiz(r);
+      if (!biz.ok) {
+        console.error(`[skillctl-token/revoke] 1Panel 业务失败 code=${biz.code} "${biz.message}"`);
+        return res.status(502).json({ error: '1Panel 拒绝撤销', reason: biz.message || `code=${biz.code}`, code: 'PANEL_REJECTED' });
+      }
+    }
+
+    await global.pool.query(
+      `UPDATE portal_users
+       SET skillctl_token = '', skillctl_key_id = '', skillctl_key_revision = 0, skillctl_key_status = ''
+       WHERE id = $1`,
+      [req.portalUser.id]
+    );
+    console.log(`[skillctl-token/revoke] user=${req.portalUser.id} key_id=${keyId || '(无)'} 已撤销并清库`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('撤销 skillctl token 失败:', err);
+    res.status(500).json({ error: '撤销失败: ' + err.message });
   }
 });
 
