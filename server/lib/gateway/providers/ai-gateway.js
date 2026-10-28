@@ -197,6 +197,54 @@ async function listModels() {
   return rows;
 }
 
+/**
+ * 用户域 OpenAI 兼容接口:GET {baseUrl}/v1/models
+ * 与管理域 request() 不同:无 /api/v1 前缀,凭证是用户级 API Key(sk-...),admin token 会被 401。
+ * 返回 "该 Key 授权可见" 的模型数组(OpenAI 形状:{id, object, created, owned_by?})。
+ */
+function listModelsViaUserKey(userApiKey) {
+  return new Promise((resolve, reject) => {
+    const startedAt = Date.now();
+    const baseUrl = currentConfig.baseUrl;
+    const timeout = currentConfig.timeout;
+    if (!baseUrl) {
+      return reject(err('请配置 GATEWAY_BASE_URL（管理后台 → 系统配置 → 独立网关）', undefined, 'config_missing'));
+    }
+    let url;
+    try {
+      url = new URL(baseUrl.replace(/\/+$/, '') + '/v1/models');
+    } catch (e) {
+      return reject(err(`GATEWAY_BASE_URL 无效: ${e.message}`, undefined, 'config_invalid'));
+    }
+    const client = url.protocol === 'https:' ? https : http;
+    const req = client.request(
+      url,
+      { method: 'GET', headers: { Authorization: `Bearer ${userApiKey}`, Accept: 'application/json' }, timeout },
+      (res) => {
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => {
+          const ms = Date.now() - startedAt;
+          logCall('GET', '/v1/models(user-key)', res.statusCode, ms);
+          const raw = Buffer.concat(chunks).toString('utf-8');
+          let data = null;
+          try { data = raw ? JSON.parse(raw) : null; } catch { data = raw; }
+          if (res.statusCode < 200 || res.statusCode >= 300) {
+            const message = data && typeof data === 'object'
+              ? ((data.error && data.error.message) || data.message || '')
+              : String(raw).slice(0, 200);
+            return reject(err(`AI-Gateway GET /v1/models 失败 HTTP ${res.statusCode}${message ? `: ${message}` : ''}`, res.statusCode));
+          }
+          resolve(Array.isArray(data?.data) ? data.data : []);
+        });
+      }
+    );
+    req.on('error', (e) => reject(err(`AI-Gateway 请求失败: ${e.message}`, undefined, 'unreachable')));
+    req.on('timeout', () => { req.destroy(); reject(err('AI-Gateway 请求超时: GET /v1/models', undefined, 'timeout')); });
+    req.end();
+  });
+}
+
 // ============ 授权域（只读） ============
 
 /** UserGroupDetail.modelGroups[] 是对象数组（{id,name,protocolType,modelCount}），取 id 列表 */
@@ -394,6 +442,7 @@ module.exports = {
   normalizeUsername,   // V2 用户创建链路（企微注册）使用
 
   listModels,
+  listModelsViaUserKey,
   listUserGroups,
   listUserGroupOptions,
   listModelGroups,
