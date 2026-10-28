@@ -501,10 +501,13 @@ router.get('/api/keys', verifyUser, async (req, res) => {
     // 若仍走下面的 1Panel 存在性校验,panel_user_id 恒查不到 key,会被当"幽灵记录"
     // 删除(申请时能看到、刷新就没了)。此处直接以本地库为准。
     if (currentProviderName() === 'ai-gateway') {
+      // ORDER BY 网关行优先:provider 切换可能残留 1Panel 旧行(两行并存),
+      // LIMIT 1 无排序时 PG 返回顺序物理不定,可能展示到旧 1Panel Key
       const gwResult = await global.pool.query(`
         SELECT id, gateway_key_id, api_key_mask, api_key_cipher, status, remark, created_at
         FROM portal_api_keys
         WHERE user_id = $1
+        ORDER BY gateway_key_id DESC NULLS LAST, id DESC
         LIMIT 1
       `, [req.portalUser.id]);
       if (gwResult.rowCount === 0) return res.json({ key: null });
@@ -1113,17 +1116,21 @@ async function resetKeyGateway(req, res) {
     return res.status(e.status || 502).json({ error: '独立网关拒绝创建 API Key', reason: e.message, code });
   }
 
-  // 3. 更新本地（panel_key_id 置 NULL —— 当前 Key 已是网关签发）
+  // 3. 重建本地行(先删后插,保持"一人一行"不变量)
+  //    不能用 UPDATE ... WHERE user_id:provider 切换可能残留 1Panel 旧行(gateway_key_id=NULL),
+  //    UPDATE 会把多行都设成相同 gateway_key_id,撞 046 迁移的唯一索引直接 500。
+  //    删后插同时清掉残留旧行,正是网关模式期望的终态;created_at 即新 Key 签发时间。
+  await global.pool.query('DELETE FROM portal_api_keys WHERE user_id = $1', [user.id]);
   const result = await global.pool.query(`
-    UPDATE portal_api_keys SET
-      panel_key_id = NULL, gateway_key_id = $1,
-      api_key_mask = $2, api_key_cipher = $3,
-      raw_data = $4, status = 'Enable', synced_at = CURRENT_TIMESTAMP
-    WHERE user_id = $5
+    INSERT INTO portal_api_keys (
+      user_id, panel_key_id, panel_user_id, api_key_mask, api_key_cipher,
+      group_id, status, remark, token_limit, raw_data, gateway_key_id, synced_at
+    ) VALUES ($1, NULL, $2, $3, $4, 1, 'Enable', $5, 0, $6, $7, CURRENT_TIMESTAMP)
     RETURNING id, api_key_mask, api_key_cipher, panel_key_id, status, remark, created_at
-  `, [created.keyId, created.mask || maskApiKey(created.apiKey), created.apiKey,
+  `, [user.id, user.panel_user_id, created.mask || maskApiKey(created.apiKey), created.apiKey,
+      existing.rows[0].remark || '',
       { provider: 'ai-gateway', gatewayUserId: user.gateway_user_id, gatewayKeyId: created.keyId },
-      user.id]);
+      created.keyId]);
   const saved = result.rows[0];
   console.log(`[reset][gateway] 重置成功: user=${user.id} gateway_key_id=${created.keyId}`);
   return res.json({
@@ -1305,14 +1312,18 @@ router.post('/api/keys/reset', verifyUser, requirePermission('key:edit'), async 
       });
     }
 
-    // 4. 同步成功才更新本地 DB
+    // 4. 同步成功才重建本地行(先删后插,保持"一人一行")
+    //    不能 UPDATE ... WHERE user_id:网关残留行(gateway_key_id 非空, panel_key_id=NULL)会被
+    //    一并回填相同 panel_key_id,撞 005 迁移的 panel_key_id 唯一索引直接 500。
+    await global.pool.query('DELETE FROM portal_api_keys WHERE user_id = $1', [req.portalUser.id]);
     const result = await global.pool.query(`
-      UPDATE portal_api_keys SET
-        panel_key_id = $1, api_key_mask = $2, api_key_cipher = $3,
-        status = 'Enable', synced_at = CURRENT_TIMESTAMP
-      WHERE user_id = $4
+      INSERT INTO portal_api_keys (
+        user_id, panel_key_id, panel_user_id, api_key_mask, api_key_cipher,
+        group_id, status, remark, token_limit, raw_data, synced_at
+      ) VALUES ($1, $2, $3, $4, $5, 1, 'Enable', $6, 0, $7, CURRENT_TIMESTAMP)
       RETURNING id, api_key_mask, api_key_cipher, panel_key_id, status, remark, created_at
-    `, [panelKeyId, keyMask, fullKey, req.portalUser.id]);
+    `, [req.portalUser.id, panelKeyId, req.portalUser.panel_user_id, keyMask, fullKey,
+        row.remark || '', createData || {}]);
 
     const saved = result.rows[0];
     res.json({
