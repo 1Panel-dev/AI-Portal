@@ -56,7 +56,8 @@ async function _syncGatewayModels() {
     const items = await gw.listModelsViaUserKey(borrowed.rows[0].api_key_cipher);
     console.log(`[gateway-sync] /v1/models 返回 ${items.length} 个模型(借用用户 ${borrowed.rows[0].username} 的 Key)`);
     // /v1/models 无账号维度信息:group_name 兜底 owned_by,否则 'AI-Gateway';
-    // panel_backend_id / base_url 该接口拿不到,置空。
+    // panel_backend_id 置空;base_url 用网关配置的 baseUrl(用户实际调用地址即网关本身)。
+    const gwBaseUrl = (typeof gw.getConfig === 'function' ? gw.getConfig().baseUrl : '') || '';
     const seen = new Set(); // 防御:同一 INSERT 内 (group_name, model_name) 重复会致 ON CONFLICT 报错
     rows = [];
     for (const m of items) {
@@ -71,7 +72,7 @@ async function _syncGatewayModels() {
         groupName,
         modelName,
         provider: '',
-        baseUrl: '',
+        baseUrl: gwBaseUrl,
         modelType: '',
         enabled: true,
         raw: { ...m, source: 'v1/models' },
