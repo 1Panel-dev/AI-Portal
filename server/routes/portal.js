@@ -497,9 +497,39 @@ router.get('/api/keys', verifyUser, async (req, res) => {
     // 诊断:打印当前 token 解析出的身份,用于排查"第二天看不到 key"
     console.log(`[GET /api/keys] portalUser id=${req.portalUser.id} username=${req.portalUser.username} panel_user_id=${req.portalUser.panel_user_id || '(空)'}`);
 
+    // V2: 网关模式分支 —— Key 由独立网关签发,1Panel 侧根本没有这条记录。
+    // 若仍走下面的 1Panel 存在性校验,panel_user_id 恒查不到 key,会被当"幽灵记录"
+    // 删除(申请时能看到、刷新就没了)。此处直接以本地库为准。
+    if (currentProviderName() === 'ai-gateway') {
+      const gwResult = await global.pool.query(`
+        SELECT id, gateway_key_id, api_key_mask, api_key_cipher, status, remark, created_at
+        FROM portal_api_keys
+        WHERE user_id = $1
+        LIMIT 1
+      `, [req.portalUser.id]);
+      if (gwResult.rowCount === 0) return res.json({ key: null });
+      const g = gwResult.rows[0];
+      return res.json({
+        key: {
+          id: g.id,
+          panel_key_id: null,
+          gateway_key_id: g.gateway_key_id,
+          api_key: g.api_key_cipher,
+          api_key_mask: g.api_key_mask,
+          status: g.status,
+          remark: g.remark || '',
+          created_at: g.created_at,
+          token_limit: 0,
+          token_used: 0,
+          token_remaining: 0,
+          token_unlimited: false,
+        }
+      });
+    }
+
     // 先查本地数据库（含完整 key）
     const result = await global.pool.query(`
-      SELECT id, panel_key_id, api_key_mask, api_key_cipher, status, remark, created_at
+      SELECT id, panel_key_id, gateway_key_id, api_key_mask, api_key_cipher, status, remark, created_at
       FROM portal_api_keys
       WHERE user_id = $1
       LIMIT 1
@@ -578,12 +608,18 @@ router.get('/api/keys', verifyUser, async (req, res) => {
             //   的"已有 API Key"检查拦死。
             // - 全量列表也是空 → 可能是"鉴权通过但临时空响应"(CLAUDE.md 第6条的坑),
             //   保守兜底返回本地缓存,不清理。
-            if (allKeys.length > 0) {
+            // 网关签发的 Key(有 gateway_key_id)不属于 1Panel 管辖,不能用 1Panel 的
+            // 查询结果判定它是否还存在,否则切回 1Panel 链路时也会被误删。
+            if (allKeys.length > 0 && !row.gateway_key_id) {
               console.log(`[GET /api/keys] 1Panel 已无该用户 key(user=${req.portalUser.id}, panel_key_id=${row.panel_key_id}),清理本地残留记录`);
               await global.pool.query('DELETE FROM portal_api_keys WHERE id = $1', [row.id]);
               return res.json({ key: null });
             }
-            console.warn(`[GET /api/keys] 1Panel search 全量空响应(user=${req.portalUser.id}),兜底返回本地缓存`);
+            if (row.gateway_key_id) {
+              console.warn(`[GET /api/keys] 本地为网关 Key(gateway_key_id=${row.gateway_key_id}),跳过 1Panel 对账,兜底返回本地`);
+            } else {
+              console.warn(`[GET /api/keys] 1Panel search 全量空响应(user=${req.portalUser.id}),兜底返回本地缓存`);
+            }
           } else {
             // 该用户名下多把 key 但都不匹配本地 panel_key_id(异常态),不动本地记录
             console.warn(`[GET /api/keys] 1Panel 未匹配到 key(user=${req.portalUser.id}, panel_key_id=${row.panel_key_id}, 远端 ${userKeys.length} 把),兜底返回本地缓存`);

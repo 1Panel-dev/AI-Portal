@@ -2079,6 +2079,7 @@ async function doSyncUsers() {
         DELETE FROM portal_api_keys pak
         USING portal_users pu
         WHERE pak.user_id = pu.id AND pu.panel_user_id IS NOT NULL
+          AND pak.panel_key_id IS NOT NULL AND pak.gateway_key_id IS NULL
           AND pu.panel_user_id <> ALL($1::int[])
       `, [remoteUserIds]);
       if (cleaned.rowCount > 0) {
