@@ -404,6 +404,27 @@
                   <span class="text-xs text-text-secondary">该凭证永不过期（不显示剩余天数倒计时）</span>
                 </label>
               </div>
+              <div class="col-span-2">
+                <label class="block text-sm font-medium text-text mb-1">模型同步专用 Key（Bearer sk-...）</label>
+                <div class="relative">
+                  <input
+                    v-model="gatewayForm.syncApiKey"
+                    :type="showGatewaySyncKey ? 'text' : 'password'"
+                    class="w-full px-3 py-2 pr-10 border border-[rgba(0,0,0,0.06)] rounded-lg text-text bg-surface-secondary outline-none focus:border-text font-mono text-sm"
+                    :placeholder="gatewayForm.syncApiKeyConfigured ? '已配置,如需修改请输入新值' : '在网关申请一把用户 API Key（sk-...）'"
+                  />
+                  <button
+                    @click="showGatewaySyncKey = !showGatewaySyncKey"
+                    class="absolute right-2 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text"
+                  >
+                    <component :is="showGatewaySyncKey ? EyeOff : Eye" class="w-4 h-4" />
+                  </button>
+                </div>
+                <p class="text-xs text-text-secondary mt-1">
+                  用于模型同步调用用户域 <code>GET /v1/models</code>（该接口只认用户级 sk- Key,上方的 agw_at_ 管理凭证调不通）。
+                  留空保留原值。未配置时回退借用本地一把启用中的用户 Key。
+                </p>
+              </div>
               <div>
                 <label class="block text-sm font-medium text-text mb-1">默认用户组</label>
                 <div class="flex gap-2">
@@ -965,6 +986,8 @@ const gatewayForm = ref({
   baseUrl: '',
   apiKey: '',
   apiKeyConfigured: false,
+  syncApiKey: '',
+  syncApiKeyConfigured: false,
   defaultUserGroupId: null,
   timeout: 10000,
   neverExpires: false,
@@ -972,6 +995,7 @@ const gatewayForm = ref({
   activeProvider: '1panel',
 })
 const showGatewayKey = ref(false)
+const showGatewaySyncKey = ref(false)
 const gatewaySaving = ref(false)
 const gatewayTesting = ref(false)
 const gatewayMsg = ref('')
@@ -1063,6 +1087,8 @@ const fetchGatewayConfig = async () => {
         baseUrl: data.baseUrl || '',
         apiKey: '',
         apiKeyConfigured: !!data.apiKeyConfigured,
+        syncApiKey: '',
+        syncApiKeyConfigured: !!data.syncApiKeyConfigured,
         defaultUserGroupId: data.defaultUserGroupId ?? null,
         timeout: data.timeout || 10000,
         neverExpires: !!data.neverExpires,
@@ -1084,6 +1110,7 @@ const saveGatewayConfig = async () => {
         provider: gatewayForm.value.provider,
         baseUrl: gatewayForm.value.baseUrl,
         apiKey: gatewayForm.value.apiKey || '',
+        syncApiKey: gatewayForm.value.syncApiKey || '',
         defaultUserGroupId: gatewayForm.value.defaultUserGroupId,
         timeout: gatewayForm.value.timeout,
         neverExpires: gatewayForm.value.neverExpires === true,
@@ -1096,6 +1123,8 @@ const saveGatewayConfig = async () => {
       // 回填脱敏态：清空明文输入框，刷新已配置标记与剩余天数
       gatewayForm.value.apiKey = ''
       gatewayForm.value.apiKeyConfigured = !!data.data?.apiKeyConfigured
+      gatewayForm.value.syncApiKey = ''
+      gatewayForm.value.syncApiKeyConfigured = !!data.data?.syncApiKeyConfigured
       gatewayForm.value.credentialDaysRemaining = data.data?.credentialDaysRemaining ?? null
       gatewayForm.value.activeProvider = data.data?.activeProvider || gatewayForm.value.provider
     } else {
