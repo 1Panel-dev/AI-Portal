@@ -47,7 +47,8 @@ async function _syncGatewayModels() {
     WHERE pak.gateway_key_id IS NOT NULL
       AND pak.status = 'Enable'
       AND pak.api_key_cipher <> ''
-    ORDER BY (pu.role = 'admin') DESC, pak.id ASC
+      AND COALESCE(pu.status, 'active') = 'active'
+    ORDER BY (COALESCE(pu.role, '') = 'admin') DESC, pak.id ASC
     LIMIT 1
   `);
 
@@ -55,15 +56,31 @@ async function _syncGatewayModels() {
   if (borrowed.rowCount > 0 && typeof gw.listModelsViaUserKey === 'function') {
     const items = await gw.listModelsViaUserKey(borrowed.rows[0].api_key_cipher);
     console.log(`[gateway-sync] /v1/models 返回 ${items.length} 个模型(借用用户 ${borrowed.rows[0].username} 的 Key)`);
-    // /v1/models 无账号维度信息:group_name 兜底 owned_by,否则 'AI-Gateway';
-    // panel_backend_id 置空;base_url 用网关配置的 baseUrl(用户实际调用地址即网关本身)。
+    // group_name 决定 UPSERT 冲突键 (group_name, model_name)。若直接改用 owned_by,
+    // 与历史数据(账号名)不一致 → 旧行全被软删 + 新行 is_public=FALSE → 模型广场清空、
+    // 管理员手工上架状态(display_name/描述/图标)全部丢失。
+    // 因此:同一 model_name 已存在时沿用其 group_name,让 UPSERT 命中旧行保留人工配置;
+    // 仅全新模型才用 owned_by(缺失则 'AI-Gateway')。
     const gwBaseUrl = (typeof gw.getConfig === 'function' ? gw.getConfig().baseUrl : '') || '';
+    // 不限 is_active:若历史行已被上一版逻辑软删,也要能找回原 group_name,
+    // 从而命中同一行 → ON CONFLICT 恢复 is_active=TRUE 且保留原 is_public(广场自动复原)。
+    const existing = await pool().query(`
+      SELECT DISTINCT ON (model_name) model_name, group_name
+      FROM portal_models
+      ORDER BY model_name, is_active DESC NULLS LAST, id ASC
+    `);
+    const groupByModel = new Map();
+    for (const r of existing.rows) {
+      if (!groupByModel.has(r.model_name)) groupByModel.set(r.model_name, r.group_name);
+    }
     const seen = new Set(); // 防御:同一 INSERT 内 (group_name, model_name) 重复会致 ON CONFLICT 报错
     rows = [];
     for (const m of items) {
       const modelName = String(m?.id || '').trim();
       if (!modelName) continue;
-      const groupName = (m.owned_by && String(m.owned_by).trim()) || 'AI-Gateway';
+      const groupName = groupByModel.get(modelName)
+        || (m.owned_by && String(m.owned_by).trim())
+        || 'AI-Gateway';
       const dedupKey = groupName + '\n' + modelName;
       if (seen.has(dedupKey)) continue;
       seen.add(dedupKey);
