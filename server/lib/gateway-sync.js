@@ -513,6 +513,13 @@ async function _syncGatewayUsers() {
             SELECT $1, id FROM roles WHERE name = 'user' AND is_system = TRUE
             ON CONFLICT DO NOTHING
           `, [ins.rows[0].id]);
+          // 新建网关用户默认加入默认资源组(若存在);失败不阻断同步
+          try {
+            const { autoJoinDefaultGroup } = require('./default-group');
+            await autoJoinDefaultGroup(pool(), ins.rows[0].id);
+          } catch (e) {
+            console.error('[gateway-sync] 自动加入默认资源组失败(不阻断):', e.message);
+          }
           synced++;
         }
       } catch (e) {
