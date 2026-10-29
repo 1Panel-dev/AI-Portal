@@ -41,7 +41,8 @@
         <div class="font-medium text-text truncate">{{ g.name }}</div>
         <div class="text-text-secondary truncate">{{ g.description || '-' }}</div>
         <div>
-          <span class="px-2 py-0.5 text-xs rounded-full bg-slate-100 text-slate-600">{{ g.member_count ?? 0 }} 人</span>
+          <span v-if="g.is_default" class="px-2 py-0.5 text-xs rounded-full bg-sky-50 text-sky-600">全部用户（自动）</span>
+          <span v-else class="px-2 py-0.5 text-xs rounded-full bg-slate-100 text-slate-600">{{ g.member_count ?? 0 }} 人</span>
         </div>
         <div class="flex items-center justify-end gap-1">
           <button class="p-2 text-text-secondary hover:text-accent transition-all" title="编辑授权" @click.stop="goManage(g.id)"><Pencil class="w-4 h-4" /></button>
