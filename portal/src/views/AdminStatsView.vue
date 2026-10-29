@@ -340,7 +340,7 @@ function initTrendChart() {
   const promptData = trends.value.map(t => t.promptTokens)
   const completionData = trends.value.map(t => t.completionTokens)
   const cachedData = trends.value.map(t => t.cachedTokens)
-  const totalData = trends.value.map(t => (t.promptTokens || 0) + (t.completionTokens || 0) + (t.cachedTokens || 0))
+  const totalData = trends.value.map(t => (t.promptTokens || 0) + (t.completionTokens || 0))
   const requestData = trends.value.map(t => t.requestCount || 0)
 
   trendChart.setOption({

@@ -643,7 +643,7 @@ function initTokenChart() {
   if (tokenChart) { tokenChart.dispose(); tokenChart = null }
   tokenChart = echarts.init(el)
   const dates = filteredTrends.value.map(t => t.name)
-  const totalData = filteredTrends.value.map(t => (t.promptTokens || 0) + (t.completionTokens || 0) + (t.cachedTokens || 0))
+  const totalData = filteredTrends.value.map(t => (t.promptTokens || 0) + (t.completionTokens || 0))
   tokenChart.setOption({
     tooltip: {
       trigger: 'axis',

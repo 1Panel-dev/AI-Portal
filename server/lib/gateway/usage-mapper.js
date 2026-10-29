@@ -24,33 +24,42 @@ function toNum(v) {
 /** UsageAggregate → 门户 summary */
 function mapSummary(s) {
   const agg = s || {};
+  const promptTokens = toNum(agg.inputTokens);
+  const completionTokens = toNum(agg.outputTokens);
   return {
     requestCount: toNum(agg.requestCount),
     failedRequests: 0, // 网关统计无失败维度
-    promptTokens: toNum(agg.inputTokens),
-    completionTokens: toNum(agg.outputTokens),
-    totalTokens: toNum(agg.totalTokens),
+    promptTokens,
+    completionTokens,
+    // 总量口径: 输入 + 输出, 缓存是独立维度, 不叠加到总量
+    // 网关 raw.totalTokens 已包含 cachedTokens 时, 用 input+output 保证口径正确
+    totalTokens: promptTokens + completionTokens,
     cachedTokens: toNum(agg.cachedTokens),
   };
 }
 
 /** UsageDistributionItem[] → 门户分布项（补 promptTokens/completionTokens 命名） */
 function mapDistribution(arr) {
-  return (Array.isArray(arr) ? arr : []).map(d => ({
-    id: d.id ?? null,
-    key: d.key || '',
-    name: d.name || '',
-    deleted: !!d.deleted,
-    requestCount: toNum(d.requestCount),
-    promptTokens: toNum(d.inputTokens),
-    completionTokens: toNum(d.outputTokens),
-    totalTokens: toNum(d.totalTokens),
-    cachedTokens: toNum(d.cachedTokens),
-  }));
+  return (Array.isArray(arr) ? arr : []).map(d => {
+    const promptTokens = toNum(d.inputTokens);
+    const completionTokens = toNum(d.outputTokens);
+    return {
+      id: d.id ?? null,
+      key: d.key || '',
+      name: d.name || '',
+      deleted: !!d.deleted,
+      requestCount: toNum(d.requestCount),
+      promptTokens,
+      completionTokens,
+      // 总量口径: 输入 + 输出, 缓存独立
+      totalTokens: promptTokens + completionTokens,
+      cachedTokens: toNum(d.cachedTokens),
+    };
+  });
 }
 
 /** token-trend buckets → trends[]（name=北京日期; 桶无请求数, requestCount=0;
- *  totalTokens=三项之和 —— ProfileView 月度图按 requestCount+totalTokens>0 过滤空数据,
+ *  totalTokens=输入+输出 —— 缓存独立维度, 不叠加到总量;
  *  网关桶无请求数, 不补 totalTokens 会被整列过滤成「暂无数据」） */
 function mapTrends(trendRaw) {
   const dayName = (iso) => {
@@ -59,15 +68,17 @@ function mapTrends(trendRaw) {
     } catch { return String(iso || '').slice(0, 10); }
   };
   return ((trendRaw && trendRaw.buckets) || []).map(b => {
-    const item = {
+    const promptTokens = toNum(b.inputTokens);
+    const completionTokens = toNum(b.outputTokens);
+    return {
       name: dayName(b.start),
-      promptTokens: toNum(b.inputTokens),
-      completionTokens: toNum(b.outputTokens),
+      promptTokens,
+      completionTokens,
       cachedTokens: toNum(b.cachedTokens),
       requestCount: 0,
+      // 总量口径: 输入 + 输出, 缓存独立维度
+      totalTokens: promptTokens + completionTokens,
     };
-    item.totalTokens = item.promptTokens + item.completionTokens + item.cachedTokens;
-    return item;
   });
 }
 

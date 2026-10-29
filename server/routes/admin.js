@@ -1581,22 +1581,31 @@ async function gatewayUsageStatisticsHandler(req, res) {
     if (to && to > now) to = now;
     const rangeEmpty = !!(from && to && from.getTime() >= to.getTime());
 
-    // 汇总+分布（钻取用户未同步到网关时不调网关, 返回空数据）；趋势并行拉取, 失败不阻断
+    // 汇总+分布（钻取用户未同步到网关时不调网关, 返回空数据）；趋势是否调用:
+    //   - 未指定 userId → 拉全局 trend（正常）
+    //   - 指定 userId 但 gwUserId 映射失败 → trend 也不拉（返回空数组）, 避免新用户看到全局数据
+    //   - 指定 userId 且 gwUserId 映射成功 → 仍拉全局 trend（网关 trend 不支持 userId 过滤）, 但 meta 里标记
+    const needStats = (gwUserId || !Number.isFinite(uid)) && !rangeEmpty;
+    const needTrend = !Number.isFinite(uid) || !!gwUserId;
     const [statsRes, trendRes] = await Promise.all([
-      (gwUserId || !Number.isFinite(uid)) && !rangeEmpty
+      needStats
         ? gw.getUsageStatistics({
             ...(from ? { from: from.toISOString() } : {}),
             ...(to ? { to: to.toISOString() } : {}),
             ...(gwUserId ? { userId: gwUserId } : {}),
           })
         : Promise.resolve(null),
-      (typeof gw.getTokenTrend === 'function'
-        ? gw.getTokenTrend({ range: '30d', timezoneOffsetMinutes: 480 })
-        : Promise.resolve(null)
-      ).catch(e => { console.warn('网关趋势拉取失败（不阻断统计）:', e.message); return null; }),
+      needTrend && typeof gw.getTokenTrend === 'function'
+        ? gw.getTokenTrend({ range: '30d', timezoneOffsetMinutes: 480 }).catch(e => {
+            console.warn('网关趋势拉取失败（不阻断统计）:', e.message);
+            return null;
+          })
+        : Promise.resolve(null),
     ]);
 
     const raw = statsRes || {};
+    // 是否钻取了单用户（有 userId 且 gwUserId 映射成功）: trend 为全局视角, 需标记让前端知道
+    const isUserDrilldown = Number.isFinite(uid) && !!gwUserId;
 
     // users[] 分布 → 排行（回填门户用户 id, 对齐 1Panel rankUsers 的 userId 语义）
     const gwUsers = Array.isArray(raw.users) ? raw.users : [];
@@ -1611,13 +1620,16 @@ async function gatewayUsageStatisticsHandler(req, res) {
     }
     let rankUsers = gwUsers.map(u => {
       const p = portalMap.get(u.id) || {};
+      const promptTokens = toNum(u.inputTokens);
+      const completionTokens = toNum(u.outputTokens);
       return {
         userId: (p.panel_user_id ?? p.id) ?? null,
         name: p.username || u.name || '',
         requestCount: toNum(u.requestCount),
-        promptTokens: toNum(u.inputTokens),
-        completionTokens: toNum(u.outputTokens),
-        totalTokens: toNum(u.totalTokens),
+        promptTokens,
+        completionTokens,
+        // 总量口径: 输入 + 输出, 缓存独立
+        totalTokens: promptTokens + completionTokens,
         cachedTokens: toNum(u.cachedTokens),
       };
     });
@@ -1642,7 +1654,11 @@ async function gatewayUsageStatisticsHandler(req, res) {
       trendsMeta: {
         source: 'gateway',
         range: '30d',
-        note: '网关数据仅保留最近 30 天：趋势为滚动窗口，汇总/分布按所选月份与 30 天窗口的交集统计',
+        // 钻取单用户时 trend 为全局视角（网关 trend 接口不支持 userId 过滤）, 标记让前端展示提示
+        userScope: isUserDrilldown ? 'global' : 'per-user-or-global',
+        note: isUserDrilldown
+          ? '趋势图为全平台视角（网关趋势接口不支持按用户过滤），汇总/分布已按所选用户筛选'
+          : '网关数据仅保留最近 30 天：趋势为滚动窗口，汇总/分布按所选月份与 30 天窗口的交集统计',
       },
     });
   } catch (err) {
