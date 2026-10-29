@@ -231,7 +231,7 @@
                 <div class="bg-[#f5f5f7] rounded-xl px-4 py-3 text-center"><div class="text-[22px] font-bold" :class="(usageData.summary?.failedRequests||0)>0?'text-red-500':'text-text'">{{ fmtNum(usageData.summary?.failedRequests) }}</div><div class="text-[11px] text-text-tertiary mt-1">失败请求</div></div>
               </div>
               <!-- Token 堆叠柱状图 -->
-              <div class="mb-6">
+              <div v-if="showTrendCharts" class="mb-6">
                 <div class="flex items-center justify-between mb-3">
                   <h3 class="text-[13px] font-semibold text-text">每月 Token 统计</h3>
                   <div class="relative month-picker">
@@ -250,12 +250,16 @@
               </div>
 
               <!-- 请求次数折线图 -->
-              <div class="mb-6">
+              <div v-if="showTrendCharts" class="mb-6">
                 <h3 class="text-[13px] font-semibold text-text mb-3">每月请求次数</h3>
                 <div class="relative bg-[#fafafa] rounded-xl p-4" style="min-height: 268px;">
                   <div ref="reqChartRef" style="height:260px"></div>
                   <div v-if="!filteredTrends.length" class="absolute inset-0 flex items-center justify-center text-[13px] text-text-tertiary">{{ monthLabel }} 暂无数据</div>
                 </div>
+              </div>
+              <!-- 无按天趋势数据时的说明（网关模式：全平台趋势不可当成本人数据） -->
+              <div v-else class="mb-6 bg-[#fafafa] rounded-xl px-5 py-5 text-center">
+                <p class="text-[12px] text-text-tertiary leading-relaxed">{{ trendsNote }}</p>
               </div>
               <!-- 模型用量横向柱状图 -->
               <div>
@@ -615,6 +619,9 @@ const filteredTrends = computed(() => {
   // 按月份过滤 + 排除全零数据（接口可能返回无数据的日期）
   return t.filter(v => v.name && v.name.startsWith(ym) && ((v.requestCount || 0) + (v.totalTokens || 0) > 0))
 })
+// 趋势图仅在拿到按天数据时展示(网关模式不返回 trends, 避免把全平台趋势当成本人数据)
+const showTrendCharts = computed(() => filteredTrends.value.length > 0)
+const trendsNote = computed(() => usageData.value?.trendsMeta?.note || `${monthLabel.value} 暂无趋势数据`)
 const isEmptyUsageData = computed(() => {
   const d = usageData.value
   if (!d) return true

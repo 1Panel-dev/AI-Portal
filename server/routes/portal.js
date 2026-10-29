@@ -1776,16 +1776,17 @@ router.get('/api/usage/statistics', verifyUser, async (req, res) => {
         return res.json({ data: cached.data });
       }
       const gw = await getGateway(global.pool);
-      const [raw, trendRaw] = await Promise.all([
-        gw.getUsageStatistics({ userId: req.portalUser.gateway_user_id }),
-        (typeof gw.getTokenTrend === 'function'
-          ? gw.getTokenTrend({ range: '30d', timezoneOffsetMinutes: 480 })
-          : Promise.resolve(null)
-        ).catch(() => null),
-      ]);
+      // 注意: 网关 /admin/overview/token-trend 是【全平台】滚动窗口, 不支持 userId 过滤。
+      // 个人中心若直接用它, 会把别人的用量当成"我的每月 Token 统计"(summary 为 0 却有趋势曲线)。
+      // 因此网关模式只返回用户维度数据(summary/models/providers), 趋势留空并说明原因。
+      const raw = await gw.getUsageStatistics({ userId: req.portalUser.gateway_user_id });
       const data = {
         summary: mapSummary(raw.summary),
-        trends: mapTrends(trendRaw),
+        trends: [],
+        trendsMeta: {
+          scope: 'unsupported',
+          note: '网关模式暂不支持按用户的每日趋势统计，下方仅展示你的汇总与模型用量',
+        },
         models: mapDistribution(raw.models),
         providers: mapDistribution(raw.providers),
       };
