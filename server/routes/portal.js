@@ -1764,6 +1764,48 @@ router.delete('/api/skillctl-token', verifyUser, async (req, res) => {
 const usageCache = new Map(); // key: userId → { data, expireAt }
 const USAGE_CACHE_TTL = 30 * 1000;
 
+// 网关 /admin/overview/token-trend 是【全平台】滚动窗口，不支持 userId 过滤；
+// 个人中心要的是「本人」趋势，因此按天调用 usage-statistics(userId + from/to) 自行汇总。
+// 结果按 gateway_user_id 缓存 60s，避免每次打开个人中心都打 30 次网关。
+const userTrendCache = new Map(); // key: gwUserId → { data, expireAt }
+const USER_TREND_TTL = 60 * 1000;
+const USER_TREND_DAYS = 30;
+
+async function buildUserDailyTrend(gw, gwUserId, days = USER_TREND_DAYS) {
+  const cached = userTrendCache.get(gwUserId);
+  if (cached && cached.expireAt > Date.now()) return cached.data;
+
+  // 以北京时区当天 00:00 为基准，往前推 days 天，每天一个区间
+  const todayStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' }).format(new Date());
+  const todayStart = new Date(`${todayStr}T00:00:00+08:00`);
+  const ranges = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const start = new Date(todayStart.getTime() - i * 86400000);
+    const end = new Date(start.getTime() + 86400000);
+    ranges.push({
+      name: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' }).format(start),
+      from: start.toISOString(),
+      to: end.toISOString(),
+    });
+  }
+
+  const CONCURRENCY = 6;
+  const points = [];
+  for (let i = 0; i < ranges.length; i += CONCURRENCY) {
+    const chunk = ranges.slice(i, i + CONCURRENCY);
+    const results = await Promise.allSettled(
+      chunk.map(d => gw.getUsageStatistics({ userId: gwUserId, from: d.from, to: d.to }))
+    );
+    results.forEach((r, idx) => {
+      if (r.status !== 'fulfilled') return; // 单天失败不影响其他天
+      points.push({ name: chunk[idx].name, ...mapSummary(r.value && r.value.summary) });
+    });
+  }
+  points.sort((a, b) => a.name.localeCompare(b.name));
+  userTrendCache.set(gwUserId, { data: points, expireAt: Date.now() + USER_TREND_TTL });
+  return points;
+}
+
 router.get('/api/usage/statistics', verifyUser, async (req, res) => {
   try {
     // V2: 网关模式按 gateway_user_id 查网关统计并映射为门户结构（summary/trends/models/providers）
@@ -1776,17 +1818,15 @@ router.get('/api/usage/statistics', verifyUser, async (req, res) => {
         return res.json({ data: cached.data });
       }
       const gw = await getGateway(global.pool);
-      // 注意: 网关 /admin/overview/token-trend 是【全平台】滚动窗口, 不支持 userId 过滤。
-      // 个人中心若直接用它, 会把别人的用量当成"我的每月 Token 统计"(summary 为 0 却有趋势曲线)。
-      // 因此网关模式只返回用户维度数据(summary/models/providers), 趋势留空并说明原因。
-      const raw = await gw.getUsageStatistics({ userId: req.portalUser.gateway_user_id });
+      // 汇总/模型/供应商用网关的 userId 过滤；趋势由逐日汇总得到，全部只含本人数据
+      const [raw, trends] = await Promise.all([
+        gw.getUsageStatistics({ userId: req.portalUser.gateway_user_id }),
+        buildUserDailyTrend(gw, req.portalUser.gateway_user_id).catch(() => []),
+      ]);
       const data = {
         summary: mapSummary(raw.summary),
-        trends: [],
-        trendsMeta: {
-          scope: 'unsupported',
-          note: '网关模式暂不支持按用户的每日趋势统计，下方仅展示你的汇总与模型用量',
-        },
+        trends,
+        trendsMeta: { scope: 'user' },
         models: mapDistribution(raw.models),
         providers: mapDistribution(raw.providers),
       };

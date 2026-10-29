@@ -619,7 +619,7 @@ const filteredTrends = computed(() => {
   // 按月份过滤 + 排除全零数据（接口可能返回无数据的日期）
   return t.filter(v => v.name && v.name.startsWith(ym) && ((v.requestCount || 0) + (v.totalTokens || 0) > 0))
 })
-// 趋势图仅在拿到按天数据时展示(网关模式不返回 trends, 避免把全平台趋势当成本人数据)
+// 趋势图仅在当前月份有本人数据时展示（后端已按用户逐日汇总，全零日期被过滤掉）
 const showTrendCharts = computed(() => filteredTrends.value.length > 0)
 const trendsNote = computed(() => usageData.value?.trendsMeta?.note || `${monthLabel.value} 暂无趋势数据`)
 const isEmptyUsageData = computed(() => {
