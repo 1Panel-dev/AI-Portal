@@ -1619,12 +1619,13 @@ async function gatewayUsageStatisticsHandler(req, res) {
       for (const row of r.rows) portalMap.set(row.gateway_user_id, row);
     }
     let rankUsers = gwUsers.map(u => {
-      const p = portalMap.get(u.id) || {};
+      const p = portalMap.get(u.id) || null;
+      if (!p) return null; // 门户没映射的网关幽灵用户(已删/未同步): 过滤掉, 防止钻取后看到全局数据
       const promptTokens = toNum(u.inputTokens);
       const completionTokens = toNum(u.outputTokens);
       return {
         userId: (p.panel_user_id ?? p.id) ?? null,
-        name: p.username || u.name || '',
+        name: p.username,   // 只展示门户内的 username, 不再 fallback 网关原始名(网关原始名不可靠)
         requestCount: toNum(u.requestCount),
         promptTokens,
         completionTokens,
@@ -1632,7 +1633,7 @@ async function gatewayUsageStatisticsHandler(req, res) {
         totalTokens: promptTokens + completionTokens,
         cachedTokens: toNum(u.cachedTokens),
       };
-    });
+    }).filter(Boolean);
     // 排行分页: Top10 = rankOrder=descending, Bottom10 = ascending（与 1Panel 口径一致）
     const sortKey = rankOrderBy === 'requestCount' ? 'requestCount' : 'totalTokens';
     const dir = rankOrder === 'ascending' ? 1 : -1;
