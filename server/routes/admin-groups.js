@@ -5,7 +5,7 @@ const express = require('express');
 const { verifyUser, requirePermission } = require('../auth');
 const { syncPanelGroups } = require('../panel');
 const { getResourceType, getAllResourceTypes } = require('../lib/resource-types');
-const { getDefaultGroupId, autoJoinDefaultGroup, syncDefaultGroupItems } = require('../lib/default-group');
+const { getDefaultGroupId, syncDefaultGroupItems } = require('../lib/default-group');
 
 const router = express.Router();
 const pool = () => global.pool;
@@ -155,7 +155,11 @@ router.get('/api/admin/groups', verifyUser, requirePermission('group:view'), asy
   try {
     const r = await pool().query(`
       SELECT g.*,
-        (SELECT count(*) FROM resource_group_members m WHERE m.group_id = g.id) AS member_count,
+        CASE WHEN g.is_default THEN
+          (SELECT count(*) FROM portal_users WHERE is_portal_admin = FALSE)
+        ELSE
+          (SELECT count(*) FROM resource_group_members m WHERE m.group_id = g.id)
+        END AS member_count,
         (SELECT json_agg(json_build_object(rt.key, cnt.cnt))
          FROM (SELECT resource_type, count(*) cnt FROM resource_group_items WHERE group_id = g.id GROUP BY resource_type) cnt
          LEFT JOIN resource_types rt ON rt.key = cnt.resource_type) AS resource_counts
@@ -201,14 +205,20 @@ router.get('/api/admin/groups/:id', verifyUser, requirePermission('group:view'),
   try {
     const g = await pool().query('SELECT * FROM resource_groups WHERE id = $1', [id]);
     if (!g.rowCount) return res.status(404).json({ error: '资源组不存在' });
-    const members = await pool().query(`
-      SELECT u.id, u.username, u.name FROM resource_group_members m
-      JOIN portal_users u ON u.id = m.user_id WHERE m.group_id = $1
-    `, [id]);
+    const isDefault = g.rows[0].is_default;
+    // 默认组天然含全员: 成员列表返回全部非超管用户(不依赖 resource_group_members)
+    const members = isDefault
+      ? await pool().query(
+          'SELECT id, username, name FROM portal_users WHERE is_portal_admin = FALSE ORDER BY username'
+        )
+      : await pool().query(`
+          SELECT u.id, u.username, u.name FROM resource_group_members m
+          JOIN portal_users u ON u.id = m.user_id WHERE m.group_id = $1
+        `, [id]);
     const items = await pool().query(
       'SELECT resource_type, resource_id FROM resource_group_items WHERE group_id = $1', [id]
     );
-    res.json({ data: { ...g.rows[0], members: members.rows, items: items.rows } });
+    res.json({ data: { ...g.rows[0], members: members.rows, members_virtual: isDefault, items: items.rows } });
   } catch (e) {
     res.status(500).json({ error: '获取资源组详情失败', reason: e.message });
   }
@@ -305,6 +315,12 @@ router.put('/api/admin/groups/:id/items', verifyUser, requirePermission('group:e
 router.put('/api/admin/groups/:id/members', verifyUser, requirePermission('group:assign'), async (req, res) => {
   const id = Number(req.params.id);
   const userIds = Array.isArray(req.body.userIds) ? req.body.userIds : [];
+  // 默认资源组天然含全员, 不维护成员行: 直接拒绝写入
+  const isDefault = await pool().query('SELECT is_default FROM resource_groups WHERE id = $1', [id]);
+  if (!isDefault.rowCount) return res.status(404).json({ error: '资源组不存在' });
+  if (isDefault.rows[0].is_default) {
+    return res.status(400).json({ error: '默认资源组对所有用户生效，无需单独授权' });
+  }
   const client = await pool().connect();
   try {
     // 超管默认可见全部资源, 授权无意义: 过滤掉, 防止前端绕过写入无效配置
@@ -772,8 +788,9 @@ router.get('/api/admin/groups/:id/resources-preview', verifyUser, requirePermiss
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: '无效的资源组 id' });
   try {
     // 组不存在 -> 404
-    const g = await pool().query('SELECT id FROM resource_groups WHERE id = $1', [id]);
+    const g = await pool().query('SELECT id, is_default FROM resource_groups WHERE id = $1', [id]);
     if (!g.rowCount) return res.status(404).json({ error: '资源组不存在' });
+    const isDefaultGroup = g.rows[0].is_default;
     // 该组 items，按类型分组
     const items = await pool().query(
       'SELECT resource_type, resource_id FROM resource_group_items WHERE group_id = $1', [id]
@@ -791,10 +808,13 @@ router.get('/api/admin/groups/:id/resources-preview', verifyUser, requirePermiss
       if (!Number.isInteger(memberUserId) || memberUserId <= 0) {
         return res.status(400).json({ error: '无效的 userId' });
       }
-      const member = await pool().query(
-        'SELECT 1 FROM resource_group_members WHERE group_id = $1 AND user_id = $2', [id, memberUserId]
-      );
-      if (!member.rowCount) return res.status(400).json({ error: '该用户不是此资源组成员' });
+      // 默认组天然含全员, 无需校验成员行
+      if (!isDefaultGroup) {
+        const member = await pool().query(
+          'SELECT 1 FROM resource_group_members WHERE group_id = $1 AND user_id = $2', [id, memberUserId]
+        );
+        if (!member.rowCount) return res.status(400).json({ error: '该用户不是此资源组成员' });
+      }
       const { getPortalUser, getUserAllowedModels, isAdminRoleUser } = require('../lib/permission');
       portalUser = await getPortalUser(memberUserId);
       // 后台角色成员看全量(与广场 isAdminRoleUser bypass 一致), 不做模型组交集
@@ -864,8 +884,9 @@ router.get('/api/admin/groups/:id/members-preview', verifyUser, requirePermissio
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: '无效的资源组 id' });
   try {
-    const g = await pool().query('SELECT id FROM resource_groups WHERE id = $1', [id]);
+    const g = await pool().query('SELECT id, is_default FROM resource_groups WHERE id = $1', [id]);
     if (!g.rowCount) return res.status(404).json({ error: '资源组不存在' });
+    const isDefaultGroup = g.rows[0].is_default;
 
     // 该组勾选的模型: resource_group_items 存的是 portal_models 主键 id,
     // JOIN portal_models 取 model_name(授权交集按 model_name 和 1Panel 允许列表比)
@@ -881,14 +902,21 @@ router.get('/api/admin/groups/:id/members-preview', verifyUser, requirePermissio
     const groupModelNames = [...groupModelNameSet];
     const totalModels = groupModelIds.length;
 
-    // 全体成员（带 portal_user 信息）
-    const members = await pool().query(`
-      SELECT u.id, u.username, u.name, u.is_portal_admin, u.panel_user_id, u.gateway_user_group_id
-      FROM resource_group_members m
-      JOIN portal_users u ON u.id = m.user_id
-      WHERE m.group_id = $1 AND u.status = 'active'
-      ORDER BY u.is_portal_admin DESC, u.username
-    `, [id]);
+    // 全体成员（带 portal_user 信息）: 默认组返回全部活跃非超管用户, 其余组按成员表
+    const members = isDefaultGroup
+      ? await pool().query(`
+          SELECT u.id, u.username, u.name, u.is_portal_admin, u.panel_user_id, u.gateway_user_group_id
+          FROM portal_users u
+          WHERE u.status = 'active' AND u.is_portal_admin = FALSE
+          ORDER BY u.username
+        `)
+      : await pool().query(`
+          SELECT u.id, u.username, u.name, u.is_portal_admin, u.panel_user_id, u.gateway_user_group_id
+          FROM resource_group_members m
+          JOIN portal_users u ON u.id = m.user_id
+          WHERE m.group_id = $1 AND u.status = 'active'
+          ORDER BY u.is_portal_admin DESC, u.username
+        `, [id]);
 
     // 可选筛选
     const q = (req.query.q || '').trim().toLowerCase();

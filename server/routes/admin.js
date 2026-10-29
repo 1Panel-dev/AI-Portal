@@ -2020,13 +2020,6 @@ async function doSyncUsers() {
             SELECT $1, id FROM roles WHERE name = 'user' AND is_system = TRUE
             ON CONFLICT DO NOTHING
           `, [inserted.rows[0].id]);
-          // 新同步用户默认加入默认资源组(若存在);失败不阻断同步
-          try {
-            const { autoJoinDefaultGroup } = require('../lib/default-group');
-            await autoJoinDefaultGroup(global.pool, inserted.rows[0].id);
-          } catch (e) {
-            console.error('[sync-users] 自动加入默认资源组失败(不阻断):', e.message);
-          }
         }
         synced++;
       } catch (e) {
@@ -2663,13 +2656,6 @@ router.post('/api/admin/portal-users', verifyUser, requirePermission('user:creat
       SELECT $1, id FROM roles WHERE name = 'user' AND is_system = TRUE
       ON CONFLICT DO NOTHING
     `, [user.id]);
-    // 新建用户默认加入默认资源组(若存在);失败不阻断创建
-    try {
-      const { autoJoinDefaultGroup } = require('../lib/default-group');
-      await autoJoinDefaultGroup(global.pool, user.id);
-    } catch (e) {
-      console.error('[admin/portal-users] 自动加入默认资源组失败(不阻断):', e.message);
-    }
     res.json({
       user: {
         id: user.id,

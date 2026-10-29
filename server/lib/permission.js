@@ -187,8 +187,10 @@ async function canUserAccessSkill(userId, slug) {
   if (await isAdminRoleUser(userId)) return true;
   const r = await pool().query(`
     SELECT 1 FROM resource_group_items i
-    JOIN resource_group_members m ON m.group_id = i.group_id
-    WHERE m.user_id = $1 AND i.resource_type = 'skill' AND i.resource_id = $2
+    JOIN resource_groups g ON g.id = i.group_id
+    LEFT JOIN resource_group_members m ON m.group_id = i.group_id AND m.user_id = $1
+    WHERE i.resource_type = 'skill' AND i.resource_id = $2
+      AND (g.is_default = TRUE OR m.user_id IS NOT NULL)
     LIMIT 1
   `, [userId, slug]);
   return r.rowCount > 0;
@@ -208,17 +210,24 @@ async function getVisibleResourcesForUser(userId) {
   // 后台角色用户是管理者, 看全量(不受资源组白名单限制)
   if (await isAdminRoleUser(userId)) return getAllResources();
 
-  const items = await pool().query(`
-    SELECT resource_type, resource_id FROM resource_group_items
-    WHERE group_id IN (SELECT group_id FROM resource_group_members WHERE user_id = $1)
+  // 可见组 = 默认资源组(天然含全员) ∪ 用户显式加入的组
+  const groups = await pool().query(`
+    SELECT id FROM resource_groups WHERE is_default = TRUE
+    UNION
+    SELECT group_id FROM resource_group_members WHERE user_id = $1
   `, [userId]);
 
-  // 非超管用户不在任何资源组 -> 各类型空数组（严格白名单, 不返回全量）
-  if (items.rowCount === 0) {
+  // 既无默认组也不在任何资源组 -> 各类型空数组（严格白名单, 不返回全量）
+  if (groups.rowCount === 0) {
     const empty = {};
     for (const type of getAllResourceTypes()) empty[type.key] = [];
     return empty;
   }
+
+  const items = await pool().query(`
+    SELECT resource_type, resource_id FROM resource_group_items
+    WHERE group_id = ANY($1::int[])
+  `, [groups.rows.map(r => r.id)]);
 
   const byType = {};
   for (const r of items.rows) (byType[r.resource_type] ??= []).push(r.resource_id);

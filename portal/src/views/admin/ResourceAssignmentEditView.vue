@@ -23,8 +23,16 @@
 
     <!-- ===== 授权 tab ===== -->
     <div v-if="activeTab === 'assign'">
+    <!-- 默认组：天然含全员, 无需授权 -->
+    <div v-if="group?.is_default" class="flex items-start gap-2.5 px-4 py-3 bg-[#eff6ff] border border-[#bfdbfe] rounded-xl text-[13px] text-[#1e40af]">
+      <Info class="w-4 h-4 flex-shrink-0 mt-0.5" />
+      <div class="leading-relaxed">
+        <p class="font-medium mb-0.5">默认资源组天然包含全部用户</p>
+        <p>该组无需单独授权:所有用户(含之后新建的用户)默认可见本组勾选的资源。</p>
+      </div>
+    </div>
     <!-- 穿梭框 -->
-    <div class="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-3 items-start">
+    <div v-else class="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-3 items-start">
       <!-- 左：所有用户（未授权的） -->
       <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4">
         <div class="flex items-center justify-between mb-3">
@@ -106,7 +114,7 @@
     </div>
 
     <!-- 保存按钮 -->
-    <div class="flex items-center gap-3 mt-6">
+    <div v-if="!group?.is_default" class="flex items-center gap-3 mt-6">
       <button
         v-if="can('group:assign')"
         @click="save"
