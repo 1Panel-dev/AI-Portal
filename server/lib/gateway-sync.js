@@ -35,80 +35,85 @@ async function syncGatewayModels() {
 async function _syncGatewayModels() {
   const gw = await getGateway(pool());
 
-  // 数据源:网关用户域 GET /v1/models,凭证优先用后台配置的「模型同步专用 Key」
-  // (gateway_sync_api_key,用户域 sk-... —— 与 admin token agw_at_... 不同域,不可互换)。
-  // 未配置时回退借用本地一把启用中的网关用户 Key;再没有则回退管理域 listModels()。
-  const cfgRow = await pool().query(
-    "SELECT value FROM system_config WHERE key = 'gateway_sync_api_key' LIMIT 1"
-  );
-  const configuredSyncKey = String(cfgRow.rows[0]?.value || '').trim();
+  // 数据源: 全部走管理域(agw_at_... token), 不再需要单独配置 gateway_sync_api_key
+  //   1. /api/v1/console/models (控制台模型目录, 直接列出所有可用模型)
+  //   2. /api/v1/admin/upstream-accounts 内嵌 models (旧链路, 100% 可用)
+  let items = [];
+  let source = '';
+  const gwBaseUrl = (typeof gw.getConfig === 'function' ? gw.getConfig().baseUrl : '') || '';
 
-  const borrowed = configuredSyncKey ? { rowCount: 0, rows: [] } : await pool().query(`
-    SELECT pak.api_key_cipher, pu.username
-    FROM portal_api_keys pak
-    JOIN portal_users pu ON pu.id = pak.user_id
-    WHERE pak.gateway_key_id IS NOT NULL
-      AND pak.status = 'Enable'
-      AND pak.api_key_cipher <> ''
-      AND COALESCE(pu.status, 'active') = 'active'
-    ORDER BY (COALESCE(pu.role, '') = 'admin') DESC, pak.id ASC
-    LIMIT 1
-  `);
-
-  const syncKey = configuredSyncKey || borrowed.rows[0]?.api_key_cipher || '';
-  const keyOwner = configuredSyncKey
-    ? '后台配置的同步专用 Key'
-    : (borrowed.rows[0]?.username || '');
-
-  let rows;
-  if (syncKey && typeof gw.listModelsViaUserKey === 'function') {
-    const items = await gw.listModelsViaUserKey(syncKey);
-    console.log(`[gateway-sync] /v1/models 返回 ${items.length} 个模型(凭证: ${keyOwner})`);
-    // group_name 决定 UPSERT 冲突键 (group_name, model_name)。若直接改用 owned_by,
-    // 与历史数据(账号名)不一致 → 旧行全被软删 + 新行 is_public=FALSE → 模型广场清空、
-    // 管理员手工上架状态(display_name/描述/图标)全部丢失。
-    // 因此:同一 model_name 已存在时沿用其 group_name,让 UPSERT 命中旧行保留人工配置;
-    // 仅全新模型才用 owned_by(缺失则 'AI-Gateway')。
-    const gwBaseUrl = (typeof gw.getConfig === 'function' ? gw.getConfig().baseUrl : '') || '';
-    // 不限 is_active:若历史行已被上一版逻辑软删,也要能找回原 group_name,
-    // 从而命中同一行 → ON CONFLICT 恢复 is_active=TRUE 且保留原 is_public(广场自动复原)。
-    const existing = await pool().query(`
-      SELECT DISTINCT ON (model_name) model_name, group_name
-      FROM portal_models
-      ORDER BY model_name, is_active DESC NULLS LAST, id ASC
-    `);
-    const groupByModel = new Map();
-    for (const r of existing.rows) {
-      if (!groupByModel.has(r.model_name)) groupByModel.set(r.model_name, r.group_name);
+  // 方案 1: 控制台模型目录
+  if (typeof gw.listConsoleModels === 'function') {
+    try {
+      const a = await gw.listConsoleModels();
+      if (Array.isArray(a) && a.length > 0) {
+        items = a;
+        source = 'console/models';
+      }
+    } catch (e) {
+      console.warn('[gateway-sync] console/models 不可用:', e.message);
     }
-    const seen = new Set(); // 防御:同一 INSERT 内 (group_name, model_name) 重复会致 ON CONFLICT 报错
-    rows = [];
-    for (const m of items) {
-      const modelName = String(m?.id || '').trim();
-      if (!modelName) continue;
-      const groupName = groupByModel.get(modelName)
-        || (m.owned_by && String(m.owned_by).trim())
-        || 'AI-Gateway';
-      const dedupKey = groupName + '\n' + modelName;
-      if (seen.has(dedupKey)) continue;
-      seen.add(dedupKey);
-      rows.push({
-        accountId: null,
-        groupName,
-        modelName,
-        provider: '',
-        baseUrl: gwBaseUrl,
-        modelType: String(m?.type || ''),
-        enabled: true,
-        raw: { ...m, source: 'v1/models' },
-      });
-    }
-  } else {
-    console.warn('[gateway-sync] 无可用用户域凭证(未配置同步专用 Key 且无可借用 Key),回退管理域 upstream-accounts 数据源');
-    rows = await gw.listModels();
   }
 
-  console.log(`[gateway-sync] AI-Gateway 返回 ${rows.length} 条模型记录,开始 UPSERT`);
+  // 方案 2: 上游账号内嵌 models (始终作为备选, 100% 可用)
+  if (!items.length && typeof gw.listModels === 'function') {
+    try {
+      const b = await gw.listModels();
+      if (Array.isArray(b) && b.length > 0) { items = b; source = 'admin/upstream-accounts'; }
+    } catch (e) {
+      console.warn('[gateway-sync] upstream-accounts 不可用:', e.message);
+    }
+  }
+
+  console.log(`[gateway-sync] ${source || '无数据源'} → ${items.length} 个模型`);
+  if (!items.length) {
+    console.warn('[gateway-sync] 所有数据源均返回空,跳过本轮 UPSERT 与软删');
+    await pool().query(`
+      INSERT INTO portal_sync_log (sync_type, status, message, total_count, success_count, details)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, ['models', 'skipped', '所有模型数据源均返回空', 0, 0, { provider: 'ai-gateway', skipped: true }]);
+    return { backendCount: 0, modelCount: 0, deactivatedCount: 0, skipped: true };
+  }
+
+  // group_name 决定 UPSERT 冲突键 (group_name, model_name)。若直接改用 owned_by,
+  // 与历史数据(账号名)不一致 → 旧行全被软删 + 新行 is_public=FALSE → 模型广场清空、
+  // 管理员手工上架状态(display_name/描述/图标)全部丢失。
+  // 因此:同一 model_name 已存在时沿用其 group_name,让 UPSERT 命中旧行保留人工配置;
+  // 仅全新模型才用 owned_by(缺失则 'AI-Gateway')。
+  const existing = await pool().query(`
+    SELECT DISTINCT ON (model_name) model_name, group_name
+    FROM portal_models
+    ORDER BY model_name, is_active DESC NULLS LAST, id ASC
+  `);
+  const groupByModel = new Map();
+  for (const r of existing.rows) {
+    if (!groupByModel.has(r.model_name)) groupByModel.set(r.model_name, r.group_name);
+  }
+  const seen = new Set();
+  const rows = [];
+  for (const m of items) {
+    // 兼容多种来源形状:
+    //   - /admin/console/models → { name, type, ownedBy, owned_by, protocolType, ... }
+    //   - upstream-accounts    → { modelName, groupName, ... } (listModels 已归一化)
+    //   - /v1/models(user key) → { id, type, owned_by }
+    const modelName = String(m?.modelName || m?.name || m?.id || '').trim();
+    if (!modelName) continue;
+    const owner = String(m?.ownedBy || m?.owned_by || m?.provider || '').trim();
+    const groupName = groupByModel.get(modelName) || owner || 'AI-Gateway';
+    const dedupKey = groupName + '\n' + modelName;
+    if (seen.has(dedupKey)) continue;
+    seen.add(dedupKey);
+    rows.push({
+      accountId: m?.accountId ?? null,
+      groupName,
+      modelName,
+      provider: String(m?.provider || '').trim(),
+      baseUrl: gwBaseUrl,
+      modelType: String(m?.type || m?.protocolType || m?.requestModelType || '').trim(),
+      enabled: true,
+      raw: { ...m, source },
+    });
+  }
 
   // 空响应不清表:网关临时返回空(鉴权抖动/实例重启)时跳过本轮,防止误软删全部本地数据
   if (rows.length === 0) {

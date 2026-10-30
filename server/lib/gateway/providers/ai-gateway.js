@@ -198,6 +198,27 @@ async function listModels() {
 }
 
 /**
+ * 控制台模型目录（全量）: GET /api/v1/console/models
+ * 该端点直接列出网关侧所有可用模型({ name, type, protocolType, ownedBy... }),
+ * 与上游账号配置无关。凭证用管理域 agw_at_... token(与 admin/upstream-accounts 同域)。
+ *
+ * 注意:本地网关(v2.x)此端点返回 401 unauthenticated(可能需要 session cookie),
+ * 上层应优先尝试 listModels()(upstream-accounts 内嵌 models)。
+ */
+async function listConsoleModels() {
+  let page = 1;
+  const out = [];
+  while (page <= 200) {
+    const data = await request('GET', '/console/models', { query: { page, pageSize: 100 } });
+    const items = Array.isArray(data?.items) ? data.items : [];
+    out.push(...items);
+    if (items.length < 100) break;
+    page++;
+  }
+  return out;
+}
+
+/**
  * 用户域 OpenAI 兼容接口:GET {baseUrl}/v1/models
  * 与管理域 request() 不同:无 /api/v1 前缀,凭证是用户级 API Key(sk-...),admin token 会被 401。
  * 返回 "该 Key 授权可见" 的模型数组(OpenAI 形状:{id, object, created, owned_by?})。
@@ -442,6 +463,7 @@ module.exports = {
   normalizeUsername,   // V2 用户创建链路（企微注册）使用
 
   listModels,
+  listConsoleModels,
   listModelsViaUserKey,
   listUserGroups,
   listUserGroupOptions,
