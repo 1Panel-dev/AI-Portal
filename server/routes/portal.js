@@ -1806,22 +1806,44 @@ async function buildUserDailyTrend(gw, gwUserId, days = USER_TREND_DAYS) {
   return points;
 }
 
+// 门户用户 → 网关用户 id：正常走 portal_users.gateway_user_id；
+// 为空（同步链路漏了）时用 username 去网关用户表里兜底匹配，精确优先（避免命中大小写不同的重复账号）
+async function resolveGatewayUserId(gw, pu) {
+  if (pu.gateway_user_id) return pu.gateway_user_id;
+  try {
+    const list = await gw.listUsers();
+    const uname = (pu.username || '').trim();
+    if (!uname) return null;
+    const exact = (list || []).find(x => (x.username || '').trim() === uname);
+    if (exact && Number.isFinite(exact.id)) return exact.id;
+    const loose = (list || []).find(x =>
+      (x.username || '').trim().toLowerCase() === uname.toLowerCase() ||
+      (x.name || '').trim().toLowerCase() === uname.toLowerCase()
+    );
+    return loose && Number.isFinite(loose.id) ? loose.id : null;
+  } catch (e) {
+    console.warn('个人中心兜底匹配网关用户失败:', e.message);
+    return null;
+  }
+}
+
 router.get('/api/usage/statistics', verifyUser, async (req, res) => {
   try {
     // V2: 网关模式按 gateway_user_id 查网关统计并映射为门户结构（summary/trends/models/providers）
     if (currentProviderName() === 'ai-gateway') {
-      if (!req.portalUser.gateway_user_id) {
-        return res.json({ data: null, hint: '尚未同步到独立网关' });
-      }
       const cached = usageCache.get(req.portalUser.id);
       if (cached && cached.expireAt > Date.now()) {
         return res.json({ data: cached.data });
       }
       const gw = await getGateway(global.pool);
+      const gwUserId = await resolveGatewayUserId(gw, req.portalUser);
+      if (!gwUserId) {
+        return res.json({ data: null, hint: '尚未同步到独立网关' });
+      }
       // 汇总/模型/供应商用网关的 userId 过滤；趋势由逐日汇总得到，全部只含本人数据
       const [raw, trends] = await Promise.all([
-        gw.getUsageStatistics({ userId: req.portalUser.gateway_user_id }),
-        buildUserDailyTrend(gw, req.portalUser.gateway_user_id).catch(() => []),
+        gw.getUsageStatistics({ userId: gwUserId }),
+        buildUserDailyTrend(gw, gwUserId).catch(() => []),
       ]);
       const data = {
         summary: mapSummary(raw.summary),
