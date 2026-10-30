@@ -35,15 +35,29 @@ async function syncGatewayModels() {
 async function _syncGatewayModels() {
   const gw = await getGateway(pool());
 
-  // 数据源: 全部走管理域(agw_at_... token), 不再需要单独配置 gateway_sync_api_key
-  //   1. /api/v1/console/models (控制台模型目录, 直接列出所有可用模型)
-  //   2. /api/v1/admin/upstream-accounts 内嵌 models (旧链路, 100% 可用)
+  // 数据源按可靠性排序，任一成功即止：
+  //   0. 配置了「模型同步 API Key」(gateway_sync_api_key) → 用户域 GET /v1/models（该 Key 授权可见的模型）
+  //   1. /api/v1/console/models（控制台模型目录；本地网关对 admin token 返回 401）
+  //   2. /api/v1/admin/upstream-accounts 内嵌 models（旧链路，100% 可用）
   let items = [];
   let source = '';
   const gwBaseUrl = (typeof gw.getConfig === 'function' ? gw.getConfig().baseUrl : '') || '';
 
+  // 方案 0: 模型同步 Key（用户级 sk-...）拉取
+  if (typeof gw.getSyncApiKey === 'function' && gw.getSyncApiKey() && typeof gw.listModelsViaUserKey === 'function') {
+    try {
+      const u = await gw.listModelsViaUserKey();
+      if (Array.isArray(u) && u.length > 0) {
+        items = u;
+        source = 'v1/models(用户 Key)';
+      }
+    } catch (e) {
+      console.warn('[gateway-sync] 用户 Key 拉取 /v1/models 失败:', e.message);
+    }
+  }
+
   // 方案 1: 控制台模型目录
-  if (typeof gw.listConsoleModels === 'function') {
+  if (!items.length && typeof gw.listConsoleModels === 'function') {
     try {
       const a = await gw.listConsoleModels();
       if (Array.isArray(a) && a.length > 0) {

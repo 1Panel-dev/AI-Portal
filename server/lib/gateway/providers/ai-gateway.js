@@ -28,6 +28,9 @@ const http = require('http');
 let currentConfig = {
   baseUrl: process.env.GATEWAY_BASE_URL || '',
   apiKey: process.env.GATEWAY_API_KEY || '',
+  // 模型同步专用的用户级 API Key（sk-...）：管理域 token 拉不到控制台模型目录，
+  // 用用户域 GET /v1/models 获取模型列表（值为空则回落到管理域数据源）
+  syncApiKey: process.env.GATEWAY_SYNC_API_KEY || '',
   defaultUserGroupId: parseInt(process.env.GATEWAY_DEFAULT_USER_GROUP_ID || '0', 10) || null,
   timeout: parseInt(process.env.GATEWAY_API_TIMEOUT || '10000', 10),
 };
@@ -46,6 +49,7 @@ async function loadConfig(pool) {
     for (const row of result.rows) map[row.key] = row.value;
     if (map.gateway_base_url) currentConfig.baseUrl = map.gateway_base_url;
     if (map.gateway_api_key) currentConfig.apiKey = map.gateway_api_key;
+    if (map.gateway_sync_api_key) currentConfig.syncApiKey = map.gateway_sync_api_key;
     if (map.gateway_default_user_group_id) {
       const id = parseInt(map.gateway_default_user_group_id, 10);
       currentConfig.defaultUserGroupId = Number.isFinite(id) && id > 0 ? id : null;
@@ -70,13 +74,20 @@ async function reload(pool) {
 
 function getConfig() {
   const key = currentConfig.apiKey;
+  const syncKey = currentConfig.syncApiKey;
   return {
     baseUrl: currentConfig.baseUrl,
     apiKey: key ? (key.length > 8 ? key.slice(0, 8) + '****' : '****') : '',
     apiKeyConfigured: !!key,
+    syncApiKeyConfigured: !!syncKey,
     defaultUserGroupId: currentConfig.defaultUserGroupId,
     timeout: currentConfig.timeout,
   };
+}
+
+/** 模型同步专用用户级 Key 原始值（供同步编排取用，勿在日志/接口响应中明文输出） */
+function getSyncApiKey() {
+  return currentConfig.syncApiKey || '';
 }
 
 // ============ HTTP ============
@@ -223,11 +234,14 @@ async function listConsoleModels() {
  * 与管理域 request() 不同:无 /api/v1 前缀,凭证是用户级 API Key(sk-...),admin token 会被 401。
  * 返回 "该 Key 授权可见" 的模型数组(OpenAI 形状:{id, object, created, owned_by?})。
  */
-function listModelsViaUserKey(userApiKey) {
+function listModelsViaUserKey(userApiKey = currentConfig.syncApiKey) {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
     const baseUrl = currentConfig.baseUrl;
     const timeout = currentConfig.timeout;
+    if (!userApiKey) {
+      return reject(err('请配置模型同步 API Key（管理后台 → 系统配置 → 独立网关）', undefined, 'config_missing'));
+    }
     if (!baseUrl) {
       return reject(err('请配置 GATEWAY_BASE_URL（管理后台 → 系统配置 → 独立网关）', undefined, 'config_missing'));
     }
@@ -459,6 +473,7 @@ module.exports = {
   init,
   reload,
   getConfig,
+  getSyncApiKey,
   onConfigChange,
   normalizeUsername,   // V2 用户创建链路（企微注册）使用
 

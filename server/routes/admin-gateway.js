@@ -21,6 +21,7 @@ const GATEWAY_CONFIG_KEYS = [
   'gateway_api_timeout',
   'gateway_api_key_updated_at',
   'gateway_api_key_never_expires',
+  'gateway_sync_api_key',
 ];
 
 const PROVIDERS = ['1panel', 'ai-gateway'];
@@ -40,6 +41,7 @@ async function readGatewayConfig() {
   for (const row of r.rows) map[row.key] = { value: row.value, updated_at: row.updated_at };
 
   const apiKey = map.gateway_api_key?.value || '';
+  const syncApiKey = map.gateway_sync_api_key?.value || '';
   const provider = map.gateway_provider?.value || '1panel';
   const updatedAt = map.gateway_api_key_updated_at?.updated_at || null;
   const neverExpires = (map.gateway_api_key_never_expires?.value || '') === 'true';
@@ -58,6 +60,8 @@ async function readGatewayConfig() {
     baseUrl: map.gateway_base_url?.value || '',
     apiKeyConfigured: !!apiKey,
     apiKeyMasked: maskApiKey(apiKey),
+    syncApiKeyConfigured: !!syncApiKey,
+    syncApiKeyMasked: maskApiKey(syncApiKey),
     defaultUserGroupId: Number(map.gateway_default_user_group_id?.value) || null,
     timeout: Number(map.gateway_api_timeout?.value) || 10000,
     apiKeyUpdatedAt: updatedAt,
@@ -88,7 +92,12 @@ function validateGatewayConfig(body) {
   if (timeout < 1000 || timeout > 60000) {
     return { error: '超时时间需在 1000-60000ms 之间' };
   }
-  return { provider, baseUrl, defaultUserGroupId, timeout, apiKey: String(body.apiKey || '').trim() };
+  return {
+    provider, baseUrl, defaultUserGroupId, timeout,
+    apiKey: String(body.apiKey || '').trim(),
+    // 模型同步专用的用户级 API Key（sk-...），走用户域 /v1/models 拉模型列表
+    syncApiKey: String(body.syncApiKey || '').trim(),
+  };
 }
 
 async function readSavedConnection() {
@@ -160,6 +169,8 @@ router.put('/api/admin/gateway-config', verifyUser, requirePermission('system:co
       await upsert('gateway_api_key_updated_at', new Date().toISOString());
     }
     await upsert('gateway_api_key_never_expires', req.body?.neverExpires === true ? 'true' : 'false');
+    // 模型同步 Key 传空 = 保留旧值（与 API 凭证同样的脱敏语义）
+    if (v.syncApiKey) await upsert('gateway_sync_api_key', v.syncApiKey);
     await upsert('gateway_default_user_group_id', v.defaultUserGroupId == null ? '' : String(v.defaultUserGroupId));
     await upsert('gateway_api_timeout', String(v.timeout));
     await client.query('COMMIT');
