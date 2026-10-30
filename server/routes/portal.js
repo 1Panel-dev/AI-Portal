@@ -6,6 +6,7 @@ const { panel, getPanelPayload, getPanelItems, findPanelUser, createPanelUser } 
 const { syncModels } = require('../lib/gateway-sync');
 const { getGateway, currentProviderName } = require('../lib/gateway');
 const { mapSummary, mapDistribution, mapTrends } = require('../lib/gateway/usage-mapper');
+const { buildDailyUsageTrend } = require('../lib/gateway/usage-trend');
 const { isAnyProviderEnabled } = require('../oauth');
 const { inspectPanelBiz, listPanelKeys, listPanelKeysOfUser } = require('../lib/panel-biz');
 
@@ -1775,33 +1776,14 @@ async function buildUserDailyTrend(gw, gwUserId, days = USER_TREND_DAYS) {
   const cached = userTrendCache.get(gwUserId);
   if (cached && cached.expireAt > Date.now()) return cached.data;
 
-  // 以北京时区当天 00:00 为基准，往前推 days 天，每天一个区间
+  // 以北京时区当天 00:00 为基准，往前推 days-1 天，逐日区间到「现在」
   const todayStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' }).format(new Date());
   const todayStart = new Date(`${todayStr}T00:00:00+08:00`);
-  const ranges = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const start = new Date(todayStart.getTime() - i * 86400000);
-    const end = new Date(start.getTime() + 86400000);
-    ranges.push({
-      name: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' }).format(start),
-      from: start.toISOString(),
-      to: end.toISOString(),
-    });
-  }
+  const from = new Date(todayStart.getTime() - (days - 1) * 86400000);
 
-  const CONCURRENCY = 6;
-  const points = [];
-  for (let i = 0; i < ranges.length; i += CONCURRENCY) {
-    const chunk = ranges.slice(i, i + CONCURRENCY);
-    const results = await Promise.allSettled(
-      chunk.map(d => gw.getUsageStatistics({ userId: gwUserId, from: d.from, to: d.to }))
-    );
-    results.forEach((r, idx) => {
-      if (r.status !== 'fulfilled') return; // 单天失败不影响其他天
-      points.push({ name: chunk[idx].name, ...mapSummary(r.value && r.value.summary) });
-    });
-  }
-  points.sort((a, b) => a.name.localeCompare(b.name));
+  // 网关管理域有全局限流（503 management_api_busy），逐日查询统一走
+  // 低并发 + 503 退避重试的实现，避免整天数据被静默丢弃导致趋势图空白
+  const points = await buildDailyUsageTrend(gw, { from, to: new Date(), userId: gwUserId });
   userTrendCache.set(gwUserId, { data: points, expireAt: Date.now() + USER_TREND_TTL });
   return points;
 }
@@ -1812,10 +1794,10 @@ async function buildUserDailyTrend(gw, gwUserId, days = USER_TREND_DAYS) {
 // 他在两个账号上的调用都属于"我的用量", 必须合计, 否则个人页会显示 0。
 async function resolveGatewayUserIds(gw, pu) {
   const ids = new Set();
+  const uname = (pu.username || '').trim().toLowerCase();
   if (pu.gateway_user_id) ids.add(pu.gateway_user_id);
   try {
     const list = await gw.listUsers();
-    const uname = (pu.username || '').trim().toLowerCase();
     if (uname) {
       for (const x of (list || [])) {
         const gid = x.userId ?? x.id;   // listUsers() 返回的是 userId 字段

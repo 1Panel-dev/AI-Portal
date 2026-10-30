@@ -9,6 +9,7 @@ const { panel, getPanelPayload, getPanelItems, getPanelRoles, syncSkillsFromPane
 const { syncModels, syncGroups } = require('../lib/gateway-sync');
 const { getGateway, currentProviderName } = require('../lib/gateway');
 const { toNum, mapSummary, mapDistribution, mapTrends } = require('../lib/gateway/usage-mapper');
+const { buildDailyUsageTrend } = require('../lib/gateway/usage-trend');
 const { inspectPanelBiz } = require('../lib/panel-biz');
 const bcrypt = require('bcrypt');
 const oauthRegistry = require('../oauth');
@@ -1548,43 +1549,11 @@ router.get('/api/admin/portal-users/map', verifyUser, requirePermission('user:vi
  */
 
 /** 给定网关 + 时间区间 + 可选 userId → 逐日 trend 点
- *  时区按 Asia/Shanghai 切日, 并发 6. 区间超出网关保留期时对应天为 0. */
+ *  时区按 Asia/Shanghai 切日. 区间超出网关保留期时对应天为 0. */
 async function buildDailyTrend(gw, from, to, gwUserId) {
-  const start = from ? new Date(from) : (new Date(Date.now() - 30 * 86400000));
-  const end = to ? new Date(to) : new Date();
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start.getTime() >= end.getTime()) return [];
-
-  const startBeijing = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' }).format(start);
-  const startDay = new Date(`${startBeijing}T00:00:00+08:00`);
-  const dayCount = Math.max(1, Math.ceil((end.getTime() - startDay.getTime()) / 86400000));
-  const ranges = [];
-  for (let i = 0; i < dayCount; i++) {
-    const d = new Date(startDay.getTime() + i * 86400000);
-    ranges.push({
-      name: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' }).format(d),
-      from: d.toISOString(),
-      to: new Date(d.getTime() + 86400000).toISOString(),
-    });
-  }
-
-  const CONCURRENCY = 6;
-  const points = [];
-  for (let i = 0; i < ranges.length; i += CONCURRENCY) {
-    const chunk = ranges.slice(i, i + CONCURRENCY);
-    const results = await Promise.allSettled(
-      chunk.map(d => gw.getUsageStatistics({
-        from: d.from,
-        to: d.to,
-        ...(gwUserId ? { userId: gwUserId } : {}),
-      }))
-    );
-    results.forEach((r, idx) => {
-      if (r.status !== 'fulfilled') return;
-      const m = mapSummary(r.value && r.value.summary) || {};
-      points.push({ name: chunk[idx].name, ...m });
-    });
-  }
-  return points.sort((a, b) => a.name.localeCompare(b.name));
+  // 逐日查询统一走低并发 + 503 退避实现（网关管理域有全局限流，
+  // 原来并发 6 且静默丢失败天，会导致趋势图整段空白）
+  return buildDailyUsageTrend(gw, { from, to, userId: gwUserId });
 }
 
 async function gatewayUsageStatisticsHandler(req, res) {
