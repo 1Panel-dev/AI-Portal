@@ -1548,13 +1548,17 @@ router.get('/api/admin/portal-users/map', verifyUser, requirePermission('user:vi
  */
 async function gatewayUsageStatisticsHandler(req, res) {
   try {
-    const { userId, startTime, endTime, rankPage, rankPageSize, rankOrderBy, rankOrder } = req.query;
+    const { userId, gatewayUserId, startTime, endTime, rankPage, rankPageSize, rankOrderBy, rankOrder } = req.query;
     const gw = await getGateway(global.pool);
 
-    // 门户 id（panel_user_id 优先, portal_users.id 兜底, 与前端 usersMap 优先级一致）→ gateway_user_id
+    // 网关侧用户 id: 排行榜里的网关用户直接用 gatewayUserId（不依赖门户映射）；
+    // 门户 id（panel_user_id 优先, portal_users.id 兜底）→ 反查 gateway_user_id
     let gwUserId = null;
     const uid = parseInt(userId, 10);
-    if (Number.isFinite(uid)) {
+    const directGwId = parseInt(gatewayUserId, 10);
+    if (Number.isFinite(directGwId)) {
+      gwUserId = directGwId;
+    } else if (Number.isFinite(uid)) {
       const r = await global.pool.query(
         `SELECT gateway_user_id FROM portal_users
          WHERE (panel_user_id = $1 OR id = $1) AND gateway_user_id IS NOT NULL
@@ -1562,6 +1566,28 @@ async function gatewayUsageStatisticsHandler(req, res) {
         [uid]
       );
       gwUserId = r.rows[0]?.gateway_user_id ?? null;
+      // 兜底: 门户用户没同步网关 id（同步链路漏了）时, 用 username 去网关用户表里对一次
+      if (!gwUserId && typeof gw.listUsers === 'function') {
+        try {
+          const pu = await global.pool.query(
+            `SELECT username FROM portal_users
+             WHERE panel_user_id = $1 OR id = $1
+             ORDER BY (panel_user_id = $1) DESC LIMIT 1`,
+            [uid]
+          );
+          const uname = (pu.rows[0]?.username || '').trim().toLowerCase();
+          if (uname) {
+            const list = await gw.listUsers();
+            const hit = (list || []).find(x =>
+              (x.username || '').trim().toLowerCase() === uname ||
+              (x.name || '').trim().toLowerCase() === uname
+            );
+            if (hit && Number.isFinite(hit.id)) gwUserId = hit.id;
+          }
+        } catch (e) {
+          console.warn('门户用户兜底匹配网关用户失败（不阻断统计）:', e.message);
+        }
+      }
     }
 
     const mapDist = mapDistribution;
@@ -1620,12 +1646,15 @@ async function gatewayUsageStatisticsHandler(req, res) {
     }
     let rankUsers = gwUsers.map(u => {
       const p = portalMap.get(u.id) || null;
-      if (!p) return null; // 门户没映射的网关幽灵用户(已删/未同步): 过滤掉, 防止钻取后看到全局数据
       const promptTokens = toNum(u.inputTokens);
       const completionTokens = toNum(u.outputTokens);
       return {
-        userId: (p.panel_user_id ?? p.id) ?? null,
-        name: p.username,   // 只展示门户内的 username, 不再 fallback 网关原始名(网关原始名不可靠)
+        // 门户已映射 → 门户 id（1Panel 语义）; 未映射 → null, 但保留 gatewayUserId 供钻取
+        userId: p ? ((p.panel_user_id ?? p.id) ?? null) : null,
+        gatewayUserId: u.id,
+        name: p ? p.username : (u.name || `网关用户 #${u.id}`),
+        // 未同步到门户的用户（新建后没同步/已删）: 保留展示, 前端可标记, 钻取走 gatewayUserId
+        unmapped: !p,
         requestCount: toNum(u.requestCount),
         promptTokens,
         completionTokens,
@@ -1633,7 +1662,7 @@ async function gatewayUsageStatisticsHandler(req, res) {
         totalTokens: promptTokens + completionTokens,
         cachedTokens: toNum(u.cachedTokens),
       };
-    }).filter(Boolean);
+    });
     // 排行分页: Top10 = rankOrder=descending, Bottom10 = ascending（与 1Panel 口径一致）
     const sortKey = rankOrderBy === 'requestCount' ? 'requestCount' : 'totalTokens';
     const dir = rankOrder === 'ascending' ? 1 : -1;
