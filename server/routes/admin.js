@@ -1538,14 +1538,55 @@ router.get('/api/admin/portal-users/map', verifyUser, requirePermission('user:vi
 // ============ V2 网关模式：数据统计 ============
 
 /**
- * 网关模式统计：GET /admin/usage-statistics（汇总+分布）+ /admin/overview/token-trend（趋势）
+ * 网关模式统计：GET /admin/usage-statistics（汇总+分布）+ 逐日汇总趋势（buildDailyTrend）。
  * 映射为门户统计页（1Panel 口径）结构。差异处理：
  *   - 计数为十进制字符串 → 数值；inputTokens/outputTokens → promptTokens/completionTokens
  *   - 网关无失败请求维度 → failedRequests=0（失败率卡片恒 0.0）
  *   - 分布映射：accounts←upstreamAccounts、groups←userGroups（对齐 1Panel 维度语义）
  *   - 无 rankUsers 端点 → 用 users[] 分布组装排行，回填门户用户 id（红榜 tooltip 显示中文名）
- *   - 趋势只能取最近 30 天滚动窗口 → 附 trendsMeta.note 由前端提示「不随月份筛选变化」
+ *   - 趋势：改为逐日汇总，选哪个月就拉哪个月，和 summary 口径严格对齐
  */
+
+/** 给定网关 + 时间区间 + 可选 userId → 逐日 trend 点
+ *  时区按 Asia/Shanghai 切日, 并发 6. 区间超出网关保留期时对应天为 0. */
+async function buildDailyTrend(gw, from, to, gwUserId) {
+  const start = from ? new Date(from) : (new Date(Date.now() - 30 * 86400000));
+  const end = to ? new Date(to) : new Date();
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start.getTime() >= end.getTime()) return [];
+
+  const startBeijing = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' }).format(start);
+  const startDay = new Date(`${startBeijing}T00:00:00+08:00`);
+  const dayCount = Math.max(1, Math.ceil((end.getTime() - startDay.getTime()) / 86400000));
+  const ranges = [];
+  for (let i = 0; i < dayCount; i++) {
+    const d = new Date(startDay.getTime() + i * 86400000);
+    ranges.push({
+      name: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' }).format(d),
+      from: d.toISOString(),
+      to: new Date(d.getTime() + 86400000).toISOString(),
+    });
+  }
+
+  const CONCURRENCY = 6;
+  const points = [];
+  for (let i = 0; i < ranges.length; i += CONCURRENCY) {
+    const chunk = ranges.slice(i, i + CONCURRENCY);
+    const results = await Promise.allSettled(
+      chunk.map(d => gw.getUsageStatistics({
+        from: d.from,
+        to: d.to,
+        ...(gwUserId ? { userId: gwUserId } : {}),
+      }))
+    );
+    results.forEach((r, idx) => {
+      if (r.status !== 'fulfilled') return;
+      const m = mapSummary(r.value && r.value.summary) || {};
+      points.push({ name: chunk[idx].name, ...m });
+    });
+  }
+  return points.sort((a, b) => a.name.localeCompare(b.name));
+}
+
 async function gatewayUsageStatisticsHandler(req, res) {
   try {
     const { userId, gatewayUserId, startTime, endTime, rankPage, rankPageSize, rankOrderBy, rankOrder } = req.query;
@@ -1618,7 +1659,9 @@ async function gatewayUsageStatisticsHandler(req, res) {
     //   - 指定 userId 但 gwUserId 映射失败 → trend 也不拉（返回空数组）, 避免新用户看到全局数据
     //   - 指定 userId 且 gwUserId 映射成功 → 仍拉全局 trend（网关 trend 不支持 userId 过滤）, 但 meta 里标记
     const needStats = (gwUserId || !Number.isFinite(uid)) && !rangeEmpty;
-    const needTrend = !Number.isFinite(uid) || !!gwUserId;
+    // trend 改为逐日汇总，和 summary 用同一套 from/to + gwUserId 过滤 → 口径严格对齐
+    // 区间为空或钻取用户但 gwUserId 映射失败 → trend 也不拉
+    const needTrend = !rangeEmpty && (!Number.isFinite(uid) || !!gwUserId);
     const [statsRes, trendRes] = await Promise.all([
       needStats
         ? gw.getUsageStatistics({
@@ -1627,12 +1670,12 @@ async function gatewayUsageStatisticsHandler(req, res) {
             ...(gwUserId ? { userId: gwUserId } : {}),
           })
         : Promise.resolve(null),
-      needTrend && typeof gw.getTokenTrend === 'function'
-        ? gw.getTokenTrend({ range: '30d', timezoneOffsetMinutes: 480 }).catch(e => {
-            console.warn('网关趋势拉取失败（不阻断统计）:', e.message);
-            return null;
+      needTrend
+        ? buildDailyTrend(gw, from, to, gwUserId).catch(e => {
+            console.warn('网关逐日趋势拉取失败（不阻断统计）:', e.message);
+            return [];
           })
-        : Promise.resolve(null),
+        : Promise.resolve([]),
     ]);
 
     const raw = statsRes || {};
@@ -1680,7 +1723,8 @@ async function gatewayUsageStatisticsHandler(req, res) {
 
     res.json({
       summary: mapSummary(raw.summary),
-      trends: mapTrends(trendRes),
+      // buildDailyTrend 已产出和 mapSummary 同结构的点（name/promptTokens/completionTokens/totalTokens...）
+      trends: Array.isArray(trendRes) ? trendRes : [],
       providers: mapDist(raw.providers),
       models: mapDist(raw.models),
       accounts: mapDist(raw.upstreamAccounts),
@@ -1688,13 +1732,18 @@ async function gatewayUsageStatisticsHandler(req, res) {
       rankUsers,
       rankTotal,
       trendsMeta: {
-        source: 'gateway',
-        range: '30d',
-        // 钻取单用户时 trend 为全局视角（网关 trend 接口不支持 userId 过滤）, 标记让前端展示提示
-        userScope: isUserDrilldown ? 'global' : 'per-user-or-global',
-        note: isUserDrilldown
-          ? '趋势图为全平台视角（网关趋势接口不支持按用户过滤），汇总/分布已按所选用户筛选'
-          : '网关数据仅保留最近 30 天：趋势为滚动窗口，汇总/分布按所选月份与 30 天窗口的交集统计',
+        source: 'gateway-daily-agg',
+        // range: 实际时间范围摘要，帮助前端展示/排查
+        range: {
+          from: from ? from.toISOString() : null,
+          to: to ? to.toISOString() : null,
+          clamped: !!(from && from.getTime() !== (parseTs(startTime)?.getTime?.() ?? from.getTime())),
+        },
+        // 钻取用户时 trend 和 summary 一样是按该用户过滤的
+        userScope: gwUserId ? 'per-user' : 'global',
+        note: gwUserId
+          ? '趋势与汇总按所选用户过滤（逐日汇总）'
+          : '趋势与汇总按所选月份范围（逐日汇总）；网关仅保留最近 30 天，超出部分无数据则显示空',
       },
     });
   } catch (err) {
