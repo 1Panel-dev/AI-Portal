@@ -1585,7 +1585,10 @@ async function gatewayUsageStatisticsHandler(req, res) {
               (x.username || '').trim().toLowerCase() === uname.toLowerCase() ||
               (x.name || '').trim().toLowerCase() === uname.toLowerCase()
             );
-            if (loose && Number.isFinite(loose.id)) gwUserId = loose.id;
+            if (loose) {
+              const gid = loose.userId ?? loose.id;
+              if (Number.isFinite(gid)) gwUserId = gid;
+            }
           }
         } catch (e) {
           console.warn('门户用户兜底匹配网关用户失败（不阻断统计）:', e.message);

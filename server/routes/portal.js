@@ -1806,25 +1806,86 @@ async function buildUserDailyTrend(gw, gwUserId, days = USER_TREND_DAYS) {
   return points;
 }
 
-// 门户用户 → 网关用户 id：正常走 portal_users.gateway_user_id；
-// 为空（同步链路漏了）时用 username 去网关用户表里兜底匹配，精确优先（避免命中大小写不同的重复账号）
-async function resolveGatewayUserId(gw, pu) {
-  if (pu.gateway_user_id) return pu.gateway_user_id;
+// 门户用户 → 网关用户 id 集合：主账号 gateway_user_id（为空时按用户名兜底），
+// 外加网关里【同名（忽略大小写）】的重复账号。
+// 例: 企业微信 SSO 自动建的 zhaoleibo 与门户建的 ZhaoLeiBo 是两个人号但同一人，
+// 他在两个账号上的调用都属于"我的用量", 必须合计, 否则个人页会显示 0。
+async function resolveGatewayUserIds(gw, pu) {
+  const ids = new Set();
+  if (pu.gateway_user_id) ids.add(pu.gateway_user_id);
   try {
     const list = await gw.listUsers();
-    const uname = (pu.username || '').trim();
-    if (!uname) return null;
-    const exact = (list || []).find(x => (x.username || '').trim() === uname);
-    if (exact && Number.isFinite(exact.id)) return exact.id;
-    const loose = (list || []).find(x =>
-      (x.username || '').trim().toLowerCase() === uname.toLowerCase() ||
-      (x.name || '').trim().toLowerCase() === uname.toLowerCase()
-    );
-    return loose && Number.isFinite(loose.id) ? loose.id : null;
+    const uname = (pu.username || '').trim().toLowerCase();
+    if (uname) {
+      for (const x of (list || [])) {
+        const gid = x.userId ?? x.id;   // listUsers() 返回的是 userId 字段
+        if (!Number.isFinite(gid)) continue;
+        const gu = (x.username || '').trim().toLowerCase();
+        if (gu && gu === uname) ids.add(gid);
+      }
+    }
   } catch (e) {
-    console.warn('个人中心兜底匹配网关用户失败:', e.message);
-    return null;
+    console.warn('个人中心解析网关用户失败:', e.message);
   }
+  // 已删除的网关账号: listUsers() 查不到, 但 usage 的 users 维度仍保留它的历史用量,
+  // 按 name 相同再补一次, 否则删除重建后的账号会让个人页少算一大截
+  try {
+    const now = Date.now();
+    const st = await gw.getUsageStatistics({
+      from: new Date(now - USER_TREND_DAYS * 86400000).toISOString(),
+      to: new Date(now).toISOString(),
+    });
+    for (const u of ((st && st.users) || [])) {
+      if (!Number.isFinite(u.id)) continue;
+      const nm = (u.name || '').trim().toLowerCase();
+      if (nm && nm === uname) ids.add(u.id);
+    }
+  } catch (e) {
+    console.warn('个人中心补充已删除账号用量失败:', e.message);
+  }
+  return Array.from(ids);
+}
+
+/** 多个账号的汇总相加 */
+function sumSummaries(list) {
+  const out = {};
+  for (const s of list) {
+    for (const [k, v] of Object.entries(s || {})) {
+      if (typeof v === 'number') out[k] = (out[k] || 0) + v;
+    }
+  }
+  return out;
+}
+
+/** 多个账号的分布按名称合并（模型/供应商） */
+function mergeDist(rows) {
+  const m = new Map();
+  for (const r of rows) {
+    if (!r) continue;
+    const k = r.name || r.key || '';
+    const cur = m.get(k) || { ...r };
+    for (const f of ['requestCount', 'promptTokens', 'completionTokens', 'totalTokens', 'cachedTokens']) {
+      cur[f] = (Number(cur[f]) || 0) + (Number(r[f]) || 0);
+    }
+    m.set(k, cur);
+  }
+  return Array.from(m.values()).sort((a, b) => (b.totalTokens || 0) - (a.totalTokens || 0));
+}
+
+/** 多个账号的逐日趋势按日期合并 */
+function mergeTrends(listOfPoints) {
+  const m = new Map();
+  for (const pts of listOfPoints) {
+    for (const p of (pts || [])) {
+      const cur = m.get(p.name) || { name: p.name };
+      for (const [k, v] of Object.entries(p)) {
+        if (k === 'name') continue;
+        if (typeof v === 'number') cur[k] = (cur[k] || 0) + v;
+      }
+      m.set(p.name, cur);
+    }
+  }
+  return Array.from(m.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 router.get('/api/usage/statistics', verifyUser, async (req, res) => {
@@ -1836,21 +1897,21 @@ router.get('/api/usage/statistics', verifyUser, async (req, res) => {
         return res.json({ data: cached.data });
       }
       const gw = await getGateway(global.pool);
-      const gwUserId = await resolveGatewayUserId(gw, req.portalUser);
-      if (!gwUserId) {
+      const ids = await resolveGatewayUserIds(gw, req.portalUser);
+      if (!ids.length) {
         return res.json({ data: null, hint: '尚未同步到独立网关' });
       }
-      // 汇总/模型/供应商用网关的 userId 过滤；趋势由逐日汇总得到，全部只含本人数据
-      const [raw, trends] = await Promise.all([
-        gw.getUsageStatistics({ userId: gwUserId }),
-        buildUserDailyTrend(gw, gwUserId).catch(() => []),
+      // 汇总/模型/供应商/趋势全部按本人所有账号合计
+      const [raws, trendLists] = await Promise.all([
+        Promise.all(ids.map(id => gw.getUsageStatistics({ userId: id }))),
+        Promise.all(ids.map(id => buildUserDailyTrend(gw, id).catch(() => []))),
       ]);
       const data = {
-        summary: mapSummary(raw.summary),
-        trends,
-        trendsMeta: { scope: 'user' },
-        models: mapDistribution(raw.models),
-        providers: mapDistribution(raw.providers),
+        summary: sumSummaries(raws.map(r => mapSummary(r.summary))),
+        trends: mergeTrends(trendLists),
+        trendsMeta: { scope: 'user', accounts: ids.length },
+        models: mergeDist(raws.flatMap(r => mapDistribution(r.models))),
+        providers: mergeDist(raws.flatMap(r => mapDistribution(r.providers))),
       };
       usageCache.set(req.portalUser.id, { data, expireAt: Date.now() + USAGE_CACHE_TTL });
       return res.json({ data });
