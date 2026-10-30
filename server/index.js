@@ -56,6 +56,18 @@ async function startServer() {
       console.error(`⚠️ 网关适配器加载失败: ${e.message}`);
     }
 
+    // V1→V2 自动迁移:检测到 V2 网关凭证已就绪 + provider 仍为 1panel → 自动切 provider + 首次全量同步
+    try {
+      const { runAutoMigrate } = require('./lib/auto-migrate');
+      const m = await runAutoMigrate(global.pool);
+      if (!m.skipped) {
+        console.log(`📊 V1→V2 迁移结果: providerSwitched=${m.providerSwitched}, models=${m.models?.modelCount || 0}, users=${m.users?.bound || 0}/${m.users?.synced || 0}, groups=${m.groups?.userGroups || 0}`);
+      }
+    } catch (e) {
+      // 迁移失败不阻断启动, 下次重启继续尝试
+      console.error('⚠️ V1→V2 自动迁移异常 (不阻断启动):', e.message);
+    }
+
     // 启动下载量缓冲计数器,定时把内存累计 flush 到 DB
     downloadCounter.start(global.pool);
 
