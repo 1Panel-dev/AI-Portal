@@ -1788,44 +1788,27 @@ async function buildUserDailyTrend(gw, gwUserId, days = USER_TREND_DAYS) {
   return points;
 }
 
-// 门户用户 → 网关用户 id 集合：主账号 gateway_user_id（为空时按用户名兜底），
-// 外加网关里【同名（忽略大小写）】的重复账号。
-// 例: 企业微信 SSO 自动建的 zhaoleibo 与门户建的 ZhaoLeiBo 是两个人号但同一人，
-// 他在两个账号上的调用都属于"我的用量", 必须合计, 否则个人页会显示 0。
+// 门户用户 → 网关用户 id。
+// 与网关控制台口径保持一致：只取【当前绑定的 gateway_user_id】，
+// 不再合并同名账号/已删除账号的历史用量，否则个人页数字会比网关后台多出一大截。
+// 仅在尚未绑定 gateway_user_id（未同步）时，按用户名兜底解析一个 id。
 async function resolveGatewayUserIds(gw, pu) {
-  const ids = new Set();
+  if (pu.gateway_user_id) return [pu.gateway_user_id];
+
   const uname = (pu.username || '').trim().toLowerCase();
-  if (pu.gateway_user_id) ids.add(pu.gateway_user_id);
+  if (!uname) return [];
   try {
     const list = await gw.listUsers();
-    if (uname) {
-      for (const x of (list || [])) {
-        const gid = x.userId ?? x.id;   // listUsers() 返回的是 userId 字段
-        if (!Number.isFinite(gid)) continue;
-        const gu = (x.username || '').trim().toLowerCase();
-        if (gu && gu === uname) ids.add(gid);
-      }
+    for (const x of (list || [])) {
+      const gid = x.userId ?? x.id;   // listUsers() 返回的是 userId 字段
+      if (!Number.isFinite(gid)) continue;
+      const gu = (x.username || '').trim().toLowerCase();
+      if (gu && gu === uname) return [gid];
     }
   } catch (e) {
     console.warn('个人中心解析网关用户失败:', e.message);
   }
-  // 已删除的网关账号: listUsers() 查不到, 但 usage 的 users 维度仍保留它的历史用量,
-  // 按 name 相同再补一次, 否则删除重建后的账号会让个人页少算一大截
-  try {
-    const now = Date.now();
-    const st = await gw.getUsageStatistics({
-      from: new Date(now - USER_TREND_DAYS * 86400000).toISOString(),
-      to: new Date(now).toISOString(),
-    });
-    for (const u of ((st && st.users) || [])) {
-      if (!Number.isFinite(u.id)) continue;
-      const nm = (u.name || '').trim().toLowerCase();
-      if (nm && nm === uname) ids.add(u.id);
-    }
-  } catch (e) {
-    console.warn('个人中心补充已删除账号用量失败:', e.message);
-  }
-  return Array.from(ids);
+  return [];
 }
 
 /** 多个账号的汇总相加 */
