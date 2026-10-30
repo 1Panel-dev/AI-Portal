@@ -1575,14 +1575,17 @@ async function gatewayUsageStatisticsHandler(req, res) {
              ORDER BY (panel_user_id = $1) DESC LIMIT 1`,
             [uid]
           );
-          const uname = (pu.rows[0]?.username || '').trim().toLowerCase();
+          const uname = (pu.rows[0]?.username || '').trim();
           if (uname) {
             const list = await gw.listUsers();
-            const hit = (list || []).find(x =>
-              (x.username || '').trim().toLowerCase() === uname ||
-              (x.name || '').trim().toLowerCase() === uname
+            // 网关里可能存在大小写不同的同名账号（如企业微信 SSO 建的 zhaoleibo 与门户建的 ZhaoLeiBo），
+            // 先精确匹配 username，再退化为忽略大小写，避免匹配到没有用量的那个
+            const exact = (list || []).find(x => (x.username || '').trim() === uname);
+            const loose = exact || (list || []).find(x =>
+              (x.username || '').trim().toLowerCase() === uname.toLowerCase() ||
+              (x.name || '').trim().toLowerCase() === uname.toLowerCase()
             );
-            if (hit && Number.isFinite(hit.id)) gwUserId = hit.id;
+            if (loose && Number.isFinite(loose.id)) gwUserId = loose.id;
           }
         } catch (e) {
           console.warn('门户用户兜底匹配网关用户失败（不阻断统计）:', e.message);
