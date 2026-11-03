@@ -46,8 +46,8 @@ router.post('/api/auth/register', async (req, res) => {
     if (!rawUsername || rawUsername.length < 3 || rawUsername.length > 30) {
       return res.status(400).json({ error: '用户名需3-30位字符' });
     }
-    if (!/^[a-zA-Z0-9_]+$/.test(rawUsername)) {
-      return res.status(400).json({ error: '用户名只能包含英文、数字和下划线' });
+    if (!/^[\p{L}\p{N}_]+$/u.test(rawUsername)) {
+      return res.status(400).json({ error: '用户名只能包含中文、英文、数字和下划线' });
     }
     if (!rawPassword || rawPassword.length < 6) {
       return res.status(400).json({ error: '密码至少6位' });

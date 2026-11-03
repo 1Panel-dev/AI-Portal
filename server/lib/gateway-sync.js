@@ -14,6 +14,23 @@ const { getGateway, currentProviderName } = require('./gateway');
 const pool = () => global.pool;
 
 /**
+ * 从网关用户 note 里提取中文名。
+ * 网关代建用户时 note 形如「通过AI门户创建：张三」或「通过AI网关创建：张三」；
+ * 若不匹配这些前缀则返回 null，由调用方回退到网关 username。
+ */
+function extractNameFromNote(note) {
+  const s = String(note || '').trim();
+  if (!s) return null;
+  for (const prefix of ['通过AI门户创建：', '通过AI网关创建：', '通过AI门户创建:', '通过AI网关创建:']) {
+    if (s.startsWith(prefix)) {
+      const name = s.slice(prefix.length).trim();
+      return name || null;
+    }
+  }
+  return null;
+}
+
+/**
  * 独立网关模型同步:adapter.listModels() → portal_models
  * 返回 { backendCount, modelCount, deactivatedCount, skipped? } —— 与 _syncModelsFromPanel 同形
  */
@@ -457,10 +474,14 @@ async function _syncGatewayUsers() {
     'SELECT id, username, gateway_user_id, gateway_user_group_id, panel_user_id FROM portal_users'
   );
   const localByUsername = new Map();
+  const localByGatewayId = new Map();
   const localGwIds = new Set();
   for (const row of localRes.rows) {
     localByUsername.set(row.username.toLowerCase(), row);
-    if (row.gateway_user_id) localGwIds.add(row.gateway_user_id);
+    if (row.gateway_user_id) {
+      localByGatewayId.set(row.gateway_user_id, row);
+      localGwIds.add(row.gateway_user_id);
+    }
   }
 
   const DEFAULT_PWD = process.env.SYNC_USER_DEFAULT_PASSWORD || 'ChangeMe@Portal123';
@@ -493,7 +514,12 @@ async function _syncGatewayUsers() {
 
   for (const gu of gwUsers) {
     gwIds.push(gu.userId);
-    const local = localByUsername.get(gu.username.toLowerCase());
+    // 优先按 gateway_user_id 匹配（门户 username 可能是中文，网关 username 必为 ASCII，
+    // 直接按 username 会对不上，导致重复建号）
+    let local = localByGatewayId.get(gu.userId);
+    if (!local) {
+      local = localByUsername.get(gu.username.toLowerCase());
+    }
 
     if (local) {
       // 已存在 → 回填 gateway_user_id / gateway_user_group_id + 状态
@@ -509,6 +535,8 @@ async function _syncGatewayUsers() {
       bound++;
     } else {
       // 新建:网关用户首次进入门户
+      // 优先取网关返回的 name，其次从 note 提取中文名（格式「通过AI门户创建：张三」）
+      const displayName = gu.raw?.name || extractNameFromNote(gu.raw?.note) || gu.username;
       const passwordHash = await bcrypt.hash(DEFAULT_PWD, 12);
       try {
         const ins = await pool().query(`
@@ -522,7 +550,7 @@ async function _syncGatewayUsers() {
             updated_at = CURRENT_TIMESTAMP
           RETURNING id
         `, [
-          gu.userId, gu.groupId ?? null, gu.username, gu.username, gu.username,
+          gu.userId, gu.groupId ?? null, gu.username, displayName, displayName,
           passwordHash, gu.enabled ? 'active' : 'disabled',
         ]);
         if (ins.rowCount) {

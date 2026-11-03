@@ -32,8 +32,8 @@ async function submit() {
     error.value = '用户名需3-30位字符'
     return
   }
-  if (!/^[a-zA-Z0-9_]+$/.test(username.value)) {
-    error.value = '用户名只能包含英文、数字和下划线'
+  if (!/^[\p{L}\p{N}_]+$/u.test(username.value)) {
+    error.value = '用户名只能包含中文、英文、数字和下划线'
     return
   }
   if (!password.value || password.value.length < 6) {

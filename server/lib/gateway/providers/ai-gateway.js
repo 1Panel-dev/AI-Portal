@@ -354,6 +354,26 @@ function normalizeUsername(raw) {
   return s;
 }
 
+/**
+ * 门户 username 可能是中文（如「刘淑涵」），网关 CreateUser 只接受 ASCII。
+ * 若门户 username 已合规则原样透传；否则取 ASCII 前缀 + sha1 前 8 位生成唯一网关名，
+ * 避免多个中文名都被替换成 "u__0" 而撞名。门户与网关通过 gateway_user_id 关联。
+ */
+function toGatewayUsername(portalUsername) {
+  const raw = String(portalUsername || '');
+  if (/^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/.test(raw)) return raw;
+  const asciiPart = raw
+    .replace(/[^A-Za-z0-9._-]+/g, '_')
+    .replace(/^[._-]+/, '')
+    .slice(0, 40);
+  const hash = crypto.createHash('sha1').update(raw).digest('hex').slice(0, 8);
+  let s = asciiPart ? `${asciiPart}_${hash}` : `u_${hash}`;
+  s = s.slice(0, 63);
+  if (!/^[A-Za-z0-9]/.test(s)) s = 'u' + s;
+  while (s.length < 3) s += '0';
+  return s;
+}
+
 async function findUser(username) {
   const items = await request('GET', '/admin/users', {
     query: { keyword: String(username || '').slice(0, 64), pageSize: 100 },
@@ -373,9 +393,11 @@ async function createUser({ username, password, name }) {
   if (!currentConfig.defaultUserGroupId) {
     throw err('未配置 gateway_default_user_group_id，无法代建网关用户（AI-Gateway 创建用户必须指定用户组）', undefined, 'config_missing');
   }
+  // 网关只接受 ASCII username；门户 username 若含中文，自动生成唯一 ASCII 网关名
+  const gwUsername = toGatewayUsername(username);
   const data = await request('POST', '/admin/users', {
     body: {
-      username,
+      username: gwUsername,
       password,
       userGroupId: currentConfig.defaultUserGroupId,
       note: `通过AI门户创建：${name || username}`,

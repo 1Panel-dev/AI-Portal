@@ -416,7 +416,7 @@ router.post('/api/auth/oauth/bind/skip', express.json(), async (req, res) => {
         const gwUser = await gw.createUser({
           username,
           password: randomPassword,
-          note: `AI-Portal 企微注册: ${displayName}`,
+          name: displayName,
         });
         await global.pool.query(
           'UPDATE portal_users SET gateway_user_id = $1, gateway_user_group_id = $2 WHERE id = $3',

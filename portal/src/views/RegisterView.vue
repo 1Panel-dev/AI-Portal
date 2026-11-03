@@ -39,11 +39,11 @@
             v-model="username"
             type="text"
             class="w-full px-4 py-3 bg-surface-secondary border border-[rgba(0,0,0,0.06)] rounded-lg text-text outline-none focus:border-[#86868b] transition-all"
-            placeholder="3-30位英文或数字，用于登录"
+            placeholder="3-30位字符，支持中文、英文或数字，用于登录"
           >
-          <p v-if="username && !/^[a-zA-Z0-9_]+$/.test(username)" class="mt-1 text-xs text-red-500">用户名只能包含英文、数字和下划线</p>
+          <p v-if="username && !/^[\p{L}\p{N}_]+$/u.test(username)" class="mt-1 text-xs text-red-500">用户名只能包含中文、英文、数字和下划线</p>
           <p v-else-if="username && (username.length < 3 || username.length > 30)" class="mt-1 text-xs text-red-500">用户名需3-30位字符</p>
-          <p v-else class="mt-1 text-xs text-text-tertiary">用户名仅限英文、数字和下划线，不支持中文</p>
+          <p v-else class="mt-1 text-xs text-text-tertiary">支持中文、英文、数字和下划线</p>
         </div>
 
         <div class="mb-4">
@@ -131,7 +131,7 @@ onMounted(async () => {
 })
 
 const canSubmit = computed(() =>
-  /^[a-zA-Z0-9_]+$/.test(username.value) &&
+  /^[\p{L}\p{N}_]+$/u.test(username.value) &&
   username.value.length >= 3 && username.value.length <= 30 &&
   password.value.length >= 6 &&
   password.value === confirmPassword.value
