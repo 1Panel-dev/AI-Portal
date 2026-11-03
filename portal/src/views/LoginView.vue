@@ -75,6 +75,9 @@
               {{ p.display_name }} 登录
             </button>
           </div>
+          <p v-if="oauthProviders.some(p => p.provider === 'wecom')" class="mt-2 text-xs text-text-tertiary text-center leading-relaxed">
+            已登录企业微信桌面端时，可点「在企业微信桌面端打开」免扫码登录；未检测到则扫码登录
+          </p>
         </div>
 
         <p v-if="!oauthEnabled" class="mt-5 text-sm text-text-secondary text-center">
