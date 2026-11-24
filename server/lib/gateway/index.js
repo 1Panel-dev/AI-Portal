@@ -83,4 +83,26 @@ function currentProviderName() {
   return cachedName || (process.env.GATEWAY_PROVIDER || '1panel').trim();
 }
 
-module.exports = { getGateway, reloadGateway, currentProviderName, providers };
+/**
+ * 以 DB 为准解析当前 provider 名（路由分流用）。
+ *
+ * 为什么不能直接用 currentProviderName()：它读的是**进程内缓存**，缓存只在 getGateway()
+ * 成功后才有值；缓存为空时会回落 GATEWAY_PROVIDER 或 '1panel'。于是「DB 里已是
+ * ai-gateway」的实例，只要该进程还没走过 getGateway（启动初始化失败、或分流判断早于
+ * 初始化），分流就会误走 1Panel 分支，报出「1Panel 不可达 / 尚未配置」。
+ * 这里顺带完成初始化，保证分流结果与 DB 一致。
+ *
+ * @param {object} pool pg pool
+ * @returns {Promise<'1panel'|'ai-gateway'>}
+ */
+async function resolveProviderName(pool) {
+  try {
+    const gw = await getGateway(pool);
+    return gw.name;
+  } catch (e) {
+    console.error('[gateway] 解析 provider 失败，回退缓存值:', e.message);
+    return currentProviderName();
+  }
+}
+
+module.exports = { getGateway, reloadGateway, currentProviderName, resolveProviderName, providers };

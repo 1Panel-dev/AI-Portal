@@ -7,6 +7,7 @@ const { syncModels } = require('../lib/gateway-sync');
 const { getGateway, currentProviderName } = require('../lib/gateway');
 const { mapSummary, mapDistribution, mapTrends } = require('../lib/gateway/usage-mapper');
 const { buildDailyUsageTrend } = require('../lib/gateway/usage-trend');
+const { withBusyRetry } = require('../lib/gateway/busy-retry');
 const { isAnyProviderEnabled } = require('../oauth');
 const { inspectPanelBiz, listPanelKeys, listPanelKeysOfUser } = require('../lib/panel-biz');
 
@@ -1867,8 +1868,9 @@ router.get('/api/usage/statistics', verifyUser, async (req, res) => {
         return res.json({ data: null, hint: '尚未同步到独立网关' });
       }
       // 汇总/模型/供应商/趋势全部按本人所有账号合计
+      // 多账号并发 + 页面同时还有趋势逐日调用, 管理域限流(503 busy)是常态, 必须退避重试
       const [raws, trendLists] = await Promise.all([
-        Promise.all(ids.map(id => gw.getUsageStatistics({ userId: id }))),
+        Promise.all(ids.map(id => withBusyRetry(() => gw.getUsageStatistics({ userId: id })))),
         Promise.all(ids.map(id => buildUserDailyTrend(gw, id).catch(() => []))),
       ]);
       const data = {

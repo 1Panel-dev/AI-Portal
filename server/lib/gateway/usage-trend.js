@@ -16,22 +16,17 @@
  */
 
 const { mapSummary } = require('./usage-mapper');
+const { isBusyError, withBusyRetry } = require('./busy-retry');
 
 const CONCURRENCY = 3;
 const CHUNK_GAP_MS = 60;
 const MAX_RETRY = 3;
 const RETRY_BASE_MS = 200;
-
+// 趋势查询总时限：逐日 = 一天一次管理域调用，30 天 + 限流退避最坏可拖到分钟级，
+// 一旦超过反向代理的超时窗口，前端只会拿到 502/504（看起来像「网关没配」）。
+// 超时后剩余的天补零（折线仍连续），绝不让统计接口整体超时。
+const DEFAULT_DEADLINE_MS = 15000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-function isBusyError(e) {
-  if (!e) return false;
-  // adapter 抛出的错误带 status；管理域限流是 503 + management_api_busy
-  const status = e.status ?? e.statusCode;
-  if (status === 503 || status === 429) return true;
-  const msg = String(e.message || '');
-  return /management_api_busy|too many requests|busy/i.test(msg);
-}
 
 /** 以北京时区为边界，把 [from, to) 切成逐日区间 */
 function buildDayRanges(from, to) {
@@ -60,24 +55,14 @@ function buildDayRanges(from, to) {
 const ZERO_POINT = { requestCount: 0, failedRequests: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, cachedTokens: 0 };
 
 async function fetchDayWithRetry(gw, day, userId) {
-  let attempt = 0;
-  for (;;) {
-    try {
-      const r = await gw.getUsageStatistics({
-        from: day.from,
-        to: day.to,
-        ...(userId ? { userId } : {}),
-      });
-      return mapSummary(r && r.summary) || {};
-    } catch (e) {
-      if (isBusyError(e) && attempt < MAX_RETRY) {
-        attempt += 1;
-        await sleep(RETRY_BASE_MS * attempt);
-        continue;
-      }
-      throw e;
-    }
-  }
+  return withBusyRetry(
+    () => gw.getUsageStatistics({
+      from: day.from,
+      to: day.to,
+      ...(userId ? { userId } : {}),
+    }),
+    { maxRetry: MAX_RETRY, baseMs: RETRY_BASE_MS }
+  ).then((r) => mapSummary(r && r.summary) || {});
 }
 
 /**
@@ -86,16 +71,34 @@ async function fetchDayWithRetry(gw, day, userId) {
  * @param {Date|string} [opts.from] 缺省 = 30 天前
  * @param {Date|string} [opts.to]   缺省 = 现在
  * @param {number} [opts.userId]    网关用户 id（不传 = 全平台）
- * @returns {Promise<Array<{name:string, ...summary}>>} 逐日点（失败的天补零）
+ * @param {number} [opts.deadlineMs] 总时限，超时后剩余天补零
+ * @returns {Promise<Array<{name:string, ...summary}>>} 逐日点（失败/超时的天补零）
  */
-async function buildDailyUsageTrend(gw, { from, to, userId } = {}) {
+async function buildDailyUsageTrend(gw, { from, to, userId, deadlineMs = DEFAULT_DEADLINE_MS } = {}) {
   const ranges = buildDayRanges(from, to);
   if (!ranges.length) return [];
 
   const points = [];
+  const deadlineAt = Date.now() + Math.max(1000, deadlineMs);
   for (let i = 0; i < ranges.length; i += CONCURRENCY) {
     const chunk = ranges.slice(i, i + CONCURRENCY);
-    const results = await Promise.allSettled(chunk.map((d) => fetchDayWithRetry(gw, d, userId)));
+    // 已过总时限：本批及后续全部补零，不再发请求
+    if (Date.now() >= deadlineAt) {
+      console.warn(`[gateway-trend] 超过总时限 ${deadlineMs}ms，${chunk.length} 天补零（不阻断统计响应）`);
+      chunk.forEach((d) => points.push({ name: d.name, ...ZERO_POINT }));
+      continue;
+    }
+    const remaining = Math.max(500, deadlineAt - Date.now());
+    const results = await Promise.allSettled(chunk.map((d) => {
+      let timer;
+      // 注意: 定时器不能 unref —— 若此刻事件循环里只剩它一个句柄，unref 会让超时不触发，
+      // 整批 await 永久挂起。settle 后统一 clearTimeout，不会残留句柄。
+      const deadline = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('trend deadline exceeded')), remaining);
+      });
+      return Promise.race([fetchDayWithRetry(gw, d, userId), deadline])
+        .finally(() => clearTimeout(timer));
+    }));
     results.forEach((r, idx) => {
       if (r.status === 'fulfilled') {
         points.push({ name: chunk[idx].name, ...r.value });
@@ -105,7 +108,7 @@ async function buildDailyUsageTrend(gw, { from, to, userId } = {}) {
         points.push({ name: chunk[idx].name, ...ZERO_POINT });
       }
     });
-    if (i + CONCURRENCY < ranges.length) await sleep(CHUNK_GAP_MS);
+    if (i + CONCURRENCY < ranges.length && Date.now() < deadlineAt) await sleep(CHUNK_GAP_MS);
   }
   return points.sort((a, b) => a.name.localeCompare(b.name));
 }

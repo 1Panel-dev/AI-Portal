@@ -7,9 +7,10 @@ const panelApi = require('../lib/1panel-api');
 const { verifyUser, requirePermission } = require('../auth');
 const { panel, getPanelPayload, getPanelItems, getPanelRoles, syncSkillsFromPanel, syncMcpsFromPanel, syncPanelGroups, findPanelUser, createPanelUser } = require('../panel');
 const { syncModels, syncGroups } = require('../lib/gateway-sync');
-const { getGateway, currentProviderName } = require('../lib/gateway');
+const { getGateway, currentProviderName, resolveProviderName } = require('../lib/gateway');
 const { toNum, mapSummary, mapDistribution, mapTrends } = require('../lib/gateway/usage-mapper');
 const { buildDailyUsageTrend } = require('../lib/gateway/usage-trend');
+const { withBusyRetry } = require('../lib/gateway/busy-retry');
 const { inspectPanelBiz } = require('../lib/panel-biz');
 const bcrypt = require('bcrypt');
 const oauthRegistry = require('../oauth');
@@ -1610,8 +1611,11 @@ async function gatewayUsageStatisticsHandler(req, res) {
 
     // 网关统计仅保留最近 30 天（retentionDays=30）: from/to 超出窗口直接 400 invalid_request,
     // 因此钳制到保留窗口内; 钳制后区间为空（所选月份完全在窗口外）则不查网关, 返回空数据
+    // 留 1 小时安全余量: 网关以「收到请求的时刻 - 30 天」判定边界, 网络延迟会让
+    // 「恰好 = 本地 now - 30 天」的 from 落在边界外, 触发 400 invalid_request
+    const RETENTION_MARGIN_MS = 3600 * 1000;
     const now = new Date();
-    const retentionFloor = new Date(now.getTime() - 30 * 24 * 3600 * 1000);
+    const retentionFloor = new Date(now.getTime() - 30 * 24 * 3600 * 1000 + RETENTION_MARGIN_MS);
     const parseTs = (v) => {
       if (!v) return null;
       const d = new Date(v);
@@ -1633,10 +1637,17 @@ async function gatewayUsageStatisticsHandler(req, res) {
     const needTrend = !rangeEmpty && (!Number.isFinite(uid) || !!gwUserId);
     const [statsRes, trendRes] = await Promise.all([
       needStats
-        ? gw.getUsageStatistics({
+        // 管理域限流（503 management_api_busy）会让主汇总在几十毫秒内直接失败，
+        // 把整个统计接口打成 502 → 前端误报「尚未配置」。这里必须带退避重试：
+        // 页面一次加载并发主/升序两路请求 + 趋势逐日调用，撞限流是常态而非异常。
+        ? withBusyRetry(() => gw.getUsageStatistics({
             ...(from ? { from: from.toISOString() } : {}),
             ...(to ? { to: to.toISOString() } : {}),
             ...(gwUserId ? { userId: gwUserId } : {}),
+          }), {
+            maxRetry: 5,
+            baseMs: 300,
+            onRetry: (e, attempt) => console.warn(`[gateway-stats] 主汇总第 ${attempt} 次重试: ${e.message}`),
           })
         : Promise.resolve(null),
       needTrend
@@ -1717,20 +1728,24 @@ async function gatewayUsageStatisticsHandler(req, res) {
     });
   } catch (err) {
     console.error('网关统计获取失败:', err);
+    // provider 一并回传: 前端据此区分「配置缺失 / 连不上 / 接口报错」，不再一律显示「尚未配置」
+    const provider = 'ai-gateway';
     if (err.code === 'unreachable' || err.code === 'timeout') {
-      return res.status(502).json({ error: '独立网关不可达', reason: err.message, code: 'GATEWAY_UNREACHABLE' });
+      return res.status(502).json({ error: '独立网关不可达', reason: err.message, code: 'GATEWAY_UNREACHABLE', provider });
     }
     if (err.code === 'config_missing' || err.code === 'config_invalid') {
-      return res.status(502).json({ error: '独立网关配置缺失', reason: err.message, code: 'GATEWAY_CONFIG_MISSING' });
+      return res.status(502).json({ error: '独立网关配置缺失', reason: err.message, code: 'GATEWAY_CONFIG_MISSING', provider });
     }
-    res.status(502).json({ error: '获取统计数据失败', reason: err.message, code: 'GATEWAY_STATS_FAILED' });
+    res.status(502).json({ error: '获取统计数据失败', reason: err.message, code: 'GATEWAY_STATS_FAILED', provider });
   }
 }
 
 // 获取 1Panel AI 使用统计数据（代理透传）
 router.get('/api/admin/usage-statistics', verifyUser, requirePermission('user:view'), async (req, res) => {
   // V2: 网关模式走独立网关统计接口并映射为门户统计页结构
-  if (currentProviderName() === 'ai-gateway') {
+  // 分流以 DB 里的 gateway_provider 为准（resolveProviderName），不用进程缓存，
+  // 否则「已配置独立网关」的实例在缓存未建立时会误走 1Panel 分支 → 502 → 前端误报「尚未配置」
+  if (await resolveProviderName(global.pool) === 'ai-gateway') {
     return gatewayUsageStatisticsHandler(req, res);
   }
   try {
@@ -1776,9 +1791,12 @@ router.get('/api/admin/usage-statistics', verifyUser, requirePermission('user:vi
   } catch (err) {
     console.error('获取使用统计失败:', err);
     if (err.message.includes('ECONNREFUSED') || err.message.includes('ETIMEDOUT')) {
-      return res.status(502).json({ error: '1Panel 不可达', reason: err.message, code: 'PANEL_UNREACHABLE' });
+      return res.status(502).json({ error: '1Panel 不可达', reason: err.message, code: 'PANEL_UNREACHABLE', provider: '1panel' });
     }
-    res.status(500).json({ error: '获取使用统计失败', reason: err.message });
+    if (/请配置 PANEL_BASE_URL/.test(err.message)) {
+      return res.status(502).json({ error: '1Panel 未配置', reason: err.message, code: 'PANEL_CONFIG_MISSING', provider: '1panel' });
+    }
+    res.status(500).json({ error: '获取使用统计失败', reason: err.message, provider: '1panel' });
   }
 });
 

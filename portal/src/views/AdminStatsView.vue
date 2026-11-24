@@ -10,12 +10,16 @@
       <!-- Loading -->
       <div v-if="loading" class="text-center py-20 text-text-secondary">加载中...</div>
 
-      <!-- Error / No Gateway Config -->
-      <div v-else-if="!panelConfigured" class="text-center py-20">
-        <div class="text-4xl mb-4">⚙️</div>
-        <p class="text-text-secondary mb-2">尚未配置模型网关</p>
-        <p class="text-sm text-text-tertiary mb-4">请先在「系统配置」中完成网关配置</p>
-        <button v-if="can('system:config')" @click="$router.push('/admin/config')" class="px-4 py-2 text-sm btn-primary transition-all">前往配置</button>
+      <!-- Error: 区分「未配置 / 连不上 / 接口报错」，不要一律说未配置 -->
+      <div v-else-if="statsError" class="text-center py-20">
+        <div class="text-4xl mb-4">{{ statsError.kind === 'config' ? '⚙️' : '⚠️' }}</div>
+        <p class="text-text-secondary mb-2">{{ statsError.title }}</p>
+        <p class="text-sm text-text-tertiary mb-1">{{ statsError.hint }}</p>
+        <p v-if="statsError.detail" class="text-xs text-text-tertiary mb-4 max-w-2xl mx-auto break-all">{{ statsError.detail }}</p>
+        <div class="flex items-center justify-center gap-2">
+          <button v-if="statsError.kind === 'config' && can('system:config')" @click="$router.push('/admin/config#gateway')" class="px-4 py-2 text-sm btn-primary transition-all">前往配置</button>
+          <button @click="retryFetch" class="px-4 py-2 text-sm border border-[rgba(0,0,0,0.12)] rounded-lg bg-white hover:border-accent transition-all">重试</button>
+        </div>
       </div>
 
       <template v-else-if="globalData">
@@ -174,7 +178,7 @@ const loading = ref(true)
 const topLoading = ref(false)
 const data = ref(null)
 const globalData = ref(null)
-const panelConfigured = ref(true)
+const statsError = ref(null)
 const selectedUser = ref('')
 const distTab = ref('provider')
 const usersMap = ref({})             // 原始 map: { "1": "张三", "panel_123": "张三", ... }
@@ -676,6 +680,7 @@ async function fetchStats(isUserSwitch = false) {
     if (statsRes.ok) {
       const result = await statsRes.json()
       if (seq !== fetchSeq) return
+      statsError.value = null
       data.value = result
       if (!isUserSwitch || !globalData.value) {
         globalData.value = result
@@ -697,19 +702,80 @@ async function fetchStats(isUserSwitch = false) {
           initBlackChart()
         }
       }, 100)
-    } else if (statsRes.status === 502) {
-      panelConfigured.value = false
+    } else {
+      const err = await buildStatsError(statsRes)
+      if (seq !== fetchSeq) return
+      statsError.value = err
       data.value = null
       globalData.value = null
     }
   } catch (e) {
     console.error('获取统计失败:', e)
+    statsError.value = {
+      kind: 'error',
+      title: '统计数据加载失败',
+      hint: '请求未能完成，请重试或检查后端服务',
+      detail: e?.message || '',
+    }
   } finally {
     if (seq === fetchSeq) {
       topLoading.value = false
       loading.value = false
     }
   }
+}
+
+/**
+ * 把失败响应翻译成可解释的错误面板。
+ * 关键: 只有后端明确回「配置缺失」时才提示去配置；502 不等于「未配置」
+ * （网关不可达 / 网关接口报错 / 反向代理超时都会是 502）。
+ */
+async function buildStatsError(res) {
+  let raw = ''
+  try { raw = await res.text() } catch { /* ignore */ }
+  let body = null
+  try { body = raw ? JSON.parse(raw) : null } catch { body = null }
+  // 反向代理/后端崩溃返回 HTML 时 body 解析失败, 只能按状态码解释
+  if (!body || typeof body !== 'object') {
+    return {
+      kind: 'error',
+      title: '统计接口无响应',
+      hint: `网关统计请求返回 HTTP ${res.status}，可能反向代理超时或后端服务异常`,
+      detail: String(raw || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160),
+    }
+  }
+  const code = body.code || ''
+  const provider = body.provider || ''
+  const reason = body.reason || ''
+  const configMissing = ['GATEWAY_CONFIG_MISSING', 'PANEL_CONFIG_MISSING', 'PANEL_NOT_CONFIGURED'].includes(code)
+  if (configMissing) {
+    return {
+      kind: 'config',
+      title: '尚未配置模型网关',
+      hint: provider === '1panel'
+        ? '当前生效的是 1Panel 模式，请先在「系统配置 → 1Panel 配置」中完成配置'
+        : '请先在「系统配置 → 独立网关」中完成网关配置',
+      detail: reason || code,
+    }
+  }
+  const titles = {
+    GATEWAY_UNREACHABLE: '连不上模型网关',
+    PANEL_UNREACHABLE: '连不上 1Panel',
+    GATEWAY_STATS_FAILED: '网关统计接口报错',
+  }
+  return {
+    kind: 'error',
+    title: titles[code] || '统计数据加载失败',
+    hint: body.error ? `${body.error}（HTTP ${res.status}）` : `HTTP ${res.status}`,
+    detail: [provider && `provider=${provider}`, code, reason].filter(Boolean).join(' · '),
+  }
+}
+
+// 错误面板「重试」: 清错误态重新拉取
+function retryFetch() {
+  statsError.value = null
+  loading.value = true
+  fetchStats()
 }
 
 // 用户映射表是静态数据, 只在进页面时拉一次, 不随筛选条件重拉
