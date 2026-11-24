@@ -95,13 +95,18 @@ cd server && npm start
    环境变量 `GATEWAY_PROVIDER` 仅作兜底初值（**DB 优先**）。
    - 取适配器：`await getGateway(pool)` → `gw.listModels() / gw.getUsageStatistics(...)`
    - 后台保存配置后：`await reloadGateway(pool)` 热重载
-   - **路由分流必须用 `await resolveProviderName(pool)`，不要用 `currentProviderName()`**。
-     后者读进程内缓存，缓存未建立时回落环境变量/`1panel`，会让「DB 里已是 ai-gateway」的实例
-     误走 1Panel 分支 → 502 → 前端误报「尚未配置」。
-   - **现状（2026-11）**：仅 `routes/admin.js` 的统计口径分流迁到了 `resolveProviderName`。
-     `portal.js`、`gateway-sync.js`、`permission.js`、`admin-groups.js`、`admin-gateway.js`
-     仍有约 15 处按 `currentProviderName()` 分流——它们依赖 `getGateway()` 已把缓存建起来，
-     属于历史遗留。**新写的分流一律用 `resolveProviderName`**；改到这些位置时顺手迁移。
+   - **路由分流一律用 `await readProviderName(pool)`**（只读 DB，2026-11 已全量迁移）。
+     `currentProviderName()` 只读进程内缓存，缓存未建立时回落环境变量/`1panel`，会让
+     「DB 里已是 ai-gateway」的实例误走 1Panel 分支——模型同步串源、授权失效、
+     统计页 502 报「尚未配置」都源于此。`currentProviderName()` 现在只用于日志与兜底。
+   - 两个解析函数的取舍：
+     | 函数 | 行为 | 用在哪 |
+     |---|---|---|
+     | `readProviderName(pool)` | 只读 DB，不 init 适配器、不抛错 | 分流判断（同步/授权/Key/用户代建/统计展示） |
+     | `resolveProviderName(pool)` | 调 `getGateway` 顺带 init，失败回退缓存 | 需要「确保适配器已就绪」的地方（统计页） |
+   - **同步铁律**：`gateway_provider = 'ai-gateway'` 时，模型/组/用户只从独立网关同步；
+     DB 明确是网关就绝不回落到 1Panel（配置不全只报错跳过本轮）。1Panel 只负责
+     skill / MCP 同步（`skillsSync` / `mcpSync` 独立调度，不看 provider）。
    - 契约与迁移清单：`server/lib/gateway/contract.js`；provider 实现：`gateway/providers/{1panel,ai-gateway}.js`。
 
 8. **路由没有 `/api/portal/*` 前缀**。`routes/portal.js` 直接挂 `/api/auth/*`、`/api/models*`、`/api/keys*`。

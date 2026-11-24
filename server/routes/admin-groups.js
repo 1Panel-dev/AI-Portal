@@ -355,8 +355,9 @@ router.put('/api/admin/groups/:id/members', verifyUser, requirePermission('group
 // ---- 1Panel 组同步 ----
 router.get('/api/admin/panel-groups', verifyUser, requirePermission('group:view'), async (req, res) => {
   try {
-    const { currentProviderName } = require('../lib/gateway/index');
-    const provider = await currentProviderName();
+    // 以 DB 为准（不用进程缓存），避免已配独立网关的实例读到空面板组 / 同步错远端
+    const { readProviderName } = require('../lib/gateway/index');
+    const provider = await readProviderName(pool());
     if (provider === 'ai-gateway') {
       // 网关模式: 读 gateway_* 缓存表 + 字段对齐(前端期望 panel_* 命名)
       const u = await pool().query('SELECT * FROM gateway_user_groups ORDER BY name');
@@ -395,8 +396,9 @@ router.get('/api/admin/panel-groups', verifyUser, requirePermission('group:view'
 
 router.post('/api/admin/panel-groups/sync', verifyUser, requirePermission('group:panel-sync'), async (req, res) => {
   try {
-    const { currentProviderName } = require('../lib/gateway/index');
-    const provider = await currentProviderName();
+    // 以 DB 为准（不用进程缓存），避免已配独立网关的实例读到空面板组 / 同步错远端
+    const { readProviderName } = require('../lib/gateway/index');
+    const provider = await readProviderName(pool());
     if (provider === 'ai-gateway') {
       const { syncGatewayGroups } = require('../lib/gateway-sync');
       const result = await syncGatewayGroups();
@@ -949,8 +951,10 @@ router.get('/api/admin/groups/:id/members-preview', verifyUser, requirePermissio
     const normalPanelUserIds = normalMembers.map(m => m.panel_user_id);
 
     // 3. 授权链批量计算（按 gateway_provider 双分支; userAllowedMap 键统一为成员 id）
-    const { currentProviderName } = require('../lib/gateway');
-    const isGatewayMode = currentProviderName() === 'ai-gateway';
+    // 判据以 DB 为准：缓存未建立时 currentProviderName() 会回落 '1panel'，
+    // 会让「已配独立网关」的实例按 1Panel 表算授权 → 被挡数恒为 0。
+    const { readProviderName } = require('../lib/gateway');
+    const isGatewayMode = (await readProviderName(pool())) === 'ai-gateway';
     const userAllowedMap = new Map();  // 成员 id -> Set<modelName> | null(null=无限制)
     const userGroupNameMap = new Map(); // 成员 id -> 用户组名
     if (isGatewayMode) {

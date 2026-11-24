@@ -409,9 +409,8 @@ router.post('/api/auth/oauth/bind/skip', express.json(), async (req, res) => {
 
     // V2: 同步代建独立网关用户（失败不阻断, 对齐 1Panel 容错语义）
     try {
-      const { currentProviderName } = require('../lib/gateway');
-      if (currentProviderName() === 'ai-gateway') {
-        const { getGateway } = require('../lib/gateway');
+      const { readProviderName, getGateway } = require('../lib/gateway');
+      if (await readProviderName(global.pool) === 'ai-gateway') {
         const gw = await getGateway(global.pool);
         const gwUser = await gw.createUser({
           username,

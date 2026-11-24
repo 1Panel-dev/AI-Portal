@@ -10,8 +10,18 @@
 
 'use strict';
 
-const { getGateway, currentProviderName } = require('./gateway');
+const { getGateway, readProviderName } = require('./gateway');
 const pool = () => global.pool;
+
+/**
+ * 同步链路的分流判据：以 DB 的 gateway_provider 为准，不读进程内缓存。
+ *
+ * 为什么不用 currentProviderName()：它只看缓存，缓存未建立（刚启动、刚切 provider、
+ * 初始化失败）时会回落 GATEWAY_PROVIDER/'1panel'。于是「DB 里已配独立网关」的实例
+ * 会误走 1Panel 分支去同步模型——而 1Panel 只负责 skill / MCP，模型必须来自独立网关。
+ * DB 明确是 ai-gateway 时，即便网关配置不完整也只报错跳过本轮，绝不回落到 1Panel 同步。
+ */
+const resolveSyncProvider = () => readProviderName(pool());
 
 /**
  * 从网关用户 note 里提取中文名。
@@ -235,7 +245,7 @@ async function _syncGatewayModels() {
  *  - 'ai-gateway'    → 独立网关 syncGatewayModels + syncGatewayGroups(模型+组同一 tick)
  */
 async function syncModels() {
-  const provider = currentProviderName();
+  const provider = await resolveSyncProvider();
   if (provider === 'ai-gateway') {
     const modelsResult = await syncGatewayModels();
     // 组缓存与归属回填跟随同一 tick(授权 JOIN 数据源),失败不阻断模型同步但记日志
@@ -271,7 +281,7 @@ async function syncModels() {
  *  - 'ai-gateway' → syncGatewayGroups()(网关组缓存 + 用户归属回填)
  */
 async function syncGroups() {
-  const provider = currentProviderName();
+  const provider = await resolveSyncProvider();
   if (provider === 'ai-gateway') {
     return syncGatewayGroups();
   }
@@ -420,7 +430,7 @@ async function _syncGatewayGroups() {
  *  - 'ai-gateway' → syncGatewayUsers()(网关用户全量同步 + Key 同步)
  */
 async function syncUsers() {
-  const provider = currentProviderName();
+  const provider = await resolveSyncProvider();
   if (provider === 'ai-gateway') {
     return syncGatewayUsers();
   }

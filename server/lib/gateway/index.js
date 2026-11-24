@@ -105,4 +105,25 @@ async function resolveProviderName(pool) {
   }
 }
 
-module.exports = { getGateway, reloadGateway, currentProviderName, resolveProviderName, providers };
+/**
+ * 只读 DB 的 provider 名（不初始化适配器，不会因配置问题抛错）。
+ *
+ * 与 resolveProviderName 的区别：那个会顺带 init 适配器，init 失败时回退到进程缓存；
+ * 本函数永远返回 DB 里的真值（表/行缺失时才回落环境变量），因此适合「先决定走哪条链路、
+ * 再各自去处理缺配置」的场景——典型是同步：DB 说 ai-gateway 就该走网关，
+ * 即便网关配置不完整也只应报错跳过，绝不能悄悄回落到 1Panel 去同步模型。
+ *
+ * @param {object} pool pg pool
+ * @returns {Promise<'1panel'|'ai-gateway'>}
+ */
+async function readProviderName(pool) {
+  try {
+    const r = await pool.query("SELECT value FROM system_config WHERE key = 'gateway_provider' LIMIT 1");
+    if (r.rowCount > 0 && r.rows[0].value) return String(r.rows[0].value).trim();
+  } catch { /* 表不存在时走默认 */ }
+  return (process.env.GATEWAY_PROVIDER || '1panel').trim();
+}
+
+module.exports = {
+  getGateway, reloadGateway, currentProviderName, resolveProviderName, readProviderName, providers,
+};

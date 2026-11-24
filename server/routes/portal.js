@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { verifyUser, requirePermission, requirePermissionOrAdminRole, signPortalToken } = require('../auth');
 const { panel, getPanelPayload, getPanelItems, findPanelUser, createPanelUser } = require('../panel');
 const { syncModels } = require('../lib/gateway-sync');
-const { getGateway, currentProviderName } = require('../lib/gateway');
+const { getGateway, readProviderName } = require('../lib/gateway');
 const { mapSummary, mapDistribution, mapTrends } = require('../lib/gateway/usage-mapper');
 const { buildDailyUsageTrend } = require('../lib/gateway/usage-trend');
 const { withBusyRetry } = require('../lib/gateway/busy-retry');
@@ -64,8 +64,9 @@ router.post('/api/auth/register', async (req, res) => {
     let gatewayUserGroupId = null;
     let sessionTimeout = 86400;
 
-    const { currentProviderName, getGateway } = require('../lib/gateway/index');
-    const provider = await currentProviderName();
+    // 注册代建用户同样以 DB 的 gateway_provider 为准：判错会把用户建到 1Panel 侧，
+    // 而网关模式下门户只认 gateway_user_id，后续 key/授权全线失配。
+    const provider = await readProviderName(global.pool);
 
     if (provider === 'ai-gateway') {
       try {
@@ -495,7 +496,7 @@ router.get('/api/keys', verifyUser, async (req, res) => {
     // V2: 网关模式分支 —— Key 由独立网关签发,1Panel 侧根本没有这条记录。
     // 若仍走下面的 1Panel 存在性校验,panel_user_id 恒查不到 key,会被当"幽灵记录"
     // 删除(申请时能看到、刷新就没了)。此处直接以本地库为准。
-    if (currentProviderName() === 'ai-gateway') {
+    if (await readProviderName(global.pool) === 'ai-gateway') {
       // ORDER BY 网关行优先:provider 切换可能残留 1Panel 旧行(两行并存),
       // LIMIT 1 无排序时 PG 返回顺序物理不定,可能展示到旧 1Panel Key
       const gwResult = await global.pool.query(`
@@ -714,7 +715,7 @@ router.post('/api/keys', verifyUser, requirePermission('key:create'), async (req
     let panelUserId = req.portalUser.panel_user_id;
 
     // V2: 网关模式分支（不依赖 1Panel 用户 id; Key 由网关签发）
-    if (currentProviderName() === 'ai-gateway') {
+    if (await readProviderName(global.pool) === 'ai-gateway') {
       const existingGw = await global.pool.query(
         'SELECT id FROM portal_api_keys WHERE user_id = $1 LIMIT 1',
         [req.portalUser.id]
@@ -894,7 +895,7 @@ router.get('/api/keys/:id', verifyUser, async (req, res) => {
     const row = local.rows[0];
 
     // V2: 网关模式无远端 reveal（明文仅签发时返回一次）→ 直接走本地密文
-    if (currentProviderName() === 'ai-gateway') {
+    if (await readProviderName(global.pool) === 'ai-gateway') {
       const gwCipher = row.api_key_cipher || '';
       if (gwCipher && !gwCipher.includes('*') && gwCipher.length >= 20) {
         return res.json({
@@ -1194,7 +1195,7 @@ async function purgePanelKeysOfUser(panelUserId) {
 router.post('/api/keys/reset', verifyUser, requirePermission('key:edit'), async (req, res) => {
   try {
     // V2: 网关模式分支（删旧建新, 明文一次性落库）
-    if (currentProviderName() === 'ai-gateway') {
+    if (await readProviderName(global.pool) === 'ai-gateway') {
       return await resetKeyGateway(req, res);
     }
     if (!req.portalUser.panel_user_id) {
@@ -1345,7 +1346,7 @@ router.post('/api/keys/reset', verifyUser, requirePermission('key:edit'), async 
 router.delete('/api/keys', verifyUser, requirePermission('key:delete'), async (req, res) => {
   try {
     // V2: 网关模式分支（按 gateway_key_id 清理网关侧）
-    if (currentProviderName() === 'ai-gateway') {
+    if (await readProviderName(global.pool) === 'ai-gateway') {
       return await deleteKeyGateway(req, res);
     }
     if (!req.portalUser.panel_user_id) {
@@ -1857,7 +1858,7 @@ function mergeTrends(listOfPoints) {
 router.get('/api/usage/statistics', verifyUser, async (req, res) => {
   try {
     // V2: 网关模式按 gateway_user_id 查网关统计并映射为门户结构（summary/trends/models/providers）
-    if (currentProviderName() === 'ai-gateway') {
+    if (await readProviderName(global.pool) === 'ai-gateway') {
       const cached = usageCache.get(req.portalUser.id);
       if (cached && cached.expireAt > Date.now()) {
         return res.json({ data: cached.data });

@@ -7,7 +7,7 @@ const panelApi = require('../lib/1panel-api');
 const { verifyUser, requirePermission } = require('../auth');
 const { panel, getPanelPayload, getPanelItems, getPanelRoles, syncSkillsFromPanel, syncMcpsFromPanel, syncPanelGroups, findPanelUser, createPanelUser } = require('../panel');
 const { syncModels, syncGroups } = require('../lib/gateway-sync');
-const { getGateway, currentProviderName, resolveProviderName } = require('../lib/gateway');
+const { getGateway, resolveProviderName, readProviderName } = require('../lib/gateway');
 const { toNum, mapSummary, mapDistribution, mapTrends } = require('../lib/gateway/usage-mapper');
 const { buildDailyUsageTrend } = require('../lib/gateway/usage-trend');
 const { withBusyRetry } = require('../lib/gateway/busy-retry');
@@ -1839,8 +1839,7 @@ router.get('/api/admin/portal-users', verifyUser, requirePermission('user:view')
       LIMIT $${params.length - 1} OFFSET $${params.length}
     `, params);
 
-    const { currentProviderName } = require('../lib/gateway');
-    const provider = currentProviderName();
+    const provider = await readProviderName(global.pool);
 
     res.json({ items: result.rows, total: totalRes.rows[0].total, page, pageSize, gateway_provider: provider });
   } catch (err) {
@@ -1872,7 +1871,7 @@ router.delete('/api/admin/portal-users/:id', verifyUser, requirePermission('user
     // 2. 删除远端 API Key —— 并发删除,各 key 互不依赖
     // 单 key 失败不阻塞其他 key 和后续流程(语义与旧版串行 try/catch 一致)
     // V2: 网关模式按 gateway_key_id 删网关 Key; 1Panel 模式按 panel_key_id 删（原链路）
-    if (currentProviderName() === 'ai-gateway') {
+    if (await readProviderName(global.pool) === 'ai-gateway') {
       const gKeyRes = await global.pool.query(
         'SELECT gateway_key_id FROM portal_api_keys WHERE user_id = $1 AND gateway_key_id IS NOT NULL',
         [userId]
@@ -1926,7 +1925,7 @@ router.delete('/api/admin/portal-users/:id', verifyUser, requirePermission('user
 
     // 3. 删除远端用户（远端已不存在时跳过，不阻断本地删除）
     // V2: 网关模式删网关用户; 1Panel 模式删 1Panel 用户（两套 id 并存, 各删各的）
-    if (currentProviderName() === 'ai-gateway') {
+    if (await readProviderName(global.pool) === 'ai-gateway') {
       if (localUser.gateway_user_id) {
         try {
           const gw = await getGateway(global.pool);
@@ -2006,8 +2005,9 @@ async function runUserSyncTask(taskId) {
 // 核心同步逻辑（提取为独立函数，前后台共用）
 async function doSyncUsers() {
   // V2 分流:gateway_provider = 'ai-gateway' 时走网关链路,否则原 1Panel 链路(冻结)
-  const { currentProviderName } = require('../lib/gateway');
-  const provider = currentProviderName();
+  // 以 DB 为准（不用进程缓存）：缓存未建立时会把已配独立网关的实例判成 1Panel，
+  // 从 1Panel 同步用户 → 门户里出现一批没有 gateway_user_id 的"半残"账号。
+  const provider = await readProviderName(global.pool);
   if (provider === 'ai-gateway') {
     const { syncUsers: syncGatewayUsers } = require('../lib/gateway-sync');
     return await syncGatewayUsers();
@@ -2685,8 +2685,7 @@ router.post('/api/admin/portal-users', verifyUser, requirePermission('user:creat
     }
 
     // 外部用户代建:按 provider 分支
-    const { currentProviderName, getGateway } = require('../lib/gateway/index');
-    const provider = await currentProviderName();
+    const provider = await readProviderName(global.pool);
     let panelUserId = null;
     let gatewayUserId = null;
     let gatewayUserGroupId = null;

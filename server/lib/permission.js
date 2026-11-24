@@ -58,8 +58,11 @@ async function hasPermission(userId, permissionKey) {
  * @returns string[] | null - null 表示全公开兜底（存量兼容关键）
  */
 async function getUserAllowedModels(user) {
-  const { currentProviderName } = require('./gateway');
-  if (currentProviderName() === 'ai-gateway') {
+  // 判据以 DB 的 gateway_provider 为准（readProviderName），不用 currentProviderName()：
+  // 后者是进程缓存，缓存未建立时会回落 '1panel'，导致已配独立网关的实例按 1Panel 链路
+  // 算授权 → 受限用户被当成"无限制"（null 兜底）而看到全部模型，授权形同失效。
+  const { readProviderName } = require('./gateway');
+  if (await readProviderName(pool()) === 'ai-gateway') {
     return _gatewayAllowedModels(user);
   }
   return _panelAllowedModels(user);

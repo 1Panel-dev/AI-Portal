@@ -8,7 +8,7 @@
 
 const express = require('express');
 const { verifyUser, requirePermission } = require('../auth');
-const { getGateway, reloadGateway, currentProviderName, providers } = require('../lib/gateway');
+const { getGateway, reloadGateway, readProviderName, providers } = require('../lib/gateway');
 
 const router = express.Router();
 const pool = () => global.pool;
@@ -67,7 +67,9 @@ async function readGatewayConfig() {
     apiKeyUpdatedAt: updatedAt,
     neverExpires,
     credentialDaysRemaining,
-    activeProvider: currentProviderName(),
+    // activeProvider 回显 DB 真值：若回显进程缓存，刚在别的标签页切过 provider 时
+    // 会显示成旧值，管理员据此判断"没生效"而重复保存
+    activeProvider: await readProviderName(pool()),
   };
 }
 
