@@ -147,6 +147,7 @@ vite.config.ts.timestamp-*
 .superpowers/
 docs/superpowers/
 .omc/
+.workbuddy/
 
 # Runtime data
 data/
