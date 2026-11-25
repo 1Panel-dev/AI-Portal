@@ -4,6 +4,7 @@ const path = require('path');
 const multer = require('multer');
 const storage = require('../lib/storage');
 const downloadCounter = require('../lib/downloadCounter');
+const { escapeLike } = require('../lib/sql-like');
 const { panel, getPanelPayload, getPanelItems, downloadPanelSkill } = require('../panel');
 const { downloadLimiter, uploadLimiter, verifyUser, requirePermission, requirePermissionOrAdminRole, optionalUser } = require('../auth');
 
@@ -380,7 +381,7 @@ router.get('/api/skills', verifyUser, requirePermissionOrAdminRole('skill:view')
 
     if (search) {
       whereClause += ` AND (title ILIKE $${paramIndex} OR description ILIKE $${paramIndex})`;
-      params.push(`%${search}%`);
+      params.push(`%${escapeLike(search)}%`);
       paramIndex++;
     }
 

@@ -10,6 +10,7 @@ const { buildDailyUsageTrend } = require('../lib/gateway/usage-trend');
 const { withBusyRetry } = require('../lib/gateway/busy-retry');
 const { isAnyProviderEnabled } = require('../oauth');
 const { inspectPanelBiz, listPanelKeys, listPanelKeysOfUser } = require('../lib/panel-biz');
+const { escapeLike } = require('../lib/sql-like');
 
 const router = express.Router();
 
@@ -54,7 +55,7 @@ router.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ error: '密码至少6位' });
     }
 
-    const existing = await global.pool.query('SELECT id FROM portal_users WHERE username ILIKE $1', [rawUsername]);
+    const existing = await global.pool.query('SELECT id FROM portal_users WHERE username ILIKE $1', [escapeLike(rawUsername)]);
     if (existing.rowCount > 0) {
       return res.status(409).json({ error: '用户名已存在' });
     }
@@ -139,11 +140,12 @@ router.post('/api/auth/login', async (req, res) => {
     }
 
     // 查找用户（包括普通用户和管理员）
-    // 用 ILIKE 不区分大小写，但如果有大小写冲突（zhangsan + Zhangsan），要求精确匹配
+    // 用 ILIKE 不区分大小写，但如果有大小写冲突（zhangsan + Zhangsan），要求精确匹配。
+    // 用户名里的 % / _ / \ 必须先转义，否则 `_` 会被当成单字符通配符（见 escapeLike 注释）。
     let result = await global.pool.query(`
       SELECT * FROM portal_users
       WHERE username ILIKE $1 AND status = 'active'
-    `, [rawUsername]);
+    `, [escapeLike(rawUsername)]);
 
     if (result.rowCount > 1) {
       // 精确匹配优先（大小写敏感）

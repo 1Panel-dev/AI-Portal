@@ -9,6 +9,7 @@ const { panel, getPanelPayload, getPanelItems, getPanelRoles, syncSkillsFromPane
 const { syncModels, syncGroups } = require('../lib/gateway-sync');
 const { getGateway, resolveProviderName, readProviderName } = require('../lib/gateway');
 const { toNum, mapSummary, mapDistribution, mapTrends } = require('../lib/gateway/usage-mapper');
+const { escapeLike } = require('../lib/sql-like');
 const { buildDailyUsageTrend } = require('../lib/gateway/usage-trend');
 const { withBusyRetry } = require('../lib/gateway/busy-retry');
 const { inspectPanelBiz } = require('../lib/panel-biz');
@@ -689,7 +690,7 @@ router.get('/api/admin/skills', verifyUser, requirePermission('skill:review'), a
 
     if (search) {
       whereClause += ` AND (title ILIKE $${paramIndex} OR id ILIKE $${paramIndex} OR author ILIKE $${paramIndex})`;
-      params.push(`%${search}%`);
+      params.push(`%${escapeLike(search)}%`);
       paramIndex++;
     }
 
@@ -724,7 +725,7 @@ router.get('/api/admin/skills', verifyUser, requirePermission('skill:review'), a
     }
     if (search) {
       statsWhere.push(`(title ILIKE $${sp} OR id ILIKE $${sp} OR author ILIKE $${sp})`);
-      statsParams.push(`%${search}%`); sp++;
+      statsParams.push(`%${escapeLike(search)}%`); sp++;
     }
     const statsResult = await global.pool.query(
       `SELECT COUNT(*) FILTER (WHERE is_active = TRUE)::int AS active, COUNT(*) FILTER (WHERE is_active = FALSE)::int AS inactive FROM skills WHERE ${statsWhere.join(' AND ')}`,
@@ -1811,7 +1812,7 @@ router.get('/api/admin/portal-users', verifyUser, requirePermission('user:view')
     const params = [];
     let where = '';
     if (keyword) {
-      params.push(`%${keyword}%`);
+      params.push(`%${escapeLike(keyword)}%`);
       where = `WHERE u.username ILIKE $${params.length} OR u.name ILIKE $${params.length}`;
     }
 

@@ -1,4 +1,5 @@
 const express = require('express');
+const { escapeLike } = require('../lib/sql-like');
 
 const router = express.Router();
 const { verifyUser, requirePermissionOrAdminRole } = require('../auth');
@@ -51,7 +52,7 @@ router.get('/api/mcp/search', verifyUser, requirePermissionOrAdminRole('mcp:view
     let pi = 1;
     if (q.trim()) {
       whereParts.push(`(name ILIKE $${pi} OR type ILIKE $${pi})`);
-      params.push(`%${q.trim()}%`);
+      params.push(`%${escapeLike(q.trim())}%`);
       pi++;
     }
     if (visibleMcpIds) {
