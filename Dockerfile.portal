@@ -1,0 +1,85 @@
+# 轻量构建：只构建 portal（前端 + 后端 + 运行时），不编译 skillctl。
+#
+# 与 Dockerfile 的唯一区别：去掉 golang 构建阶段，改从上下文目录 skillctl/dist/
+# 拷贝预编译好的 5 平台二进制（由上游/线上已发布镜像提供，源码未变时无需重编）。
+# 使用时需先自备产物：
+#   mkdir -p skillctl/dist && cd skillctl/dist
+#   for f in skillctl-linux-amd64 skillctl-linux-arm64 skillctl-darwin-amd64 \
+#            skillctl-darwin-arm64 skillctl-windows-amd64.zip; do
+#     curl -fsSLO "https://<已上线门户>/downloads/$f"; done
+#
+# CI 仍走 Dockerfile（自包含、可从纯 git 检出直接构建），本文件仅供本地快速出镜像。
+#
+# 构建：
+#   docker build -f Dockerfile.portal \
+#     --build-arg DOCKER_IMAGE_TAG=v2.0.21 \
+#     --build-arg BUILD_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+#     --build-arg GITHUB_COMMIT=$(git rev-parse --short HEAD) \
+#     -t 1panel/ai-portal:v2.0.21 .
+
+# ---- 阶段 1: 前端构建 ----
+FROM --platform=linux/amd64 node:20-alpine AS frontend
+WORKDIR /app/portal
+COPY portal/package.json portal/package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci
+COPY portal/index.html portal/vite.config.js portal/tailwind.config.js portal/postcss.config.js ./
+COPY portal/src ./src
+COPY portal/public ./public
+ENV VITE_API_URL=/api
+RUN npm run build
+
+# ---- 阶段 2: 后端依赖 ----
+# 不固定平台: bcrypt 是 native 模块,各架构需各自的 node_modules。
+# 无需 python3/make/g++ 工具链: bcrypt@6 自带 prebuilds(含 linux musl/glibc、x64/arm64),
+# npm ci 直接落盘 .node,已实测 hashSync/compareSync 可用。省掉 ~300MB 的 apk 安装。
+FROM node:20-alpine AS backend
+WORKDIR /app
+COPY server/package.json server/package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev
+
+# ---- 阶段 3: 提取 Node 二进制 ----
+FROM node:20-alpine AS node-bin
+
+# ---- 阶段 4: 运行时 ----
+FROM postgres:17-alpine
+WORKDIR /app
+
+ARG DOCKER_IMAGE_TAG=dev
+ARG BUILD_AT
+ARG GITHUB_COMMIT
+
+# 本地构建用国内 apk 源（dl-cdn 在国内经常卡死/龟速）；tini 在 community 仓库
+RUN sed -i 's#https://dl-cdn.alpinelinux.org#https://mirrors.cloud.tencent.com#g' /etc/apk/repositories \
+ && apk add --no-cache tini
+
+COPY --from=node-bin /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-bin /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm
+
+COPY --from=backend /app/node_modules ./node_modules
+COPY server/ ./
+COPY --from=frontend /app/portal/dist ./dist
+# 预编译的 skillctl 产物（不含 Go 编译）
+COPY skillctl/dist/ ./dist/downloads/
+
+COPY start-all.sh /usr/local/bin/start-all.sh
+RUN chmod +x /usr/local/bin/start-all.sh
+
+RUN mkdir -p /app/data/pgdata /app/data/uploads/skills /app/data/uploads/branding
+
+ENV NODE_ENV=production \
+    PORT=3000 \
+    SERVE_STATIC=true \
+    STATIC_PATH=/app/dist \
+    LOCAL_STORAGE_PATH=/app/data/uploads \
+    APP_VERSION=${DOCKER_IMAGE_TAG} \
+    BUILD_AT=${BUILD_AT} \
+    GITHUB_COMMIT=${GITHUB_COMMIT} \
+    PGDATA=/app/data/pgdata \
+    DB_HOST=localhost DB_PORT=5432 \
+    DB_NAME=ai_portal DB_USER=aiportal DB_PASSWORD=
+
+EXPOSE 3000
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["/usr/local/bin/start-all.sh"]

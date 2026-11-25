@@ -8,6 +8,9 @@ node_modules
 dist
 dist-ssr
 *.local
+# 例外：skillctl 预编译产物需进上下文（Dockerfile.portal 直接拷贝，不编译 Go）
+!skillctl/dist
+!skillctl/dist/**
 
 # 日志
 *.log
