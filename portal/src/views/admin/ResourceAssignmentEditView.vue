@@ -23,15 +23,49 @@
 
     <!-- ===== 授权 tab ===== -->
     <div v-if="activeTab === 'assign'">
-    <!-- 默认组：天然含全员, 无需授权 -->
-    <div v-if="group?.is_default" class="flex items-start gap-2.5 px-4 py-3 bg-[#eff6ff] border border-[#bfdbfe] rounded-xl text-[13px] text-[#1e40af]">
-      <Info class="w-4 h-4 flex-shrink-0 mt-0.5" />
-      <div class="leading-relaxed">
-        <p class="font-medium mb-0.5">默认资源组天然包含全部用户</p>
-        <p>该组无需单独授权:所有用户(含之后新建的用户)默认可见本组勾选的资源。</p>
+    <!-- 默认组：天然含全员 —— 说明 + 只读全员列表(不参与授权编辑) -->
+    <template v-if="group?.is_default">
+      <div class="flex items-start gap-2.5 px-4 py-3 bg-[#eff6ff] border border-[#bfdbfe] rounded-xl text-[13px] text-[#1e40af]">
+        <Info class="w-4 h-4 flex-shrink-0 mt-0.5" />
+        <div class="leading-relaxed">
+          <p class="font-medium mb-0.5">默认资源组天然包含全部用户</p>
+          <p>该组无需单独授权:所有用户(含之后新建的用户)默认可见本组勾选的资源。</p>
+          <p class="mt-1 text-[12px] text-[#3b6bb5]">成员若同时属于其他资源组, 可见资源取各组的<strong>并集</strong>; 模型最终还要与该成员网关用户组的模型组取交集。</p>
+        </div>
       </div>
-    </div>
-    <!-- 穿梭框 -->
+
+      <!-- 只读成员列表: 数据来自组详情的"全员"(members_virtual), 不可勾选 -->
+      <div class="mt-3 bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-base font-semibold text-text">全部用户</h2>
+          <span class="text-xs text-text-tertiary">共 {{ defaultMembers.length }} 人<template v-if="disabledDefaultCount"> · 启用 {{ defaultMembers.length - disabledDefaultCount }} 人</template> · 天然包含</span>
+        </div>
+        <input
+          v-model="defaultKeyword"
+          class="w-full px-3 py-2 mb-2 border border-[rgba(0,0,0,0.08)] rounded-lg text-sm outline-none focus:border-text bg-surface-secondary"
+          placeholder="搜索用户名或姓名..."
+        />
+        <div class="border border-[rgba(0,0,0,0.06)] rounded-lg max-h-[420px] overflow-y-auto">
+          <div
+            v-for="u in filteredDefaultMembers"
+            :key="u.id"
+            class="flex items-center gap-2.5 px-3 py-2 border-b border-[rgba(0,0,0,0.04)] last:border-b-0 hover:bg-surface-secondary"
+            :class="u.status && u.status !== 'active' ? 'opacity-60' : ''"
+          >
+            <span class="w-6 h-6 shrink-0 rounded-full bg-accent/10 text-accent text-[11px] font-medium flex items-center justify-center">{{ (u.name || u.username || '?').slice(0, 1).toUpperCase() }}</span>
+            <div class="flex-1 min-w-0">
+              <div class="text-[13px] text-text truncate">{{ u.name || u.username }} <span class="text-text-tertiary font-normal text-xs">· {{ u.username }}</span></div>
+            </div>
+            <span v-if="u.status && u.status !== 'active'" class="text-[10px] px-1.5 py-0.5 rounded bg-surface-secondary text-amber-600">已停用</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-surface-secondary text-text-tertiary">默认可见</span>
+          </div>
+          <div v-if="!filteredDefaultMembers.length" class="py-6 text-center text-xs text-text-tertiary">
+            {{ defaultMembers.length ? '没有匹配的用户' : '暂无用户' }}
+          </div>
+        </div>
+      </div>
+    </template>
+    <!-- 穿梭框（非默认组） -->
     <div v-else class="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-3 items-start">
       <!-- 左：所有用户（未授权的） -->
       <div class="bg-white border border-[rgba(0,0,0,0.06)] rounded-xl p-4">
@@ -287,6 +321,18 @@ const rightChecked = ref(new Set())  // 右栏勾选的 id（待移除）
 const leftKeyword = ref('')
 const rightKeyword = ref('')
 const saving = ref(false)
+
+// 默认组只读成员列表：成员来自组详情的 members（后端对 is_default 返回全部非超管用户，
+// members_virtual=true），这里只做展示与搜索，不参与授权编辑。
+const defaultKeyword = ref('')
+const defaultMembers = computed(() => group.value?.members || [])
+const disabledDefaultCount = computed(() => defaultMembers.value.filter(u => u.status && u.status !== 'active').length)
+const filteredDefaultMembers = computed(() => {
+  const kw = defaultKeyword.value.trim().toLowerCase()
+  const list = defaultMembers.value
+  if (!kw) return list
+  return list.filter(u => (u.username || '').toLowerCase().includes(kw) || (u.name || '').toLowerCase().includes(kw))
+})
 
 // 主 tab：授权 / 资源预览
 const tabs = [

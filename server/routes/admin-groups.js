@@ -207,12 +207,14 @@ router.get('/api/admin/groups/:id', verifyUser, requirePermission('group:view'),
     if (!g.rowCount) return res.status(404).json({ error: '资源组不存在' });
     const isDefault = g.rows[0].is_default;
     // 默认组天然含全员: 成员列表返回全部非超管用户(不依赖 resource_group_members)
+    // 注意: 这里不带 status 过滤。授权保存是「整表覆盖」, 若把停用用户从列表里滤掉,
+    // 下次保存会把他们的授权静默删掉; 停用状态交给前端标注, 由管理员决定。
     const members = isDefault
       ? await pool().query(
-          'SELECT id, username, name FROM portal_users WHERE is_portal_admin = FALSE ORDER BY username'
+          'SELECT id, username, name, status FROM portal_users WHERE is_portal_admin = FALSE ORDER BY username'
         )
       : await pool().query(`
-          SELECT u.id, u.username, u.name FROM resource_group_members m
+          SELECT u.id, u.username, u.name, u.status FROM resource_group_members m
           JOIN portal_users u ON u.id = m.user_id WHERE m.group_id = $1
         `, [id]);
     const items = await pool().query(
