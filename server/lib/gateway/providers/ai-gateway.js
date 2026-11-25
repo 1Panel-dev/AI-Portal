@@ -269,8 +269,8 @@ async function listModelDefinitions() {
  *
  * 两个用途:
  *   1. 判断「智能路由是否开启」——不需要用户 Key,管理域 token 即可;
- *   2. 拿到虚拟模型的真实名字——autoModelName 可被网关侧改写,不恒为 'auto'
- *      (本地网关实测为 'sh-auto'),门户不得硬编码。
+ *   2. 拿到虚拟模型的真实名字——autoModelName 由网关侧策略配置决定、可被改写,
+ *      不恒为 'auto',门户不得硬编码。
  */
 async function getSmartRoutingPolicy() {
   return request('GET', '/admin/smart-routing/policy');

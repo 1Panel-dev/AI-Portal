@@ -118,8 +118,8 @@ cd server && npm start
      否则「网关没填」会被展示成「不支持」，并覆盖管理端手填值。同步的 `ON CONFLICT` 一律
      `COALESCE(EXCLUDED.col, portal_models.col)`——网关无值时保留门户已有值。
    - **虚拟模型名不得硬编码**：智能路由开启后 `/v1/models` 会多出一个虚拟模型，其名字来自
-     `gw.getSmartRoutingPolicy().autoModelName`（实测为 `sh-auto`，不是 `auto`）；
-     `enabled` 也由该接口给出，无需用户 Key 探测。
+     `gw.getSmartRoutingPolicy().autoModelName`——该值由网关侧策略配置决定、可被改写，
+     不恒为 `auto`，任何环境都只能读返回值，不得写死；`enabled` 也由该接口给出，无需用户 Key 探测。
    - **回填/匹配禁止裸 `lower()` 一对多**：门户与网关可能同时存在只差大小写的用户
      （`ZhaoLeiBo` / `zhaoleibo`）。`lower(portal.username)=lower(gw.username)` 是笛卡尔匹配，
      两条源行命中同一目标行，最终两行拿到同一个 `gateway_user_id`，撞
