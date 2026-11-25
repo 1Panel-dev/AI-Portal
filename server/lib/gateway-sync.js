@@ -40,6 +40,76 @@ function extractNameFromNote(note) {
   return null;
 }
 
+// ============ 模型展示元数据映射（AI-Gateway admin/models → portal_models） ============
+//
+// 网关用两组枚举描述「是否已知 / 是否支持」：
+//   LengthSummary.status ∈ 'known' | 'unknown' | 'notApplicable' | 'different'
+//   SupportState         ∈ 'supported' | 'partial' | 'unsupported' | 'unknown'
+// portal_models 对应列是普通 INTEGER / BOOLEAN，因此必须显式区分三态：
+//   null = 网关未填(未知) → 同步时保留门户已有值，绝不写 NULL 覆盖
+//   true / false          = 网关明确表态 → 覆盖
+// 若把 unknown 当 false 写入，会把「没填」误展示成「不支持」，还会覆盖掉管理端手填值。
+
+/** SupportState → 三态布尔（unknown 一律 null） */
+function supportToBool(v) {
+  if (v === 'supported' || v === 'partial') return true;
+  if (v === 'unsupported') return false;
+  return null;
+}
+
+/** LengthSummary → 整数；'different'（多账号取值不一）取聚合上限 max */
+function lengthToInt(summary, fallback) {
+  if (summary && typeof summary === 'object') {
+    if (summary.status === 'known' || summary.status === 'different') {
+      if (Number.isFinite(summary.max)) return summary.max;
+    }
+    return null; // unknown / notApplicable：明确「无此值」，不回落 attributes
+  }
+  return Number.isFinite(fallback) ? fallback : null;
+}
+
+/**
+ * 模型定义对象 → portal_models 的展示字段。
+ * 优先用 summary（跨账号聚合后的对外口径），缺失时回落 attributes（管理员手填原值）。
+ */
+function extractGatewayModelMeta(def) {
+  const s = (def && def.summary) || {};
+  const a = (def && def.attributes) || {};
+
+  const contextWindow = lengthToInt(s.contextWindow, a.contextWindow);
+  const maxOutputTokens = lengthToInt(s.maxOutputTokens, a.maxOutputTokens);
+
+  let imageInput = supportToBool(s.imageInput);
+  if (imageInput === null && Array.isArray(a.inputModalities)) {
+    imageInput = a.inputModalities.includes('image');
+  }
+
+  let toolCalling = supportToBool(s.toolCalling);
+  if (toolCalling === null && typeof a.toolCalling === 'boolean') toolCalling = a.toolCalling;
+
+  // 多模态：输入模态里存在「明确受支持的非 text 模态」才算 true。
+  // 关键：只有至少一个非 text 模态给出了明确表态(supported/partial/unsupported)时才下结论；
+  // 全部 unknown 时必须保持 null，否则会把「没填」误展示成「纯文本模型」。
+  const modalities = (Array.isArray(s.inputModalities) && s.inputModalities.length > 0)
+    ? s.inputModalities
+    : (Array.isArray(a.inputModalities) && a.inputModalities.length > 0 ? a.inputModalities : null);
+  let multimodal = null;
+  if (modalities) {
+    const nonText = modalities
+      // attributes 里是字符串数组，出现即代表管理员已列入 → 视为 supported
+      .map((m) => (typeof m === 'string' ? { modality: m, support: 'supported' } : m))
+      .filter((m) => m && m.modality !== 'text');
+    const decisive = nonText.filter(
+      (m) => m.support === 'supported' || m.support === 'partial' || m.support === 'unsupported'
+    );
+    if (decisive.length > 0) {
+      multimodal = decisive.some((m) => m.support === 'supported' || m.support === 'partial');
+    }
+  }
+
+  return { contextWindow, maxOutputTokens, toolCalling, imageInput, multimodal };
+}
+
 /**
  * 独立网关模型同步:adapter.listModels() → portal_models
  * 返回 { backendCount, modelCount, deactivatedCount, skipped? } —— 与 _syncModelsFromPanel 同形
@@ -69,6 +139,17 @@ async function _syncGatewayModels() {
   let items = [];
   let source = '';
   const gwBaseUrl = (typeof gw.getConfig === 'function' ? gw.getConfig().baseUrl : '') || '';
+
+  // 展示元数据(上下文/最大输出/能力/多模态)独立于上面的数据源:只有管理域
+  // /api/v1/admin/models 提供,而三个数据源都不带。失败不阻断模型存在性同步。
+  let definitions = null;
+  if (typeof gw.listModelDefinitions === 'function') {
+    try {
+      definitions = await gw.listModelDefinitions();
+    } catch (e) {
+      console.warn('[gateway-sync] 模型定义层(admin/models)不可用,本轮仅同步模型存在性:', e.message);
+    }
+  }
 
   // 方案 0: 模型同步 Key（用户级 sk-...）拉取
   if (typeof gw.getSyncApiKey === 'function' && gw.getSyncApiKey() && typeof gw.listModelsViaUserKey === 'function') {
@@ -132,6 +213,7 @@ async function _syncGatewayModels() {
   }
   const seen = new Set();
   const rows = [];
+  let metaFilled = 0;
   for (const m of items) {
     // 兼容多种来源形状:
     //   - /admin/console/models → { name, type, ownedBy, owned_by, protocolType, ... }
@@ -144,6 +226,12 @@ async function _syncGatewayModels() {
     const dedupKey = groupName + '\n' + modelName;
     if (seen.has(dedupKey)) continue;
     seen.add(dedupKey);
+    // 展示元数据来自定义层(以 requestModelName 为键);取不到则全 null = 保留门户手填值
+    const meta = extractGatewayModelMeta(definitions ? definitions.get(modelName) : null);
+    if (meta.contextWindow !== null || meta.maxOutputTokens !== null
+      || meta.toolCalling !== null || meta.imageInput !== null) {
+      metaFilled++;
+    }
     rows.push({
       accountId: m?.accountId ?? null,
       groupName,
@@ -152,7 +240,8 @@ async function _syncGatewayModels() {
       baseUrl: gwBaseUrl,
       modelType: String(m?.type || m?.protocolType || m?.requestModelType || '').trim(),
       enabled: true,
-      raw: { ...m, source },
+      raw: { ...m, source, meta },
+      ...meta,
     });
   }
 
@@ -170,11 +259,19 @@ async function _syncGatewayModels() {
   //   panel_backend_id ← accountId(M5 改名 gateway_account_id)
   //   is_active ← enabled; display_name ← model_name; is_public 显式 FALSE(新模型由管理员上架)
   //   ON CONFLICT (group_name, model_name) 不触碰 display_name/is_public —— 管理员手动上架状态不被覆盖
-  const COLS = 8;
+  //
+  // 展示元数据(context_window/max_output_tokens/tool_calling/image_input/multimodal):
+  //   网关有值 → 覆盖(网关是模型能力口径的权威源);
+  //   网关无值(null) → COALESCE 保留门户已有值 —— 网关一个字段都没填时不得把管理端
+  //   手填的上下文/能力清成空。新插入行的这几列显式 NULL(而非默认值 FALSE),
+  //   以区分「未知」与「明确不支持」。
+  const COLS = 13;
   const valuesSql = rows
     .map((_, rowIdx) => {
-      const base = rowIdx * COLS;
-      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8}, CURRENT_TIMESTAMP, $${base + 3}, FALSE)`;
+      const b = rowIdx * COLS;
+      return `($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5}, $${b + 6}, $${b + 7}, $${b + 8},`
+        + ` $${b + 9}::integer, $${b + 10}::integer, $${b + 11}::boolean, $${b + 12}::boolean, $${b + 13}::boolean,`
+        + ` CURRENT_TIMESTAMP, $${b + 3}, FALSE)`;
     })
     .join(', ');
   const flatParams = rows.flatMap(r => [
@@ -186,6 +283,11 @@ async function _syncGatewayModels() {
     r.modelType || '',
     JSON.stringify(r.raw ?? {}),
     r.enabled !== false,
+    r.contextWindow ?? null,
+    r.maxOutputTokens ?? null,
+    r.toolCalling ?? null,
+    r.imageInput ?? null,
+    r.multimodal ?? null,
   ]);
 
   let successCount = 0;
@@ -193,7 +295,9 @@ async function _syncGatewayModels() {
     await pool().query(
       `INSERT INTO portal_models (
         panel_backend_id, group_name, model_name, provider, base_url, model_type,
-        raw_data, is_active, synced_at, display_name, is_public
+        raw_data, is_active,
+        context_window, max_output_tokens, tool_calling, image_input, multimodal,
+        synced_at, display_name, is_public
       ) VALUES ${valuesSql}
       ON CONFLICT (group_name, model_name) DO UPDATE SET
         panel_backend_id = EXCLUDED.panel_backend_id,
@@ -202,11 +306,17 @@ async function _syncGatewayModels() {
         model_type = EXCLUDED.model_type,
         raw_data = EXCLUDED.raw_data,
         is_active = EXCLUDED.is_active,
+        context_window = COALESCE(EXCLUDED.context_window, portal_models.context_window),
+        max_output_tokens = COALESCE(EXCLUDED.max_output_tokens, portal_models.max_output_tokens),
+        tool_calling = COALESCE(EXCLUDED.tool_calling, portal_models.tool_calling),
+        image_input = COALESCE(EXCLUDED.image_input, portal_models.image_input),
+        multimodal = COALESCE(EXCLUDED.multimodal, portal_models.multimodal),
         synced_at = CURRENT_TIMESTAMP`,
       flatParams
     );
     successCount = rows.length;
-    console.log(`[gateway-sync] UPSERT 完成,写入/更新 ${successCount} 条模型记录`);
+    console.log(`[gateway-sync] UPSERT 完成,写入/更新 ${successCount} 条模型记录`
+      + `（其中 ${metaFilled} 条带网关元数据）`);
   }
 
   // 软删除:本轮存活的 (group_name, model_name) 之外全部下架(切换数据源后 1Panel 旧行由此清理,预期行为)
@@ -228,15 +338,18 @@ async function _syncGatewayModels() {
   }
 
   const backendCount = new Set(rows.map(r => r.accountId).filter(v => v != null)).size;
+  const metaNote = metaFilled > 0
+    ? `,元数据 ${metaFilled} 个`
+    : (definitions ? ',网关未填模型元数据' : ',定义层不可用');
   await pool().query(`
     INSERT INTO portal_sync_log (sync_type, status, message, total_count, success_count, details)
     VALUES ($1, $2, $3, $4, $5, $6)
   `, ['models', 'success',
-      deactivatedCount > 0 ? `独立网关模型同步完成,下架 ${deactivatedCount} 个` : '独立网关模型同步完成',
+      (deactivatedCount > 0 ? `独立网关模型同步完成,下架 ${deactivatedCount} 个` : '独立网关模型同步完成') + metaNote,
       rows.length, successCount,
-      { provider: 'ai-gateway', backendCount, modelCount: successCount, deactivatedCount }]);
+      { provider: 'ai-gateway', backendCount, modelCount: successCount, deactivatedCount, metaFilled, hasDefinitions: !!definitions }]);
 
-  return { backendCount, modelCount: successCount, deactivatedCount };
+  return { backendCount, modelCount: successCount, deactivatedCount, metaFilled };
 }
 
 /**
@@ -392,22 +505,47 @@ async function _syncGatewayGroups() {
     const uids = gwUsers.map(u => u.userId);
     const unames = gwUsers.map(u => u.username);
     const gids = gwUsers.map(u => u.groupId ?? null);
-    const r = await pool().query(`
-      UPDATE portal_users pu SET
-        gateway_user_id = u.uid,
-        gateway_user_group_id = u.gid
-      FROM (SELECT * FROM unnest($1::int[], $2::text[], $3::int[]) AS t(uid, uname, gid)) u
-      WHERE lower(pu.username) = lower(u.uname)
-    `, [uids, unames, gids]);
-    backfilled = r.rowCount;
 
-    // 反向清理:门户记录了网关用户 id 但该用户已不在网关(网关侧被删) → 清空脏引用,
-    // 否则 Key 代操作会 404 user was not found（listUsers 为全量翻页, 清理安全）
+    // 先把「指向已不存在网关用户」的脏引用清掉，再回填。
+    // 顺序很重要：若留着脏 id，回填时新目标 id 可能正被另一行占用 → 撞唯一索引。
     const c = await pool().query(
       'UPDATE portal_users SET gateway_user_id = NULL, gateway_user_group_id = NULL WHERE gateway_user_id IS NOT NULL AND NOT (gateway_user_id = ANY($1::int[]))',
       [uids]
     );
     orphanCleared = c.rowCount;
+
+    // 回填分两步，绝不能用一条 lower() 匹配搞定：
+    //
+    // 门户与网关可能同时存在「只差大小写」的两个用户（实测：门户 ZhaoLeiBo(26)/zhaoleibo(27)，
+    // 网关 id=19 ZhaoLeiBo / id=18 zhaoleibo）。此时 `lower(pu.username)=lower(u.uname)`
+    // 是 2×2 笛卡尔匹配，两条 source 都能命中同一行，最终两个门户行可能拿到同一个
+    // gateway_user_id → 撞 idx_portal_users_gateway_user_unique，之后整轮组同步
+    // （含授权回填）持续失败。所以：
+    //   Step A 精确匹配（区分大小写）—— 拼写完全一致时无歧义，优先解决；
+    //   Step B 大小写不敏感兜底 —— 仅用于「门户侧该名字唯一」且「尚未绑定」的行，
+    //          避免一对多；仍无法判定的留给管理员人工处理。
+    // 两条语句必须分开执行：数据修改型 CTE 与主语句共用同一快照，Step B 看不到
+    // Step A 写入的 gateway_user_id，合并成一条会失效。
+    const exact = await pool().query(`
+      UPDATE portal_users pu SET
+        gateway_user_id = u.uid,
+        gateway_user_group_id = u.gid
+      FROM (SELECT * FROM unnest($1::int[], $2::text[], $3::int[]) AS t(uid, uname, gid)) u
+      WHERE pu.username = u.uname
+    `, [uids, unames, gids]);
+
+    const fuzzy = await pool().query(`
+      UPDATE portal_users pu SET
+        gateway_user_id = u.uid,
+        gateway_user_group_id = u.gid
+      FROM (SELECT * FROM unnest($1::int[], $2::text[], $3::int[]) AS t(uid, uname, gid)) u
+      WHERE pu.gateway_user_id IS NULL
+        AND lower(pu.username) = lower(u.uname)
+        AND (SELECT COUNT(*) FROM portal_users x WHERE lower(x.username) = lower(u.uname)) = 1
+        AND (SELECT COUNT(*) FROM (SELECT unnest($2::text[]) AS n) s WHERE lower(s.n) = lower(u.uname)) = 1
+    `, [uids, unames, gids]);
+
+    backfilled = exact.rowCount + fuzzy.rowCount;
   }
 
   await pool().query(`
@@ -609,7 +747,7 @@ async function _syncGatewayUsers() {
             INSERT INTO portal_api_keys (
               user_id, gateway_key_id, api_key_mask, status, remark, raw_data, synced_at
             ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,CURRENT_TIMESTAMP)
-            ON CONFLICT (gateway_key_id) DO UPDATE SET
+            ON CONFLICT (gateway_key_id) WHERE gateway_key_id IS NOT NULL DO UPDATE SET
               api_key_mask = EXCLUDED.api_key_mask,
               status = EXCLUDED.status,
               raw_data = EXCLUDED.raw_data,

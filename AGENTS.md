@@ -108,6 +108,29 @@ cd server && npm start
      DB 明确是网关就绝不回落到 1Panel（配置不全只报错跳过本轮）。1Panel 只负责
      skill / MCP 同步（`skillsSync` / `mcpSync` 独立调度，不看 provider）。
    - 契约与迁移清单：`server/lib/gateway/contract.js`；provider 实现：`gateway/providers/{1panel,ai-gateway}.js`。
+   - **模型元数据只能取自模型定义层**：`gw.listModelDefinitions()` → `GET /api/v1/admin/models`。
+     三个模型数据源（`/v1/models` 用户 Key、`console/models`、`upstream-accounts`）都**不带**
+     `contextWindow / maxOutputTokens / toolCalling / imageInput / inputModalities`，
+     只有定义层才有。`upstream-accounts` 负责「模型部署在哪些账号」，定义层负责「模型对外是什么」。
+   - **三态映射铁律**：网关用 `LengthSummary.status ∈ known|unknown|notApplicable|different` 与
+     `SupportState ∈ supported|partial|unsupported|unknown` 表达属性，落到 `portal_models` 的
+     `INTEGER/BOOLEAN` 列时必须保留「未知」：**unknown → NULL**，不得写成 `false`/`0`，
+     否则「网关没填」会被展示成「不支持」，并覆盖管理端手填值。同步的 `ON CONFLICT` 一律
+     `COALESCE(EXCLUDED.col, portal_models.col)`——网关无值时保留门户已有值。
+   - **虚拟模型名不得硬编码**：智能路由开启后 `/v1/models` 会多出一个虚拟模型，其名字来自
+     `gw.getSmartRoutingPolicy().autoModelName`（实测为 `sh-auto`，不是 `auto`）；
+     `enabled` 也由该接口给出，无需用户 Key 探测。
+   - **回填/匹配禁止裸 `lower()` 一对多**：门户与网关可能同时存在只差大小写的用户
+     （`ZhaoLeiBo` / `zhaoleibo`）。`lower(portal.username)=lower(gw.username)` 是笛卡尔匹配，
+     两条源行命中同一目标行，最终两行拿到同一个 `gateway_user_id`，撞
+     `idx_portal_users_gateway_user_unique`，整轮组同步（含授权回填）持续失败。
+     正确顺序：① 清失联 id → ② 精确匹配（区分大小写）→ ③ 大小写不敏感兜底，且要求
+     门户侧/网关侧该名字各自唯一、目标行尚未绑定。
+   - **`ON CONFLICT` 必须带部分索引谓词**：`portal_api_keys.gateway_key_id` 是
+     `WHERE gateway_key_id IS NOT NULL` 的**部分**唯一索引，写
+     `ON CONFLICT (gateway_key_id)` 会报 `there is no unique or exclusion constraint
+     matching the ON CONFLICT specification`（表现为 Key 同步静默 0 条）。必须写
+     `ON CONFLICT (gateway_key_id) WHERE gateway_key_id IS NOT NULL`。
 
 8. **路由没有 `/api/portal/*` 前缀**。`routes/portal.js` 直接挂 `/api/auth/*`、`/api/models*`、`/api/keys*`。
    `app.js` 里挂载 7 个模块：`admin`、`admin-gateway`、`admin-groups`、`marketplace`、`portal`、`oauth`、`mcp`。

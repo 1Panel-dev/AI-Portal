@@ -126,6 +126,13 @@
  *
  * // ---- 模型域（V2: syncModelsFromGateway 数据源）----
  * @property {() => Promise<ModelRow[]>} listModels
+ * @property {() => Promise<Map<string, object>>} [listModelDefinitions]
+ *   可选：模型定义层，键为 requestModelName，值含 attributes / summary（模型广场
+ *   「上下文 / 最大输出 / 工具调用 / 图片输入 / 多模态」的唯一来源）。
+ *   不支持时同步退化为「只同步模型存在性」，展示字段保持管理端手填值。
+ * @property {() => Promise<object>} [getSmartRoutingPolicy]
+ *   可选：智能路由策略，返回 { enabled, autoModelName, ... }。
+ *   虚拟模型名必须读 autoModelName，不得硬编码 'auto'。
  *
  * // ---- 授权域（V2: 只读同步到 gateway_user_groups / gateway_model_groups）----
  * @property {() => Promise<UserGroupRow[]>} listUserGroups

@@ -230,6 +230,53 @@ async function listConsoleModels() {
 }
 
 /**
+ * 模型定义层（全量）: GET /api/v1/admin/models
+ *
+ * 与 listModels() 的分工:
+ *   - upstream-accounts 内嵌 models → 回答「模型被部署在哪些账号」(映射关系)
+ *   - admin/models（本方法）        → 回答「模型对外是什么」(共享定义 + 展示元数据)
+ * 同名模型在多个账号重复出现时只有一条定义,故以 requestModelName 为键返回 Map。
+ *
+ * 对外展示字段(模型广场的「上下文 / 最大输出 / 工具调用 / 图片输入 / 多模态」来源):
+ *   - attributes: 管理员手填值,null = 未填
+ *   - summary:    跨账号聚合后的展示用属性,形状见
+ *                 frontend/src/api/upstream-types.ts 的 ModelAttributeSummary:
+ *                   LengthSummary.status ∈ known|unknown|notApplicable|different
+ *                   SupportState     ∈ supported|partial|unsupported|unknown
+ *   网关未填元数据时 summary 各项恒为 unknown / notApplicable,调用方须按「未知」处理。
+ *
+ * 注意:该端点不提供 per-model 描述文本(网关侧只有模型组的 note 字段)。
+ *
+ * @returns {Promise<Map<string, object>>} requestModelName → 定义对象
+ */
+async function listModelDefinitions() {
+  const items = await listAll('/admin/models');
+  const map = new Map();
+  for (const m of items) {
+    const name = String(m?.requestModelName || '').trim();
+    if (!name) continue;
+    map.set(name, m);
+  }
+  return map;
+}
+
+/**
+ * 智能路由策略: GET /api/v1/admin/smart-routing/policy
+ *
+ * 返回 { configured, enabled, routingMode, autoModelName, simpleModelGroupID,
+ *        complexModelGroupID, routeThreshold, minimumConfidenceMargin, topK,
+ *        runtimeEnabled, runtimeError }
+ *
+ * 两个用途:
+ *   1. 判断「智能路由是否开启」——不需要用户 Key,管理域 token 即可;
+ *   2. 拿到虚拟模型的真实名字——autoModelName 可被网关侧改写,不恒为 'auto'
+ *      (本地网关实测为 'sh-auto'),门户不得硬编码。
+ */
+async function getSmartRoutingPolicy() {
+  return request('GET', '/admin/smart-routing/policy');
+}
+
+/**
  * 用户域 OpenAI 兼容接口:GET {baseUrl}/v1/models
  * 与管理域 request() 不同:无 /api/v1 前缀,凭证是用户级 API Key(sk-...),admin token 会被 401。
  * 返回 "该 Key 授权可见" 的模型数组(OpenAI 形状:{id, object, created, owned_by?})。
@@ -502,6 +549,8 @@ module.exports = {
   listModels,
   listConsoleModels,
   listModelsViaUserKey,
+  listModelDefinitions,  // 模型定义层（含展示元数据）,模型广场字段来源
+  getSmartRoutingPolicy, // 智能路由开关 + 虚拟模型名
   listUserGroups,
   listUserGroupOptions,
   listModelGroups,
