@@ -448,11 +448,35 @@ async function _syncGatewayGroups() {
         g.maxConcurrency || 0, g.apiKeyMaxConcurrency || 0, g.tokenPlanId ?? null,
       ]);
     }
-    // 软删:本轮未出现的组置 enabled=false(防空响应误删由上方空列表防护覆盖;
-    // 这里 userGroups 非空,软删安全)
+    // 网关侧已不存在的组，必须与「网关侧停用」区分开——两者在库里都是 enabled=false，
+    // 但处理方式相反：
+    //
+    //   - 有 portal_users 引用 → 绝不能物理删。permission.js 的 _gatewayAllowedModels
+    //     在「组行缺失」时 return null = 全公开兜底，删了会让该用户从受限变成看全部模型（越权）。
+    //     保留行并置 enabled=FALSE（严格空集），宁可少给不可多给。
+    //   - 无引用 → 物理删除。否则会留下永久幽灵组：管理员创建资源组的下拉里出现网关侧
+    //     根本没有的组，且 enabled=false 让它和真实停用组无法区分。
+    //
+    // 老逻辑是 `UPDATE ... WHERE ... AND enabled = TRUE`，停用组永远不满足条件，于是
+    // 网关侧删掉的组会在本地永存（实测 id=2「测试组」从 2026-10-23 一直残留）。
     const ids = userGroups.map(g => g.groupId);
+
+    const purged = await pool().query(`
+      DELETE FROM gateway_user_groups g
+      WHERE NOT (g.gateway_group_id = ANY($1::int[]))
+        AND NOT EXISTS (
+          SELECT 1 FROM portal_users u WHERE u.gateway_user_group_id = g.gateway_group_id
+        )
+      RETURNING g.gateway_group_id, g.name
+    `, [ids]);
+    if (purged.rowCount > 0) {
+      console.log(`[gateway-sync] 清理网关侧已删除的用户组 ${purged.rowCount} 个:`
+        + ` ${purged.rows.map(r => `${r.name}(#${r.gateway_group_id})`).join(', ')}`);
+    }
+
+    // 剩下的「本轮未出现」只剩「仍被 portal_users 引用」的组 → 置停用，不删
     await pool().query(
-      'UPDATE gateway_user_groups SET enabled = FALSE, synced_at = CURRENT_TIMESTAMP WHERE NOT (gateway_group_id = ANY($1)) AND enabled = TRUE',
+      'UPDATE gateway_user_groups SET enabled = FALSE, synced_at = CURRENT_TIMESTAMP WHERE NOT (gateway_group_id = ANY($1::int[]))',
       [ids]
     );
   }
