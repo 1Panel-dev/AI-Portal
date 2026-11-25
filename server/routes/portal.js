@@ -126,7 +126,12 @@ router.post('/api/auth/register', async (req, res) => {
 
 router.post('/api/auth/login', async (req, res) => {
   try {
-    const rawUsername = sanitizeUsername(req.body.username);
+    // 登录必须保留用户输入的原始大小写，不能用 sanitizeUsername —— 它会 toLowerCase()，
+    // 于是下面「精确匹配优先」的分支永远只能命中全小写的那个账号：
+    //   库里有 ZhaoLeiBo(id=26) 和 zhaoleibo(id=27)，输入 ZhaoLeiBo 被转成 zhaoleibo 后
+    //   精确匹配命中的是 id=27，去比对 id=27 的密码，密码明明是 id=26 的 → 永远 401。
+    // 注册继续走 sanitizeUsername（新用户统一小写，避免再产生大小写重名）。
+    const rawUsername = String(req.body.username || '').trim();
     const rawPassword = req.body.password;
 
     if (!rawUsername || !rawPassword) {
@@ -141,12 +146,12 @@ router.post('/api/auth/login', async (req, res) => {
     `, [rawUsername]);
 
     if (result.rowCount > 1) {
-      // 精确匹配优先
+      // 精确匹配优先（大小写敏感）
       const exact = result.rows.find(r => r.username === rawUsername);
       if (exact) {
         result = { rows: [exact], rowCount: 1 };
       } else {
-        return res.status(401).json({ error: '用户名不明确，请使用精确大小写登录' });
+        return res.status(401).json({ error: '该用户名存在多个大小写不同的账号，请按注册时的大小写登录' });
       }
     }
 
