@@ -67,6 +67,19 @@ cd server && npm start
 
 后端启动会自动执行 `server/migrations` 下未运行过的 SQL。前端 `/admin` 为管理后台入口。
 
+## 发版
+
+```bash
+# release note 写在 docs/release-notes/vX.Y.Z.md，tag annotation 是 CI 的唯一来源
+git tag -a v2.0.21 -F docs/release-notes/v2.0.21.md --cleanup=verbatim   # --cleanup=verbatim 必须加
+git push origin v2.0.21        # 同时触发 build-and-push 与 create-release
+```
+
+**`--cleanup=verbatim` 不能省**：`git tag -a -F` 默认按 strip 清理，会把以 `#` 开头的行当注释删掉，
+release note 里的 `### ✨ New Features` 等章节标题会整段消失，Release 正文只剩裸条目。
+改 note 后重发版：`git tag -d vX.Y.Z && git tag -a ... --cleanup=verbatim && git push --force origin vX.Y.Z`
+（`action-gh-release` 会原地更新已发布的 Release）。
+
 ## 架构边界
 
 1. **ESM / CJS 分裂**。`portal/package.json` 是 `"type": "module"`，前端写 ESM；`server/package.json`
