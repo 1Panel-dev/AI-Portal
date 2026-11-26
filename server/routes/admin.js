@@ -1565,11 +1565,19 @@ async function buildDailyTrend(gw, from, to, gwUserId) {
 // 顶爆，主汇总 500 → 整页 502。缓存 key 只含 from/to/userId（决定网关返回内容的
 // 全部变量），排行分页/排序按请求参数现算（纯内存切片，零成本）。
 // 存 Promise 以去重并发：并发的第二个请求直接等第一个的结果，不重复打网关。
-const gwStatsCache = new Map(); // key: `${from}|${to}|${uid}` → { statsRes, trendRes, expireAt }
+const gwStatsCache = new Map(); // key: 量化(from)|量化(to)|uid|flags → { statsRes, trendRes, expireAt } 或 { promise }
 const GW_STATS_TTL = 30 * 1000;
+const GW_STATS_KEY_BUCKET = 30 * 1000;
+// 时间戳按 30s 桶量化后作为 key: handler 里 to=now/retentionFloor 都是每请求现取的,
+// 毫秒级精度会让并发的 Top/Bottom 请求 key 各不相同, 缓存永远不命中
+function quantizeTs(d) {
+  return d ? new Date(Math.floor(d.getTime() / GW_STATS_KEY_BUCKET) * GW_STATS_KEY_BUCKET).toISOString() : '';
+}
 
 function fetchGwStatsCached(gw, { from, to, gwUserId, needStats, needTrend }) {
-  const cacheKey = `${from ? from.toISOString() : ''}|${to ? to.toISOString() : ''}|${gwUserId ?? ''}`;
+  // flags 必须进 key: 钻取未同步用户时 needStats=false(gwUserId 也是 null),
+  // 若与全局请求共享 key, 会命中全局缓存返回全部用户排行 —— 恰好绕过「避免新用户看到全局数据」的闸门
+  const cacheKey = `${quantizeTs(from)}|${quantizeTs(to)}|${gwUserId ?? ''}|s${needStats ? 1 : 0}t${needTrend ? 1 : 0}`;
   const cached = gwStatsCache.get(cacheKey);
   if (cached) {
     // in-flight 标记：首个请求还在路上，后续并发请求共享同一个 Promise
