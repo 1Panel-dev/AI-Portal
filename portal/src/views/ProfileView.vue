@@ -657,8 +657,8 @@ function initTokenChart() {
       formatter: (params) => {
         const d = params[0]?.axisValue || ''
         let html = `<div style="font-weight:600;margin-bottom:4px;color:#1D2129">${d}</div>`
-        const map = { cachedTokens: '缓存', promptTokens: '输入', completionTokens: '输出' }
-        const colors = { cachedTokens: '#f59e0b', promptTokens: '#005eeb', completionTokens: '#10b981' }
+        const map = { promptTokens: '输入', completionTokens: '输出' }
+        const colors = { promptTokens: '#005eeb', completionTokens: '#10b981' }
         let total = 0
         params.forEach(p => {
           if (p.seriesName === '总计') return
@@ -674,7 +674,7 @@ function initTokenChart() {
       }
     },
     legend: {
-      data: ['缓存', '输入', '输出', '总计'],
+      data: ['输入', '输出', '总计'],
       textStyle: { color: '#475569', fontSize: 10 },
       itemWidth: 7, itemHeight: 7, top: 0, right: 0
     },
@@ -694,7 +694,8 @@ function initTokenChart() {
       axisTick: { show: false }
     },
     series: [
-      { name: '缓存', type: 'bar', stack: 'total', data: filteredTrends.value.map(t => t.cachedTokens || 0), itemStyle: { color: '#f59e0b' }, barMaxWidth: 16 },
+      // 缓存包含在输入里(上游 total = 输入+输出, cached 是 prompt 明细), 不堆进总量,
+      // 否则柱子顶 = 输入+输出+缓存, 会高于下面的「总计」线。缓存命中卡片单独展示。
       { name: '输入', type: 'bar', stack: 'total', data: filteredTrends.value.map(t => t.promptTokens || 0), itemStyle: { color: '#005eeb' }, barMaxWidth: 16 },
       { name: '输出', type: 'bar', stack: 'total', data: filteredTrends.value.map(t => t.completionTokens || 0), itemStyle: { color: '#10b981' }, barMaxWidth: 16 },
       {

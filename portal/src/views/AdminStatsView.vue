@@ -343,7 +343,8 @@ function initTrendChart() {
   const dates = trends.value.map(t => t.name)
   const promptData = trends.value.map(t => t.promptTokens)
   const completionData = trends.value.map(t => t.completionTokens)
-  const cachedData = trends.value.map(t => t.cachedTokens)
+  // 缓存包含在输入里(上游 total = 输入+输出, cached 是 prompt 明细), 不堆进总量,
+  // 否则柱子顶 = 输入+输出+缓存, 会高于「总量」线。缓存命中率卡片单独展示。
   const totalData = trends.value.map(t => (t.promptTokens || 0) + (t.completionTokens || 0))
   const requestData = trends.value.map(t => t.requestCount || 0)
 
@@ -359,8 +360,8 @@ function initTrendChart() {
       formatter: (params) => {
         const date = params[0]?.axisValue || ''
         let html = `<div style="font-weight:600;margin-bottom:4px;color:#1D2129">${date}</div>`
-        const map = { promptTokens: '输入', completionTokens: '输出', cachedTokens: '缓存' }
-        const colors = { promptTokens: '#3b82f6', completionTokens: '#34d399', cachedTokens: '#f59e0b' }
+        const map = { promptTokens: '输入', completionTokens: '输出' }
+        const colors = { promptTokens: '#3b82f6', completionTokens: '#34d399' }
         params.forEach(p => {
           if (p.seriesName === '总量' || p.seriesName === '请求数') return
           // 根据 seriesName 找对应的英文 key
@@ -379,7 +380,6 @@ function initTrendChart() {
       data: [
         { name: '输入' },
         { name: '输出' },
-        { name: '缓存' },
         { name: '总量' },
         { name: '请求数', icon: 'diamond', itemWidth: 12, itemHeight: 12 }
       ],
@@ -428,14 +428,6 @@ function initTrendChart() {
         stack: 'total',
         data: completionData,
         itemStyle: { color: '#34d399' },
-        barMaxWidth: 16
-      },
-      {
-        name: '缓存',
-        type: 'bar',
-        stack: 'total',
-        data: cachedData,
-        itemStyle: { color: '#f59e0b', borderRadius: [2, 2, 0, 0] },
         barMaxWidth: 16
       },
       {
