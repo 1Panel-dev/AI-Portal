@@ -1558,6 +1558,60 @@ async function buildDailyTrend(gw, from, to, gwUserId) {
   return buildDailyUsageTrend(gw, { from, to, userId: gwUserId });
 }
 
+// 网关统计「汇总+趋势」短缓存。背景：统计页一次加载会并发两个请求
+// （Top10 descending + Bottom10 ascending），两者只有排行排序方向不同，
+// 底层都是同一份 30 天主汇总(1 次) + 逐日趋势(~30 次) —— 不缓存就是 ~62 次
+// 网关聚合查询/一次页面加载，足以把网关写死的 5s 统计超时(statisticsReadTimeout)
+// 顶爆，主汇总 500 → 整页 502。缓存 key 只含 from/to/userId（决定网关返回内容的
+// 全部变量），排行分页/排序按请求参数现算（纯内存切片，零成本）。
+// 存 Promise 以去重并发：并发的第二个请求直接等第一个的结果，不重复打网关。
+const gwStatsCache = new Map(); // key: `${from}|${to}|${uid}` → { statsRes, trendRes, expireAt }
+const GW_STATS_TTL = 30 * 1000;
+
+function fetchGwStatsCached(gw, { from, to, gwUserId, needStats, needTrend }) {
+  const cacheKey = `${from ? from.toISOString() : ''}|${to ? to.toISOString() : ''}|${gwUserId ?? ''}`;
+  const cached = gwStatsCache.get(cacheKey);
+  if (cached) {
+    // in-flight 标记：首个请求还在路上，后续并发请求共享同一个 Promise
+    if (cached.promise) return cached.promise;
+    if (cached.expireAt > Date.now()) return Promise.resolve([cached.statsRes, cached.trendRes]);
+  }
+
+  const promise = Promise.all([
+    needStats
+      // 管理域限流（503 management_api_busy）会让主汇总在几十毫秒内直接失败，
+      // 把整个统计接口打成 502 → 前端误报「尚未配置」。这里必须带退避重试：
+      // 页面一次加载并发主/升序两路请求 + 趋势逐日调用，撞限流是常态而非异常。
+      ? withBusyRetry(() => gw.getUsageStatistics({
+          ...(from ? { from: from.toISOString() } : {}),
+          ...(to ? { to: to.toISOString() } : {}),
+          ...(gwUserId ? { userId: gwUserId } : {}),
+        }), {
+          maxRetry: 5,
+          baseMs: 300,
+          onRetry: (e, attempt) => console.warn(`[gateway-stats] 主汇总第 ${attempt} 次重试: ${e.message}`),
+        })
+      : Promise.resolve(null),
+    needTrend
+      ? buildDailyTrend(gw, from, to, gwUserId).catch(e => {
+          console.warn('网关逐日趋势拉取失败（不阻断统计）:', e.message);
+          return [];
+        })
+      : Promise.resolve([]),
+  ]).then(([statsRes, trendRes]) => {
+    gwStatsCache.set(cacheKey, { statsRes, trendRes, expireAt: Date.now() + GW_STATS_TTL });
+    // 防膨胀：不同月份/用户组合会累积，超过阈值时清掉过期项
+    if (gwStatsCache.size > 50) {
+      for (const [k, v] of gwStatsCache) if (!v.promise && v.expireAt <= Date.now()) gwStatsCache.delete(k);
+    }
+    return [statsRes, trendRes];
+  });
+  // 先以 in-flight 标记占位（并发去重的关键），失败不缓存：立刻移除，下一个请求可重试
+  gwStatsCache.set(cacheKey, { promise });
+  promise.catch(() => gwStatsCache.delete(cacheKey));
+  return promise;
+}
+
 async function gatewayUsageStatisticsHandler(req, res) {
   try {
     const { userId, gatewayUserId, startTime, endTime, rankPage, rankPageSize, rankOrderBy, rankOrder } = req.query;
@@ -1636,28 +1690,7 @@ async function gatewayUsageStatisticsHandler(req, res) {
     // trend 改为逐日汇总，和 summary 用同一套 from/to + gwUserId 过滤 → 口径严格对齐
     // 区间为空或钻取用户但 gwUserId 映射失败 → trend 也不拉
     const needTrend = !rangeEmpty && (!Number.isFinite(uid) || !!gwUserId);
-    const [statsRes, trendRes] = await Promise.all([
-      needStats
-        // 管理域限流（503 management_api_busy）会让主汇总在几十毫秒内直接失败，
-        // 把整个统计接口打成 502 → 前端误报「尚未配置」。这里必须带退避重试：
-        // 页面一次加载并发主/升序两路请求 + 趋势逐日调用，撞限流是常态而非异常。
-        ? withBusyRetry(() => gw.getUsageStatistics({
-            ...(from ? { from: from.toISOString() } : {}),
-            ...(to ? { to: to.toISOString() } : {}),
-            ...(gwUserId ? { userId: gwUserId } : {}),
-          }), {
-            maxRetry: 5,
-            baseMs: 300,
-            onRetry: (e, attempt) => console.warn(`[gateway-stats] 主汇总第 ${attempt} 次重试: ${e.message}`),
-          })
-        : Promise.resolve(null),
-      needTrend
-        ? buildDailyTrend(gw, from, to, gwUserId).catch(e => {
-            console.warn('网关逐日趋势拉取失败（不阻断统计）:', e.message);
-            return [];
-          })
-        : Promise.resolve([]),
-    ]);
+    const [statsRes, trendRes] = await fetchGwStatsCached(gw, { from, to, gwUserId, needStats, needTrend });
 
     const raw = statsRes || {};
     // 是否钻取了单用户（有 userId 且 gwUserId 映射成功）: trend 为全局视角, 需标记让前端知道
